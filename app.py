@@ -8,7 +8,7 @@ ALPACA_SECRET_KEY = 'KYfU5eXz4oMhcTdwouYEiDKfKElOoW2S034I4tSU'
 BASE_URL = 'https://paper-api.alpaca.markets'
 
 
-@app.route('/webhook', methods=['POST'])
+@app.route('/', methods=['POST'])
 def webhook():
 	data = request.json
 	symbol = data['symbol']
@@ -32,5 +32,6 @@ def webhook():
 
 
 	return {"status": "order sent", "response": r.json()}
+
 
 
