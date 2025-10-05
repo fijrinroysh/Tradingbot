@@ -27,4 +27,5 @@ def webhook():
         "APCA-API-SECRET-KEY": ALPACA_SECRET_KEY
     })
 
+
     return {"status": "order sent", "response": r.json()}
