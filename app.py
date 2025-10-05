@@ -22,6 +22,8 @@ def webhook():
 		"type": "market",
 		"time_in_force": "gtc"
 	}
+	print(symbol,)
+	print("Symbol:", symbol, "   qty:",  qty , "   side:",  side )
 
 	r = requests.post(f"{BASE_URL}/v2/orders", json=order, headers={
 		"APCA-API-KEY-ID": ALPACA_API_KEY,
@@ -30,3 +32,4 @@ def webhook():
 
 
 	return {"status": "order sent", "response": r.json()}
+
