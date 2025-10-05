@@ -3,9 +3,10 @@ import requests
 
 app = Flask(__name__)
 
-ALPACA_API_KEY = 'your_key'
-ALPACA_SECRET_KEY = 'your_secret'
-BASE_URL = 'https://paper-api.alpaca.markets'
+ALPACA_API_KEY = 'PKWMQDBXMMYIUO61F9X4'
+ALPACA_SECRET_KEY = 'KYfU5eXz4oMhcTdwouYEiDKfKElOoW2S034I4tSU'
+BASE_URL = 'https://paper-api.alpaca.markets/v2/account'
+
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
@@ -29,3 +30,4 @@ def webhook():
 
 
     return {"status": "order sent", "response": r.json()}
+
