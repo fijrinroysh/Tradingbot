@@ -7,7 +7,23 @@ ALPACA_API_KEY = 'PKWMQDBXMMYIUO61F9X4'
 ALPACA_SECRET_KEY = 'KYfU5eXz4oMhcTdwouYEiDKfKElOoW2S034I4tSU'
 BASE_URL = 'https://paper-api.alpaca.markets'
 
+# ----------------------------------------------------
+# This route for the health check ✅
+# ----------------------------------------------------
+@app.route('/health')
+def health_check():
+    """
+    This endpoint is used by keep-alive services like UptimeRobot
+    to confirm the app is running.
+    """
+    # Returns a JSON response with a 200 OK status
+    return jsonify(status="ok"), 200
+# ----------------------------------------------------
 
+
+# ----------------------------------------------------
+# This route is to place orders with ALPACA✅
+# ----------------------------------------------------
 @app.route('/', methods=['POST'])
 def webhook():
 	data = request.json
@@ -32,6 +48,7 @@ def webhook():
 
 
 	return {"status": "order sent", "response": r.json()}
+
 
 
 
