@@ -1,31 +1,35 @@
 # alpaca_trader.py
 from alpaca.trading.client import TradingClient
-from alpaca.trading.requests import MarketOrderRequest
+# --- UPDATED IMPORTS ---
+from alpaca.trading.requests import MarketOrderRequest, NotionalMarketOrderRequest
 from alpaca.trading.enums import OrderSide, TimeInForce
+# ---
 from alpaca.common.exceptions import APIError
-import config  # Import our keys
+import config
 
-# Initialize the Alpaca client once when the file is imported
+# (Your connection code is perfect and does not change)
 try:
     trading_client = TradingClient(
         config.ALPACA_KEY_ID, 
         config.ALPACA_SECRET_KEY, 
-        paper=True  # Set to False for live trading
+        paper=True
     )
     print("Alpaca Trader: Connected to paper trading account.")
 except Exception as e:
     print(f"Alpaca Trader: Error connecting to Alpaca: {e}")
     trading_client = None
 
+
 def place_buy_order(ticker, quantity):
     """
-    Submits a market BUY order to Alpaca.
+    (Webhook Function)
+    Submits a market BUY order for a specific quantity.
     """
     if not trading_client:
         print("Alpaca Trader: Cannot trade, client not connected.")
         return
 
-    print(f"Alpaca Trader: Submitting BUY order for {quantity} of {ticker}.")
+    print(f"Alpaca Trader (Qty): Submitting BUY order for {quantity} of {ticker}.")
     try:
         market_order_data = MarketOrderRequest(
             symbol=ticker,
@@ -34,23 +38,46 @@ def place_buy_order(ticker, quantity):
             time_in_force=TimeInForce.DAY
         )
         buy_order = trading_client.submit_order(order_data=market_order_data)
-        print(f"Alpaca Trader: BUY order submitted. Order ID: {buy_order.id}")
+        print(f"Alpaca Trader (Qty): BUY order submitted. Order ID: {buy_order.id}")
     except APIError as e:
-        print(f"Alpaca Trader: Error placing BUY order: {e}")
-    except Exception as e:
-        print(f"Alpaca Trader: An unknown error occurred during buy: {e}")
+        print(f"Alpaca Trader (Qty): Error placing BUY order: {e}")
 
-# --- NEW FUNCTION ---
-def place_sell_order(ticker, quantity):
+# --- NEW FUNCTION FOR SENTIMENT BOT ---
+def place_notional_buy_order(ticker, trade_value):
     """
-    Submits a market SELL order for a specific quantity.
-    This will create a short position if you have no long position.
+    (Sentiment Function)
+    Submits a 'notional' (dollar amount) market BUY order.
     """
     if not trading_client:
         print("Alpaca Trader: Cannot trade, client not connected.")
         return
 
-    print(f"Alpaca Trader: Submitting SELL order for {quantity} of {ticker}.")
+    print(f"Alpaca Trader (Notional): Submitting BUY order for ${trade_value} of {ticker}.")
+    try:
+        # Use NotionalMarketOrderRequest to buy by dollar amount
+        notional_order_data = NotionalMarketOrderRequest(
+            symbol=ticker,
+            notional=trade_value, # The dollar amount you want to buy
+            side=OrderSide.BUY,
+            time_in_force=TimeInForce.DAY
+        )
+        buy_order = trading_client.submit_order(order_data=notional_order_data)
+        print(f"Alpaca Trader (Notional): BUY order submitted. Order ID: {buy_order.id}")
+    except APIError as e:
+        print(f"Alpaca Trader (Notional): Error placing BUY order: {e}")
+# --- END NEW FUNCTION ---
+
+
+def place_sell_order(ticker, quantity):
+    """
+    (Webhook Function)
+    Submits a market SELL order for a specific quantity.
+    """
+    if not trading_client:
+        print("Alpaca Trader: Cannot trade, client not connected.")
+        return
+
+    print(f"Alpaca Trader (Qty): Submitting SELL order for {quantity} of {ticker}.")
     try:
         market_order_data = MarketOrderRequest(
             symbol=ticker,
@@ -59,32 +86,25 @@ def place_sell_order(ticker, quantity):
             time_in_force=TimeInForce.DAY
         )
         sell_order = trading_client.submit_order(order_data=market_order_data)
-        print(f"Alpaca Trader: SELL order submitted. Order ID: {sell_order.id}")
+        print(f"Alpaca Trader (Qty): SELL order submitted. Order ID: {sell_order.id}")
     except APIError as e:
-        print(f"Alpaca Trader: Error placing SELL order: {e}")
-    except Exception as e:
-        print(f"Alpaca Trader: An unknown error occurred during sell: {e}")
-# --- END NEW FUNCTION ---
-
+        print(f"Alpaca Trader (Qty): Error placing SELL order: {e}")
 
 def close_existing_position(ticker):
     """
+    (Shared Function)
     Submits a SELL order to liquidate the entire position for a ticker.
     """
     if not trading_client:
         print("Alpaca Trader: Cannot trade, client not connected.")
         return
 
-    print(f"Alpaca Trader: Submitting CLOSE order for all shares of {ticker}.")
+    print(f"Alpaca Trader (Close): Submitting CLOSE order for all shares of {ticker}.")
     try:
-        # This one command liquidates the entire position
         trading_client.close_position(ticker)
-        print(f"Alpaca Trader: CLOSE position order submitted for {ticker}.")
+        print(f"Alpaca Trader (Close): CLOSE position order submitted for {ticker}.")
     except APIError as e:
-        # This error is expected if you have no position to sell.
         if "position not found" in str(e).lower():
-            print(f"Alpaca Trader: No position to close for {ticker}.")
+            print(f"Alpaca Trader (Close): No position to close for {ticker}.")
         else:
-            print(f"Alpaca Trader: Error closing position: {e}")
-    except Exception as e:
-        print(f"Alpaca Trader: An unknown error occurred during close: {e}")
+            print(f"Alpaca Trader (Close): Error closing position: {e}")
