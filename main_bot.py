@@ -1,4 +1,4 @@
-from flask import Flask
+from flask import Flask, jsonify
 import sentiment_analyzer
 import alpaca_trader
 
