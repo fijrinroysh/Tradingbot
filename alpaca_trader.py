@@ -40,6 +40,33 @@ def place_buy_order(ticker, quantity):
     except Exception as e:
         print(f"Alpaca Trader: An unknown error occurred during buy: {e}")
 
+# --- NEW FUNCTION ---
+def place_sell_order(ticker, quantity):
+    """
+    Submits a market SELL order for a specific quantity.
+    This will create a short position if you have no long position.
+    """
+    if not trading_client:
+        print("Alpaca Trader: Cannot trade, client not connected.")
+        return
+
+    print(f"Alpaca Trader: Submitting SELL order for {quantity} of {ticker}.")
+    try:
+        market_order_data = MarketOrderRequest(
+            symbol=ticker,
+            qty=quantity,
+            side=OrderSide.SELL,
+            time_in_force=TimeInForce.DAY
+        )
+        sell_order = trading_client.submit_order(order_data=market_order_data)
+        print(f"Alpaca Trader: SELL order submitted. Order ID: {sell_order.id}")
+    except APIError as e:
+        print(f"Alpaca Trader: Error placing SELL order: {e}")
+    except Exception as e:
+        print(f"Alpaca Trader: An unknown error occurred during sell: {e}")
+# --- END NEW FUNCTION ---
+
+
 def close_existing_position(ticker):
     """
     Submits a SELL order to liquidate the entire position for a ticker.
