@@ -1,13 +1,14 @@
 # alpaca_trader.py
 from alpaca.trading.client import TradingClient
 # --- UPDATED IMPORTS ---
-from alpaca.trading.requests import MarketOrderRequest, NotionalMarketOrderRequest
+# We only need MarketOrderRequest
+from alpaca.trading.requests import MarketOrderRequest 
 from alpaca.trading.enums import OrderSide, TimeInForce
 # ---
 from alpaca.common.exceptions import APIError
 import config
 
-# (Your connection code is perfect and does not change)
+# (Connection code is unchanged)
 try:
     trading_client = TradingClient(
         config.ALPACA_KEY_ID, 
@@ -42,7 +43,7 @@ def place_buy_order(ticker, quantity):
     except APIError as e:
         print(f"Alpaca Trader (Qty): Error placing BUY order: {e}")
 
-# --- NEW FUNCTION FOR SENTIMENT BOT ---
+# --- UPDATED FUNCTION ---
 def place_notional_buy_order(ticker, trade_value):
     """
     (Sentiment Function)
@@ -54,18 +55,21 @@ def place_notional_buy_order(ticker, trade_value):
 
     print(f"Alpaca Trader (Notional): Submitting BUY order for ${trade_value} of {ticker}.")
     try:
-        # Use NotionalMarketOrderRequest to buy by dollar amount
-        notional_order_data = NotionalMarketOrderRequest(
+        # --- THIS IS THE FIX ---
+        # We use MarketOrderRequest and pass the 'notional' parameter.
+        notional_order_data = MarketOrderRequest(
             symbol=ticker,
             notional=trade_value, # The dollar amount you want to buy
             side=OrderSide.BUY,
             time_in_force=TimeInForce.DAY
         )
+        # --- END OF FIX ---
+        
         buy_order = trading_client.submit_order(order_data=notional_order_data)
         print(f"Alpaca Trader (Notional): BUY order submitted. Order ID: {buy_order.id}")
     except APIError as e:
         print(f"Alpaca Trader (Notional): Error placing BUY order: {e}")
-# --- END NEW FUNCTION ---
+# --- END UPDATED FUNCTION ---
 
 
 def place_sell_order(ticker, quantity):
@@ -90,6 +94,7 @@ def place_sell_order(ticker, quantity):
     except APIError as e:
         print(f"Alpaca Trader (Qty): Error placing SELL order: {e}")
 
+# (close_existing_position function is unchanged)
 def close_existing_position(ticker):
     """
     (Shared Function)

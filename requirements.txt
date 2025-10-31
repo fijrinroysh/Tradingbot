@@ -3,3 +3,4 @@ requests
 gunicorn
 vaderSentiment
 alpaca-py
+threading

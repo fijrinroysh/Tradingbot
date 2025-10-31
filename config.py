@@ -18,3 +18,7 @@ SENTIMENT_TICKERS = ["AAPL", "MSFT", "GOOG", "TSLA"]
 # For example, you might want to trade $100 worth of each
 # (Alpaca supports fractional shares)
 SENTIMENT_TRADE_VALUE = 100 # This is in dollars
+
+MIN_SENTIMENT_SCORE = 0.15  # How positive the news must be to buy
+MAX_SENTIMENT_SCORE = -0.15 # How negative the news must be to sell
+# --- END OF FIX ---
