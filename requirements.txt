@@ -1,3 +1,5 @@
 flask
 requests
 gunicorn
+vaderSentiment
+alpaca-py
