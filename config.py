@@ -12,8 +12,8 @@ TRADINGVIEW_SECRET = "IAMIRONMAN"
 
 # 4. SCALABLE SENTIMENT SETTINGS (NEW)
 # Add any tickers you want to the list below
-#SENTIMENT_TICKERS = ["AAPL", "MSFT", "GOOG", "TSLA", "AMZN", "META", "NFLX",  "NVDA", "VOO"]
-SENTIMENT_TICKERS = ["INFY"]
+SENTIMENT_TICKERS = ["AAPL", "MSFT", "GOOG", "TSLA", "AMZN", "META", "NFLX",  "NVDA", "VOO"]
+#SENTIMENT_TICKERS = ["INFY"]
  
 # Define the quantity to trade for EACH ticker
 # For example, you might want to trade $100 worth of each
