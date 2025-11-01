@@ -1,7 +1,6 @@
 # alpaca_trader.py
 from alpaca.trading.client import TradingClient
-# --- UPDATED IMPORTS ---
-# We only need MarketOrderRequest
+
 from alpaca.trading.requests import MarketOrderRequest 
 from alpaca.trading.enums import OrderSide, TimeInForce
 # ---

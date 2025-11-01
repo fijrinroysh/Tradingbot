@@ -1,6 +1,7 @@
 # (All your imports and Blueprint setup are unchanged)
 from flask import Blueprint, jsonify, request
 import sentiment_analyzer
+#import finbert_analyzer as sentiment_analyzer
 import alpaca_trader
 import threading
 import config
@@ -82,39 +83,51 @@ def trigger_sentiment_bot():
 # This route continues to work as-is, calling
 # place_buy_order() and place_sell_order()
 # ----------------------------------------------------
+
 def process_webhook_trade(trade_data):
     """
-    (This code is unchanged)
+    Parses webhook data AND checks sentiment before trading.
     """
-    if not trade_data:
-        print("Webhook Thread: ERROR! No JSON data received.")
-        return
-
+    # 1. SECURITY CHECK (Unchanged)
     if trade_data.get("secret") != config.TRADINGVIEW_SECRET:
         print(f"Webhook Thread: SECURITY ALERT! Invalid secret. Ignoring trade.")
         return
 
+    # 2. DATA VALIDATION (Unchanged)
     try:
         action = trade_data.get("action", "").upper()
         ticker = trade_data.get("symbol", "").upper()
         quantity = float(trade_data.get("qty"))
-        
-        if not action or not ticker or not quantity:
-            raise ValueError("Missing action, symbol, or qty")
-            
     except Exception as e:
         print(f"Webhook Thread: ERROR! Invalid/Missing data in JSON. Error: {e}")
         return
 
-    print(f"Webhook Thread: Validated trade: {action} {quantity} {ticker}")
+    print(f"Webhook Thread: Validated signal: {action} {quantity} {ticker}")
+
+    # --- 3. NEW CONFIRMATION STEP ---
+    print(f"Webhook Thread: Checking sentiment for {ticker} as a filter...")
+    sentiment_score = sentiment_analyzer.get_summary_score(ticker)
+    print(f"Webhook Thread: Sentiment score for {ticker} is {sentiment_score:.4f}")
+
+    # 4. TRADING LOGIC WITH FILTER
     if action == "BUY":
-        alpaca_trader.place_buy_order(ticker, quantity) # Calls the original qty function
+        # Only buy if sentiment is NOT negative
+        if sentiment_score > -0.10: 
+            print(f"Webhook Thread: Sentiment is positive/neutral. Confirming BUY.")
+            alpaca_trader.place_buy_order(ticker, quantity)
+        else:
+            print(f"Webhook Thread: Sentiment is negative. VETOING BUY signal.")
+            
     elif action == "SELL":
-        alpaca_trader.place_sell_order(ticker, quantity) # Calls the original qty function
+        # Only sell if sentiment is NOT positive
+        if sentiment_score < 0.10:
+            print(f"Webhook Thread: Sentiment is negative/neutral. Confirming SELL.")
+            alpaca_trader.place_sell_order(ticker, quantity)
+        else:
+            print(f"Webhook Thread: Sentiment is positive. VETOING SELL signal.")
+    
     elif action == "CLOSE":
         alpaca_trader.close_existing_position(ticker)
-    else:
-        print(f"Webhook Thread: Received unknown action: '{action}'. Ignoring.")
 
 @main_routes.route('/webhook', methods=['POST'])
 def handle_tradingview_webhook():

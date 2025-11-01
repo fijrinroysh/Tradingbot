@@ -3,3 +3,7 @@ requests
 gunicorn
 vaderSentiment
 alpaca-py
+#Needed for Finbert
+#torch
+#transformers
+#backtesting

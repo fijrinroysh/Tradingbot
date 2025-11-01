@@ -12,13 +12,14 @@ TRADINGVIEW_SECRET = "IAMIRONMAN"
 
 # 4. SCALABLE SENTIMENT SETTINGS (NEW)
 # Add any tickers you want to the list below
-SENTIMENT_TICKERS = ["AAPL", "MSFT", "GOOG", "TSLA"]
-
+#SENTIMENT_TICKERS = ["AAPL", "MSFT", "GOOG", "TSLA", "AMZN", "META", "NFLX",  "NVDA", "VOO"]
+SENTIMENT_TICKERS = ["INFY"]
+ 
 # Define the quantity to trade for EACH ticker
 # For example, you might want to trade $100 worth of each
 # (Alpaca supports fractional shares)
 SENTIMENT_TRADE_VALUE = 100 # This is in dollars
 
-MIN_SENTIMENT_SCORE = 0.15  # How positive the news must be to buy
-MAX_SENTIMENT_SCORE = -0.15 # How negative the news must be to sell
+MIN_SENTIMENT_SCORE = 0.2  # How positive the news must be to buy
+MAX_SENTIMENT_SCORE = -0.2 # How negative the news must be to sell
 # --- END OF FIX ---
