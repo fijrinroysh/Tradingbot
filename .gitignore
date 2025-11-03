@@ -2,7 +2,7 @@
 backtesting/
 
 # Ignore the heavy FinBERT analyzer
-finbert_analyzer.py
+lib/finbert_analyzer.py
 
 # Ignore Python cache and environment files
 __pycache__/

@@ -1,10 +1,19 @@
 # (All your imports and Blueprint setup are unchanged)
 from flask import Blueprint, jsonify, request
-import sentiment_analyzer
+import lib.sentiment_analyzer as sentiment_analyzer
 #import finbert_analyzer as sentiment_analyzer
 import alpaca_trader
 import threading
 import config
+
+
+import sys, os # <-- IMPORT
+
+# --- ADD THIS BLOCK ---
+# This adds the root folder to the path, so we can "see" the lib/ folder
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from lib.sentiment_analyzer import get_summary_score, analyze_vader
+# --- END OF BLOCK ---
 
 main_routes = Blueprint('main_routes', __name__)
 

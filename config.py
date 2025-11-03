@@ -10,6 +10,12 @@ ALPACA_SECRET_KEY = "KYfU5eXz4oMhcTdwouYEiDKfKElOoW2S034I4tSU"
 TRADINGVIEW_SECRET = "IAMIRONMAN"
 
 
+
+# 4. FINNHUB API KEY (for backtesting)
+FINNHUB_KEY = "d43pmk1r01qge0cuufvgd43pmk1r01qge0cuug00"
+# ---
+
+
 # 4. SCALABLE SENTIMENT SETTINGS (NEW)
 # Add any tickers you want to the list below
 SENTIMENT_TICKERS = ["AAPL", "MSFT", "GOOG", "TSLA", "AMZN", "META", "NFLX",  "NVDA", "VOO"]
@@ -20,6 +26,5 @@ SENTIMENT_TICKERS = ["AAPL", "MSFT", "GOOG", "TSLA", "AMZN", "META", "NFLX",  "N
 # (Alpaca supports fractional shares)
 SENTIMENT_TRADE_VALUE = 100 # This is in dollars
 
-MIN_SENTIMENT_SCORE = 0.2  # How positive the news must be to buy
-MAX_SENTIMENT_SCORE = -0.2 # How negative the news must be to sell
-# --- END OF FIX ---
+MIN_SENTIMENT_SCORE = 0.3  # How positive the news must be to buy
+MAX_SENTIMENT_SCORE = -0.3 # How negative the news must be to sell
