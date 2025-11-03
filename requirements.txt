@@ -3,6 +3,7 @@ requests
 gunicorn
 vaderSentiment
 alpaca-py
+finnhub-python
 
 #Needed for Finbert
 #torch
@@ -10,8 +11,7 @@ alpaca-py
 #Needed for Backtesting
 #backtesting
 
-#Needed for Finnhub API
-#finnhub-python
+
 #matplotlib
 
 #polygon-python-client
