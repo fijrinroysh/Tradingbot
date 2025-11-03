@@ -15,6 +15,9 @@ TRADINGVIEW_SECRET = "IAMIRONMAN"
 FINNHUB_KEY = "d43pmk1r01qge0cuufvgd43pmk1r01qge0cuug00"
 # ---
 
+# 5. POLYGON API KEY (for backtesting)
+POLYGON_API_KEY = "Qm7GVhYIJmQ6gTaMO5TPsSYLVh_BLMPc"
+
 
 # 4. SCALABLE SENTIMENT SETTINGS (NEW)
 # Add any tickers you want to the list below

@@ -13,3 +13,5 @@ alpaca-py
 #Needed for Finnhub API
 #finnhub-python
 #matplotlib
+
+#polygon-python-client
