@@ -75,10 +75,10 @@ def run_good_value_quick_money_scan():
 
     # --- THIS IS THE FIX ---
     # Check if market is open BEFORE doing anything else.
-    if not gv_trader.is_market_open():
-        print("💤 Market is closed. Skipping scan to save API credits.")
-        print("="*60 + "\n")
-        return
+    #if not gv_trader.is_market_open():
+    #    print("💤 Market is closed. Skipping scan to save API credits.")
+    #    print("="*60 + "\n")
+    #    return
     # --- END OF FIX ---
     
     try:
