@@ -8,3 +8,7 @@ lib/finbert_analyzer.py
 __pycache__/
 *.pyc
 .venv/
+
+# Ignore cached data files
+backtesting/cache/
+# ---

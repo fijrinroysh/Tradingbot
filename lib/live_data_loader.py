@@ -84,3 +84,48 @@ def get_24h_summary_score_finnhub(ticker):
     except Exception as e:
         print(f"Sentiment Analyzer (Finnhub 24h): Error fetching/analyzing news: {e}")
         return 0.0
+    
+    # --- NEW FUNCTION FOR LIVE BOT ---
+def get_24h_summary_score_gemini(ticker):
+    """
+    Fetches last 24h news from Finnhub and scores it using GOOGLE GEMINI.
+    """
+    print(f"Live Loader (Gemini): Fetching news for {ticker}...")
+    try:
+        finnhub_client = finnhub.Client(api_key=config.FINNHUB_KEY)
+        
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=1)
+        
+        start_str = start_date.strftime("%Y-%m-%d")
+        end_str = end_date.strftime("%Y-%m-%d")
+        
+        news_list = finnhub_client.company_news(ticker, _from=start_str, to=end_str)
+        print(f"Live Loader: Fetched {len(news_list)} articles.")
+        
+        if not news_list:
+            print("Live Loader: No articles found.")
+            return 0.0
+
+        # 1. Prepare the list of text summaries
+        text_list = []
+        for article in news_list:
+            # Combine headline + summary for better context
+            headline = article.get('headline', '')
+            summary = article.get('summary', '')
+            full_text = f"{headline}. {summary}"
+            text_list.append(full_text)
+
+        # 2. Send the WHOLE list to Gemini (it handles batching internally)
+        scores = analyze_text_gemini(text_list)
+        
+        # 3. Calculate average
+        if scores:
+            final_score = sum(scores) / len(scores)
+            return final_score
+        else:
+            return 0.0
+
+    except Exception as e:
+        print(f"Live Loader (Gemini): Error fetching/analyzing news: {e}")
+        return 0.0

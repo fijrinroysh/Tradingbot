@@ -14,4 +14,9 @@ finnhub-python
 
 #matplotlib
 
-#polygon-python-client
+
+#Needed for XGBoost strategy
+#xgboost 
+#scikit-learn 
+#pandas-ta
+google-generativeai

@@ -9,10 +9,17 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(SCRIPT_DIR)
 sys.path.append(parent_dir)
 
+# Import the modules for the "Good Value Quick Money" Strategy
+# --- UPDATED IMPORTS ---
+from lib.good_value_quick_money_market_scanner import find_distressed_stocks
+from lib.good_value_quick_money_history_manager import filter_candidates, mark_as_analyzed
+from lib.good_value_quick_money_gemini_agent import analyze_stock
+
+
 # --- Import our project modules ---
 import alpaca_trader
 # Import the functions from our clean, live-data loader
-from lib.live_data_loader import get_24h_summary_score_finnhub
+from lib.live_data_loader import  get_24h_summary_score_gemini
 
 main_routes = Blueprint('main_routes', __name__)
 
@@ -41,7 +48,7 @@ def run_daily_sentiment_bot():
     for ticker in config.SENTIMENT_TICKERS:
         try:
             # Get the 24-hour summary score from Finnhub
-            score = get_24h_summary_score_finnhub(ticker)
+            score = get_24h_summary_score_gemini(ticker)
             
             print(f"--- [DAILY BOT: {ticker}] Score: {score:.4f} ---")
 
@@ -57,14 +64,14 @@ def run_daily_sentiment_bot():
             else:
                 print(f"--- [DAILY BOT: {ticker}] Decision: NEUTRAL. Holding. ---")
             
-            # Sleep 1 sec to avoid Finnhub's 60-call/min rate limit
-            time.sleep(1) 
+            # To respect API rate limits
+            time.sleep(2) 
 
         except Exception as e:
             print(f"--- [DAILY BOT: {ticker}] CRITICAL ERROR for this ticker: {e} ---")
             # Continue to the next ticker
 
-@main_routes.route('/tradingbot')
+@main_routes.route('/sentimentbot')
 def trigger_sentiment_bot():
     """
     This is the main endpoint for your daily UptimeRobot scheduler.
@@ -102,10 +109,11 @@ def process_webhook_trade(trade_data):
         print(f"Webhook Thread: Validated signal: {action} {quantity} {ticker}")
 
         # 3. SENTIMENT CONFIRMATION STEP (Now uses Finnhub)
-        print(f"Webhook Thread: Checking 24-hour sentiment for {ticker} as a filter...")
-        sentiment_score = get_24h_summary_score_finnhub(ticker)
-        print(f"Webhook Thread: Sentiment score for {ticker} is {sentiment_score:.4f}")
-
+        # --- UPDATE: Use Gemini for Confirmation ---
+        print(f"Webhook Thread: Checking Gemini sentiment for {ticker}...")
+        sentiment_score = get_24h_summary_score_gemini(ticker)
+        print(f"Webhook Thread: Gemini Score: {sentiment_score:.4f}")
+        # -------------------------------------------
         # 4. TRADING LOGIC WITH FILTER
         if action == "BUY":
             # Only buy if sentiment is NOT negative
@@ -152,6 +160,68 @@ def handle_tradingview_webhook():
         print(f"Error in /webhook route (data was not JSON?): {e}")
         return jsonify(status="error", message=str(e)), 400
 
+
+
+
+# ----------------------------------------------------
+# ROUTE 4: AI HEDGE FUND SCAN
+# ----------------------------------------------------
+def run_hedge_fund_scan():
+    print("--- [HEDGE FUND BOT] Starting Daily Scan ---")
+    
+    # 1. Find targets
+    candidates = find_distressed_stocks()
+    if not candidates: return
+
+    # 2. Filter History
+    # USE CONFIG HERE
+    to_analyze = filter_candidates(candidates, config.DAILY_SCAN_LIMIT)
+    
+    if not to_analyze:
+        print("[Hedge Fund Bot] No fresh candidates.")
+        return
+
+    print(f"[Hedge Fund Bot] Analyzing {len(to_analyze)} tickers...")
+    
+    # 3. Analyze & Trade
+    for ticker in to_analyze:
+        result = analyze_stock(ticker)
+        mark_as_analyzed(ticker)
+        
+        if result:
+            # ... (Check Action/Status/Confidence) ...
+            action = result.get('action')
+            status = result.get('status')
+            conf = result.get('confidence')
+            
+            if action == "BUY" and status == "SAFE" and conf == "HIGH":
+                print(f"*** HIGH CONVICTION BUY: {ticker} ***")
+                
+                exec_plan = result.get('execution', {})
+                
+                # USE CONFIG HERE
+                alpaca_trader.place_smart_trade(
+                    ticker, 
+                    config.INVEST_PER_TRADE, # <-- New Setting
+                    exec_plan.get('buy_limit'),
+                    exec_plan.get('take_profit'),
+                    exec_plan.get('stop_loss')
+                )
+        
+        time.sleep(5)
+        
+    print("--- [HEDGE FUND BOT] Daily Scan Complete ---")
+
+
+@main_routes.route('/tradingbot')
+def trigger_hedge_fund_scan():
+    """
+    Triggered by UptimeRobot once per day (e.g., at 9:45 AM).
+    """
+    print("--- /daily_scan route hit! Starting background job... ---")
+    thread = threading.Thread(target=run_hedge_fund_scan)
+    thread.start()
+    return jsonify(status="hedge_fund_scan_started"), 202
 # ----------------------------------------------------
 # This makes the server run (when run locally)
 if __name__ == "__main__":
