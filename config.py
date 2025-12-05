@@ -41,6 +41,8 @@ POLYGON_API_KEY = "Qm7GVhYIJmQ6gTaMO5TPsSYLVh_BLMPc"
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") # <-- This is now safe
 # --- GEMINI SETTINGS (Pro Model) ---
 # We use the stable 2.5 Pro model from your list
+
+
 GEMINI_MODEL_NAME = "models/gemini-2.5-pro"
 
 # Pro limits are stricter (50/day), so we maximise the batch size
@@ -52,10 +54,14 @@ GEMINI_MAX_BATCH_TOKENS = 30_000 # Pro has a huge context window, so we use it
 
 # --- HEDGE FUND BOT SETTINGS ---
 # Max Gemini calls to use for the daily scan (keep < 50 for free tier)
-DAILY_SCAN_LIMIT = 1 
+
+ 
+
+DAILY_SCAN_LIMIT = os.getenv("DAILY_SCAN_LIMIT") 
 
 # Dollar amount to invest in each "High Conviction" Buy
-INVEST_PER_TRADE = 2000
+INVEST_PER_TRADE = os.getenv("INVEST_PER_TRADE") 
+
 
 
 # 4. SCALABLE SENTIMENT SETTINGS (NEW)

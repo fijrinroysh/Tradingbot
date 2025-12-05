@@ -8,7 +8,7 @@ def get_sp500_tickers():
     Fetches the current S&P 500 tickers from Wikipedia.
     Includes a fallback list and fixes formatting (BRK.B -> BRK-B).
     """
-    url = '-https://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
+    url = 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
     fallback = ['UNH' ]
     
     try:
