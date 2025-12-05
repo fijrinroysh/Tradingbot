@@ -12,14 +12,13 @@ if hasattr(config, 'GEMINI_API_KEY'):
 MODEL_NAME = getattr(config, 'GEMINI_MODEL_NAME', "models/gemini-2.5-pro")
 # -----------------------------
 
-# Configure Search Tool
+
+# Instead of using the unstable 'types' classes, we use a dictionary.
+# This tells Gemini to enable the Google Search tool.
 tools = [
-    types.Tool(
-        google_search_retrieval=types.GoogleSearchRetrieval(
-            disable_attribution=False
-        )
-    )
+    {'google_search': {}}
 ]
+# --- END OF FIX ---
 
 model = genai.GenerativeModel(MODEL_NAME, tools=tools)
 

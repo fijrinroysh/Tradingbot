@@ -20,3 +20,4 @@ finnhub-python
 #scikit-learn 
 #pandas-ta
 google-generativeai
+yfinance

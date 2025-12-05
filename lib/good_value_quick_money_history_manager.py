@@ -5,7 +5,7 @@ from datetime import datetime
 
 # Use a specific history file for this strategy
 HISTORY_FILE = "good_value_quick_money_history.json"
-COOLDOWN_DAYS = 7 
+COOLDOWN_DAYS = 25 
 
 def load_history():
     if os.path.exists(HISTORY_FILE):
