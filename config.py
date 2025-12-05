@@ -55,12 +55,12 @@ GEMINI_MAX_BATCH_TOKENS = 30_000 # Pro has a huge context window, so we use it
 # --- HEDGE FUND BOT SETTINGS ---
 # Max Gemini calls to use for the daily scan (keep < 50 for free tier)
 
- 
-
-DAILY_SCAN_LIMIT = os.getenv("DAILY_SCAN_LIMIT") 
+DAILY_SCAN_LIMIT = int(os.getenv("DAILY_SCAN_LIMIT", 1))
 
 # Dollar amount to invest in each "High Conviction" Buy
-INVEST_PER_TRADE = os.getenv("INVEST_PER_TRADE") 
+INVEST_PER_TRADE = int(os.getenv("INVEST_PER_TRADE", 10))
+
+
 
 
 

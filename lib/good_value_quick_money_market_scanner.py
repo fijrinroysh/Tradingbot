@@ -6,7 +6,7 @@ import io
 def get_sp500_tickers():
     """
     Fetches the current S&P 500 tickers from Wikipedia.
-    Includes a fallback list and fixes formatting (BRK.B -> BRK-B).
+    Includes a fallback list.
     """
     url = 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
     fallback = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'NVDA', 'META', 'AMD', 'INTC', 'PYPL']
@@ -22,9 +22,6 @@ def get_sp500_tickers():
         table = pd.read_html(io.StringIO(response.text))
         tickers = table[0]['Symbol'].tolist()
         
-        # Fix tickers for Yahoo Finance (Change . to -)
-        tickers = [t.replace('.', '-') for t in tickers]
-        
         return tickers
 
     except Exception as e:
@@ -38,22 +35,26 @@ def find_distressed_stocks():
     print("Scanner: Fetching S&P 500 tickers...")
     tickers = get_sp500_tickers()
     
+    # --- FIX 1: Ensure tickers are Yahoo-compatible (BRK.B -> BRK-B) ---
+    tickers = [t.replace('.', '-') for t in tickers]
+    # -------------------------------------------------------------------
+    
     distressed_candidates = []
     
     print(f"Scanner: Screening {len(tickers)} stocks for 250-SMA breakdown...")
     print("Scanner: Downloading data in bulk (this may take 1-3 minutes)...")
     
     try:
-        # --- THIS IS THE FIX ---
-        # Set threads=False to prevent "curl: (16) nghttp2" errors on Render
+        # --- FIX 2 & 3: Clean Logs and Fix Warnings ---
         data = yf.download(
             tickers, 
             period="2y", 
             interval="1d", 
-            progress=True, 
-            threads=False  # <-- DISABLED THREADING FOR STABILITY
+            progress=False,    # <--- Silence the progress bar spam
+            auto_adjust=True,  # <--- Fix the FutureWarning
+            threads=False      # <--- Keep disabled for Render stability
         )['Close']
-        # --- END OF FIX ---
+        # ----------------------------------------------
 
     except Exception as e:
         print(f"Scanner Critical Error: {e}")
