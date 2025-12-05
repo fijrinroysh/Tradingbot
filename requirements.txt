@@ -23,3 +23,5 @@ finnhub-python
 google-generativeai
 yfinance
 lxml
+gspread 
+oauth2client

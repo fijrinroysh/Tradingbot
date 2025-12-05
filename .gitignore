@@ -9,6 +9,7 @@ __pycache__/
 *.pyc
 .venv/
 .env
+google_credentials.json
 
 # Ignore cached data files
 backtesting/cache/

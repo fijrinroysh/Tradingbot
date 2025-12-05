@@ -9,7 +9,7 @@ def get_sp500_tickers():
     Includes a fallback list and fixes formatting (BRK.B -> BRK-B).
     """
     url = '-https://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
-    fallback = ['CRM' ]
+    fallback = ['UNH' ]
     
     try:
         # Use requests with a browser header to avoid 403 Forbidden errors
