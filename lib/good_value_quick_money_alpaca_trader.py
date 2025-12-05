@@ -12,6 +12,26 @@ from alpaca.data.requests import StockLatestQuoteRequest, StockLatestTradeReques
 trading_client = TradingClient(config.ALPACA_KEY_ID, config.ALPACA_SECRET_KEY, paper=True)
 data_client = StockHistoricalDataClient(config.ALPACA_KEY_ID, config.ALPACA_SECRET_KEY)
 
+
+# --- NEW FUNCTION: Market Status Check ---
+def is_market_open():
+    """
+    Checks if the US Stock Market is currently open (Regular Trading Hours).
+    Returns: True (Open) or False (Closed).
+    """
+    try:
+        clock = trading_client.get_clock()
+        if clock.is_open:
+            print(f"✅ [TRADER] Market is OPEN. (Next close: {clock.next_close})")
+            return True
+        else:
+            print(f"🛑 [TRADER] Market is CLOSED. (Next open: {clock.next_open})")
+            return False
+    except Exception as e:
+        print(f"⚠️ [TRADER] Error checking market clock: {e}")
+        # Fail-safe: If we can't check, assume CLOSED to prevent errors.
+        return False
+# -----------------------------------------
 def get_buying_power():
     """Returns available cash to trade."""
     try:
