@@ -52,7 +52,7 @@ def find_distressed_stocks():
             interval="1d", 
             progress=False,    # <--- Silence the progress bar spam
             auto_adjust=True,  # <--- Fix the FutureWarning
-            threads=False      # <--- Keep disabled for Render stability
+            threads=True      # <--- Keep disabled for Render stability
         )['Close']
         # ----------------------------------------------
 
