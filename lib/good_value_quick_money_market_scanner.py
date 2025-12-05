@@ -9,7 +9,7 @@ def get_sp500_tickers():
     Includes a fallback list and fixes formatting (BRK.B -> BRK-B).
     """
     url = 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
-    fallback = ['UNH' ]
+    fallback = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'NVDA', 'META', 'AMD', 'INTC', 'PYPL']
     
     try:
         # Use requests with a browser header to avoid 403 Forbidden errors
@@ -22,10 +22,8 @@ def get_sp500_tickers():
         table = pd.read_html(io.StringIO(response.text))
         tickers = table[0]['Symbol'].tolist()
         
-        # --- FIX: Replace dots with hyphens for Yahoo Finance ---
-        # Example: BRK.B -> BRK-B, BF.B -> BF-B
+        # Fix tickers for Yahoo Finance (Change . to -)
         tickers = [t.replace('.', '-') for t in tickers]
-        # -------------------------------------------------------
         
         return tickers
 
@@ -43,11 +41,20 @@ def find_distressed_stocks():
     distressed_candidates = []
     
     print(f"Scanner: Screening {len(tickers)} stocks for 250-SMA breakdown...")
-    print("Scanner: Downloading data in bulk (this may take 1-2 minutes)...")
+    print("Scanner: Downloading data in bulk (this may take 1-3 minutes)...")
     
     try:
-        # Download 2 years of data to ensure we have enough for 250 SMA
-        data = yf.download(tickers, period="2y", interval="1d", progress=True, threads=True)['Close']
+        # --- THIS IS THE FIX ---
+        # Set threads=False to prevent "curl: (16) nghttp2" errors on Render
+        data = yf.download(
+            tickers, 
+            period="2y", 
+            interval="1d", 
+            progress=True, 
+            threads=False  # <-- DISABLED THREADING FOR STABILITY
+        )['Close']
+        # --- END OF FIX ---
+
     except Exception as e:
         print(f"Scanner Critical Error: {e}")
         return []
