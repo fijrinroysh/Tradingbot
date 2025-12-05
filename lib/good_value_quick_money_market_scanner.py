@@ -1,15 +1,34 @@
-# lib/good_value_quick_money_market_scanner.py
 import yfinance as yf
 import pandas as pd
+import requests
+import io
 
 def get_sp500_tickers():
-    """Fetches S&P 500 tickers."""
-    url = 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
-    fallback = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'NVDA', 'META', 'AMD', 'INTC', 'PYPL']
+    """
+    Fetches the current S&P 500 tickers from Wikipedia.
+    Includes a fallback list and fixes formatting (BRK.B -> BRK-B).
+    """
+    url = '-https://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
+    fallback = ['CRM' ]
     
     try:
-        table = pd.read_html(url)
-        return table[0]['Symbol'].tolist()
+        # Use requests with a browser header to avoid 403 Forbidden errors
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+        }
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        
+        table = pd.read_html(io.StringIO(response.text))
+        tickers = table[0]['Symbol'].tolist()
+        
+        # --- FIX: Replace dots with hyphens for Yahoo Finance ---
+        # Example: BRK.B -> BRK-B, BF.B -> BF-B
+        tickers = [t.replace('.', '-') for t in tickers]
+        # -------------------------------------------------------
+        
+        return tickers
+
     except Exception as e:
         print(f"Scanner: Error fetching S&P 500 list ({e}). Using fallback.")
         return fallback
@@ -37,6 +56,7 @@ def find_distressed_stocks():
     
     for ticker in tickers:
         try:
+            # Handle case where bulk download might miss a column
             if ticker not in data.columns:
                 continue
                 

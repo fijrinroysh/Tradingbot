@@ -2,9 +2,12 @@ import config
 from alpaca.trading.client import TradingClient
 from alpaca.trading.requests import MarketOrderRequest, LimitOrderRequest, TakeProfitRequest, StopLossRequest
 from alpaca.trading.enums import OrderSide, TimeInForce, OrderClass
+from alpaca.data.historical import StockHistoricalDataClient
+from alpaca.data.requests import StockLatestQuoteRequest
 
 # Initialize the client
 trading_client = TradingClient(config.ALPACA_KEY_ID, config.ALPACA_SECRET_KEY, paper=True)
+data_client = StockHistoricalDataClient(config.ALPACA_KEY_ID, config.ALPACA_SECRET_KEY)
 
 def get_buying_power():
     """Returns available cash to trade."""
@@ -79,6 +82,23 @@ def place_smart_trade(ticker, investment_amount, buy_limit, take_profit, stop_lo
     except Exception as e:
         print(f"❌ TRADER FAILED: {e}")
         return None
+
+
+def get_current_price(ticker):
+    """
+    Fetches the absolute latest real-time price (Ask Price) from Alpaca.
+    This ensures we never trade on old data.
+    """
+    try:
+        req = StockLatestQuoteRequest(symbol_or_symbols=ticker)
+        res = data_client.get_stock_latest_quote(req)
+        quote = res[ticker]
+        # Use ask_price for buying (conservative), or calculate mid-point
+        return float(quote.ask_price)
+    except Exception as e:
+        print(f"TRADER ERROR: Could not fetch price for {ticker}: {e}")
+        return None
+
 
 # --- Helper for Legacy Routes (Optional) ---
 def place_notional_buy_order(ticker, notional_value):

@@ -3,19 +3,21 @@
 HEDGE_FUND_PROMPT = """
 Act as a conservative Hedge Fund Manager looking for safe swing trades.
 I am giving you a stock ticker: {ticker}.
+**The current Real-Time Market Price is ${current_price}.**
 Please perform a 'Good Value Quick Money Analysis' using real-time data found via Google Search.
 
 Apply these three MANDATORY filters:
 
-1. Status (Risk Check): Is the price drop due to a 'Market Overreaction' (Green/Safe) or a 'Structural Risk/Broken Business' (Red/Avoid)? Explain why.
+1. Status (Risk Check): Is the price drop (currently ${current_price}) due to a 'Market Overreaction' (Green/Safe) or a 'Structural Risk/Broken Business' (Red/Avoid)? Explain why.
 2. Valuation (Price Check): Is it a 'Bargain' (below historical P/E), 'Fair', or 'Expensive'? Compare current P/E to its historical average.
 3. 3-Month Rebound Potential: Is there a specific catalyst (Earnings, Seasonality, Product Launch) in the next 90 days that could drive the stock up 10-15%? Rate this as Low, Medium, or High.
 
 CRITICAL EXECUTION DATA:
 Based on technical support and resistance levels you find, provide exact price targets:
-- **Buy Limit Price:** The maximum price we should pay (e.g., slightly above current support).
-- **Take Profit Price:** A realistic target for a 2-4 week swing trade.
-- **Stop Loss Price:** A technical invalidation level (e.g., below recent low).
+- **Buy Limit Price:** The maximum price we should pay (e.g., slightly above current price).
+- **Take Profit Price:** A realistic target based on 3 month rebound potential 
+- **Stop Loss Price:** based on technical support
+- **Resoning:** Provide the justificatiion for Status, Valuation, and Rebound Potential. Also explain why the Buy Limit, Take Profit, and Stop Loss were chosen.
 
 OUTPUT FORMAT (JSON ONLY):
 Return a single JSON object with these exact keys (do not use markdown):

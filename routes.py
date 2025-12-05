@@ -10,7 +10,9 @@ parent_dir = os.path.dirname(SCRIPT_DIR)
 sys.path.append(parent_dir)
 
 # Import the modules for the "Good Value Quick Money" Strategy
-# --- UPDATED IMPORTS ---
+
+
+import lib.good_value_quick_money_alpaca_trader as good_value_quick_money_alpaca_trader
 from lib.good_value_quick_money_market_scanner import find_distressed_stocks
 from lib.good_value_quick_money_history_manager import filter_candidates, mark_as_analyzed
 from lib.good_value_quick_money_gemini_agent import analyze_stock
@@ -164,10 +166,10 @@ def handle_tradingview_webhook():
 
 
 # ----------------------------------------------------
-# ROUTE 4: AI HEDGE FUND SCAN
+# ROUTE 4: GOOD VALUE QUICK MONEY BOT SCAN
 # ----------------------------------------------------
-def run_hedge_fund_scan():
-    print("--- [HEDGE FUND BOT] Starting Daily Scan ---")
+def run_good_value_quick_money_scan():
+    print("--- [GOOD VALUE QUICK MONEY BOT] Starting Daily Scan ---")
     
     # 1. Find targets
     candidates = find_distressed_stocks()
@@ -178,14 +180,20 @@ def run_hedge_fund_scan():
     to_analyze = filter_candidates(candidates, config.DAILY_SCAN_LIMIT)
     
     if not to_analyze:
-        print("[Hedge Fund Bot] No fresh candidates.")
+        print("[GOOD VALUE QUICK MONEY BOT] No fresh candidates.")
         return
 
-    print(f"[Hedge Fund Bot] Analyzing {len(to_analyze)} tickers...")
+    print(f"[GOOD VALUE QUICK MONEY BOT] Analyzing {len(to_analyze)} tickers...")
     
     # 3. Analyze & Trade
     for ticker in to_analyze:
-        result = analyze_stock(ticker)
+        # 1. Get Real-Time Price from Alpaca
+        current_price = good_value_quick_money_alpaca_trader.get_current_price(ticker)
+        
+        if not current_price:
+            print(f"   > Skipping {ticker}: Could not fetch real-time price.")
+            continue # Skip if we can't get a price
+        result = analyze_stock(ticker, current_price)
         mark_as_analyzed(ticker)
         
         if result:
@@ -193,35 +201,38 @@ def run_hedge_fund_scan():
             action = result.get('action')
             status = result.get('status')
             conf = result.get('confidence')
+            reasoning = result.get('reasoning')
+            print(f"   > {ticker} (${current_price}): {action} | {status} | {conf} | {reasoning}")
             
             if action == "BUY" and status == "SAFE" and conf == "HIGH":
                 print(f"*** HIGH CONVICTION BUY: {ticker} ***")
+                print(f"   > Justification: {reasoning}")
                 
                 exec_plan = result.get('execution', {})
                 
                 # USE CONFIG HERE
-                alpaca_trader.place_smart_trade(
+                good_value_quick_money_alpaca_trader.place_smart_trade(
                     ticker, 
                     config.INVEST_PER_TRADE, # <-- New Setting
                     exec_plan.get('buy_limit'),
                     exec_plan.get('take_profit'),
                     exec_plan.get('stop_loss')
                 )
-        
+        else: print(f" No actionable insight for {ticker}.")
         time.sleep(5)
         
-    print("--- [HEDGE FUND BOT] Daily Scan Complete ---")
+    print("--- [GOOD VALUE QUICK MONEY BOT] Daily Scan Complete ---")
 
 
 @main_routes.route('/tradingbot')
-def trigger_hedge_fund_scan():
+def trigger_good_value_quick_money_scan():
     """
     Triggered by UptimeRobot once per day (e.g., at 9:45 AM).
     """
-    print("--- /daily_scan route hit! Starting background job... ---")
-    thread = threading.Thread(target=run_hedge_fund_scan)
+    print("--- /tradingbot route hit! Starting background job... ---")
+    thread = threading.Thread(target=run_good_value_quick_money_scan)
     thread.start()
-    return jsonify(status="hedge_fund_scan_started"), 202
+    return jsonify(status="good_value_quick_money_scan_started"), 202
 # ----------------------------------------------------
 # This makes the server run (when run locally)
 if __name__ == "__main__":
