@@ -25,3 +25,4 @@ yfinance
 lxml
 gspread 
 oauth2client
+dotenv
