@@ -19,6 +19,7 @@ finnhub-python
 #xgboost 
 #scikit-learn 
 #pandas-ta
+#python-dotenv
 google-generativeai
 yfinance
 lxml

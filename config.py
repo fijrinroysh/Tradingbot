@@ -1,4 +1,9 @@
 # config.py
+import os
+from dotenv import load_dotenv
+
+# Load variables from .env file
+load_dotenv()
 # Store all your secret keys here
 
 # 1. NewsAPI Key
@@ -18,7 +23,8 @@ FINNHUB_KEY = "d43pmk1r01qge0cuufvgd43pmk1r01qge0cuug00"
 # 5. POLYGON API KEY (for backtesting)
 POLYGON_API_KEY = "Qm7GVhYIJmQ6gTaMO5TPsSYLVh_BLMPc"
 
-GEMINI_API_KEY = "AIzaSyA6NVVE9noxlP7sjt0Ik3H5owfc-DYi_Lw"
+
+
 
 # --- GEMINI RATE LIMITS (Free Tier) ---
 #GEMINI_MODEL_NAME = "models/gemini-2.0-flash"
@@ -31,6 +37,8 @@ GEMINI_API_KEY = "AIzaSyA6NVVE9noxlP7sjt0Ik3H5owfc-DYi_Lw"
 #GEMINI_MAX_BATCH_TOKENS = 10_000 
 # --------------------------------------
 
+
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") # <-- This is now safe
 # --- GEMINI SETTINGS (Pro Model) ---
 # We use the stable 2.5 Pro model from your list
 GEMINI_MODEL_NAME = "models/gemini-2.5-pro"
