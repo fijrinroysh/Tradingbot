@@ -38,12 +38,7 @@ POLYGON_API_KEY = "Qm7GVhYIJmQ6gTaMO5TPsSYLVh_BLMPc"
 # --------------------------------------
 
 
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") # <-- This is now safe
-# --- GEMINI SETTINGS (Pro Model) ---
-# We use the stable 2.5 Pro model from your list
 
-
-GEMINI_MODEL_NAME = "models/gemini-2.5-pro"
 
 # Pro limits are stricter (50/day), so we maximise the batch size
 GEMINI_RPM_LIMIT = 2          # Requests per minute (Very slow!)
@@ -51,18 +46,6 @@ GEMINI_TPM_LIMIT = 32_000     # Tokens per minute
 GEMINI_DAILY_LIMIT = 50       # Strict daily limit for Pro
 GEMINI_MAX_BATCH_TOKENS = 30_000 # Pro has a huge context window, so we use it
 # --------------------------------------
-
-# --- HEDGE FUND BOT SETTINGS ---
-# Max Gemini calls to use for the daily scan (keep < 50 for free tier)
-
-DAILY_SCAN_LIMIT = int(os.getenv("DAILY_SCAN_LIMIT"))
-
-# Dollar amount to invest in each "High Conviction" Buy
-INVEST_PER_TRADE = int(os.getenv("INVEST_PER_TRADE"))
-
-
-
-
 
 # 4. SCALABLE SENTIMENT SETTINGS (NEW)
 # Add any tickers you want to the list below
@@ -76,3 +59,22 @@ SENTIMENT_TRADE_VALUE = 1000 # This is in dollars
 
 MIN_SENTIMENT_SCORE = 0.4  # How positive the news must be to buy
 MAX_SENTIMENT_SCORE = -0.4 # How negative the news must be to sell
+
+# --- GOOD VALUE QUICK MONEY BOT SETTINGS ---
+
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") # <-- This is now safe
+# --- GEMINI SETTINGS (Pro Model) ---
+# We use the stable 2.5 Pro model from your list
+
+
+GEMINI_MODEL_NAME = "models/gemini-2.5-pro"
+
+
+# Max Gemini calls to use for the daily scan (keep < 50 for free tier)
+
+DAILY_SCAN_LIMIT = int(os.getenv("DAILY_SCAN_LIMIT"))
+
+# Dollar amount to invest in each "High Conviction" Buy
+INVEST_PER_TRADE = int(os.getenv("INVEST_PER_TRADE"))
+
+

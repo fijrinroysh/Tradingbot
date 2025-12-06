@@ -12,6 +12,8 @@ Apply these three MANDATORY filters and it must pass ALL to be considered a 'Hig
 2. Valuation (Price Check): Is it a 'Bargain' (below historical P/E), 'Fair', or 'Expensive'? Compare current P/E to its historical average. The ticker should have strong fundamentals and not be in an overvalued state.
 3. 3-Month Rebound Potential: Is there a specific catalyst (Earnings, Seasonality, Product Launch) in the next 90 days that could drive the stock up 10-15%? Rate this as Low, Medium, or High.
 
+Goal: Identify stocks that are safe to hold (high quality) but are temporarily mispriced and have a clear reason to bounce back soon.
+
 CRITICAL EXECUTION DATA:
 Based on technical support and resistance levels you find, provide exact price targets:
 - **Buy Limit Price:** The maximum price we should pay (e.g., slightly above current price).
