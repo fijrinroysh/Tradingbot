@@ -9,7 +9,7 @@ def get_sp500_tickers():
     Includes a fallback list.
     """
     url = 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
-    fallback = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'NVDA', 'META', 'AMD', 'INTC', 'PYPL']
+    fallback = ['AAPL']  # Minimal fallback list]
     
     try:
         # Use requests with a browser header to avoid 403 Forbidden errors

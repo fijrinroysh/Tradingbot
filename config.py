@@ -67,7 +67,7 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") # <-- This is now safe
 # We use the stable 2.5 Pro model from your list
 
 
-GEMINI_MODEL_NAME = "models/gemini-2.5-pro"
+GEMINI_MODEL_NAME = "models/gemini-3-pro-preview"
 
 
 # Max Gemini calls to use for the daily scan (keep < 50 for free tier)
