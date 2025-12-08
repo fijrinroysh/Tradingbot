@@ -5,7 +5,7 @@ import os
 import json
 
 SHEET_NAME = "TradingBot_History"
-COOLDOWN_DAYS = 25 
+COOLDOWN_DAYS = 10 
 
 def get_client():
     creds_json = os.getenv("GOOGLE_SHEETS_CREDENTIALS")

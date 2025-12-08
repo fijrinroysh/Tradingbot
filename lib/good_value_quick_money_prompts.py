@@ -9,8 +9,8 @@ Please perform a 'Good Value Quick Money Analysis' using real-time data found vi
 Apply these three MANDATORY filters and it must pass ALL to be considered a 'High Conviction Buy'. MANDATORY to include the justification for each filter:
 
 1. Status (Risk Check): Is the price drop (currently ${current_price}) due to a 'Market Overreaction' (Green/Safe) or a 'Structural Risk/Broken Business' (Red/Avoid)? Explain why. I dont want it to be a falling knife. 
-2. Valuation (Price Check): Is it a 'Bargain' (below historical P/E), 'Fair', or 'Expensive'? Compare current P/E to its historical average. The ticker should have strong fundamentals and not be in an overvalued state.
-3. 3-Month Rebound Potential: Is there a specific catalyst (Earnings, Seasonality, Product Launch) in the next 90 days that could drive the stock up 10-15%? Rate this as Low, Medium, or High.
+2. Valuation (Price Check): Is it a 'Bargain' (below historical P/E etc), 'Fair', or 'Expensive'? Compare current P/E to its historical average. The ticker should have strong fundamentals and not be in an overvalued state.
+3. 3-Month Rebound Potential: Has the price started to rebound or is there a specific catalyst (Earnings, Seasonality, Product Launch etc) in the next 90 days that could drive the stock up 10-15%? Rate this as Low, Medium, or High.
 
 Goal: Identify stocks that are safe to hold (high quality) but are temporarily mispriced and have a clear reason to bounce back soon.
 
@@ -19,8 +19,7 @@ Based on technical support and resistance levels you find, provide exact price t
 - **Buy Limit Price:** The maximum price we should pay (e.g., slightly above current price).
 - **Take Profit Price:** A realistic target based on 3 month rebound potential 
 - **Stop Loss Price:** based on technical support
-- **Resoning:** Provide the justificatiion for each of the topics (Status, Valuation, and Rebound Potential) separately. Also explain why the Buy Limit, Take Profit, and Stop Loss were chosen.
-- **intel:** Any other critical information that I might need to know about this stock.
+
 OUTPUT FORMAT (JSON ONLY):
 Return a single JSON object with these exact keys (do not use markdown):
 {{
@@ -28,10 +27,10 @@ Return a single JSON object with these exact keys (do not use markdown):
   "status": "SAFE" or "RISK",
   "valuation": "BARGAIN" or "FAIR" or "EXPENSIVE",
   "rebound_potential": "HIGH" or "MEDIUM" or "LOW",
-  "reasoning": "One sentence justification for each of the three filters(status, valuation, rebound potential). Also explain why the Buy Limit, Take Profit, and Stop Loss were chosen.",
-  "intel": "Any general information I might need to know",
+  "reasoning": "Provide the justificatiion for each of the topics (Status, Valuation, and Rebound Potential) separately. Also explain why the Buy Limit, Take Profit, and Stop Loss were chosen.",
+  "intel": "Any other critical information that I might need to know about this stock",
   "action": "BUY" or "AVOID",
-  "confidence": "HIGH" or "MEDIUM" or "LOW",
+  "confidence": Confidence level based on the three filter criteria. "HIGH" or "MEDIUM" or "LOW",
   "execution": {{
       "buy_limit": 0.00,
       "take_profit": 0.00,
