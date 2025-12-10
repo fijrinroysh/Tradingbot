@@ -1,192 +1,177 @@
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify
 import threading
+import time
 import config
-import sys, os 
-import time 
-import textwrap
+import sys, os
 
-# --- Add root folder to path to import 'lib' ---
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(SCRIPT_DIR)
 sys.path.append(parent_dir)
 
-import lib.good_value_quick_money_alpaca_trader as gv_trader
-from lib.good_value_quick_money_market_scanner import find_distressed_stocks
-# Import the new logging function
-from lib.good_value_quick_money_history_manager import filter_candidates, log_decision_to_sheet
-from lib.good_value_quick_money_gemini_agent import analyze_stock
-
-from lib.live_data_loader import get_24h_summary_score_gemini
+import lib.good_value_quick_money_market_scanner as scanner
+import lib.gvqm_alpaca_trader as trader
+import lib.gvqm_junior_agent as junior_agent
+import lib.gvqm_junior_history as junior_history
+import lib.gvqm_senior_agent as senior_agent
+import lib.gvqm_senior_history as senior_history
+import lib.gvqm_email_notifier as notifier
 
 main_routes = Blueprint('main_routes', __name__)
 
-# --- HELPER: Fixed ASCII Table ---
-def print_analysis_table(data):
-    ticker = data.get("ticker", "N/A")
-    action = data.get("action", "N/A")
-    conf = data.get("confidence", "N/A")
+def run_pipeline():
+    print("🚀 [BOT] Starting Daily Pipeline")
     
-    RESET = "\033[0m"
-    GREEN = "\033[92m"
-    RED = "\033[91m"
-    YELLOW = "\033[93m"
-    BOLD = "\033[1m"
-    CYAN = "\033[96m"
-    
-    color = GREEN if action == "BUY" else RED
-    if action == "WATCH" or conf == "LOW": color = YELLOW
-
-    ex = data.get("execution", {})
-
-    # Fixed width for stability
-    print(f"\n{BOLD}╔════════════════════════════════════════════════════════════╗{RESET}")
-    print(f"║ {BOLD}ANALYSIS REPORT:{RESET} {ticker:<37} ║")
-    print(f"╠════════════════════════════════════════════════════════════╣")
-    print(f"║ ACTION: {color}{action:<10}{RESET} | CONFIDENCE: {conf:<17} ║")
-    print(f"╟────────────────────────────────────────────────────────────╢")
-    print(f"║ Status:   {data.get('status', 'N/A'):<45}║")
-    print(f"║ Value:    {data.get('valuation', 'N/A'):<45}║")
-    print(f"║ Rebound:  {data.get('rebound_potential', 'N/A'):<45}║")
-    print(f"╠════════════════════════════════════════════════════════════╣")
-    print(f"║ {BOLD}EXECUTION PLAN{RESET}                                             ║")
-    print(f"║ • Buy Limit:   ${float(ex.get('buy_limit', 0)):<35.2f} ║")
-    print(f"║ • Take Profit: ${float(ex.get('take_profit', 0)):<35.2f} ║")
-    print(f"║ • Stop Loss:   ${float(ex.get('stop_loss', 0)):<35.2f} ║")
-    print(f"╚════════════════════════════════════════════════════════════╝")
-
-    def print_text(title, text):
-        if not text: return
-        print(f"\n{BOLD}{CYAN}{title}:{RESET}")
-        # Wrap at 60 chars to fit nicely in most logs
-        for line in textwrap.wrap(str(text), width=60):
-            print(f"  {line}")
-
-    print_text("🧠 REASONING", data.get('reasoning'))
-    print_text("🕵️ CRITICAL INTEL", data.get('intel'))
-    print("-" * 60)
-
-# ----------------------------------------------------
-# ROUTE 2: GOOD VALUE QUICK MONEY BOT
-# ----------------------------------------------------
-def run_good_value_quick_money_scan():
-    print("\n" + "█"*60)
-    print("🚀 [GOOD VALUE BOT] STARTING DAILY SCAN")
-    print("█"*60 + "\n")
-
-    # --- THIS IS THE FIX ---
-    # Check if market is open BEFORE doing anything else.
-    #if not gv_trader.is_market_open():
-    #    print("💤 Market is closed. Skipping scan to save API credits.")
-    #    print("="*60 + "\n")
+    #if not trader.is_market_open():
+    #    print("💤 Market Closed.")
     #    return
-    # --- END OF FIX ---
+
+    # --- JUNIOR PHASE ---
+    print("\n🕵️ [JUNIOR] Starting Research...")
+    candidates = scanner.find_distressed_stocks()
+    limit = getattr(config, 'DAILY_SCAN_LIMIT', 20)
+    print(f"⚙️ Applying Daily Scan Limit: {limit}")
+    fresh_candidates = junior_history.filter_candidates(candidates, limit=limit)
     
-    try:
-        candidates = find_distressed_stocks()
-        if not candidates:
-            print("😴 No distressed stocks found.")
-            return
+    for ticker in fresh_candidates:
+        price = trader.get_current_price(ticker)
+        if not price: continue
+        report = junior_agent.analyze_stock(ticker, price)
+        if report:
+            junior_history.log_report(ticker, report)
+        time.sleep(2)
 
-        limit = getattr(config, 'DAILY_SCAN_LIMIT', 18)
-        to_analyze = filter_candidates(candidates, limit)
+    # --- SENIOR PHASE ---
+    print("\n👨‍💼 [SENIOR] Starting Strategy Review...")
+    
+    # 1. Get Data
+    reports = senior_history.fetch_junior_reports(getattr(config, 'SENIOR_LOOKBACK_DAYS', 10))
+    high_conviction = [r for r in reports if int(r.get('conviction_score', 0)) >= 85]
+    
+    if not high_conviction:
+        print("📉 No high-conviction candidates found.")
+        return
+
+# 2. INJECT LIVE CONTEXT (Price + Holdings + PENDING ORDERS)
+    print(f"   > Fetching Live Data (Price & Holdings) for {len(high_conviction)} candidates...")
+    holdings_map = {} 
+    
+    for c in high_conviction:
+        ticker = c['ticker']
+        c['current_price'] = trader.get_current_price(ticker)
         
-        if not to_analyze:
-            print("🕒 All candidates are on cooldown.")
-            return
-
-        print(f"\n🧠 Analyzing {len(to_analyze)} tickers...")
+        # Check holdings
+        qty = trader.get_position(ticker)
+        c['shares_held'] = qty
+        holdings_map[ticker] = qty
         
-        trades_placed = 0
+        # --- NEW: Check Pending Orders ---
+        pending_status = trader.get_pending_order_status(ticker)
+        if pending_status:
+            c['pending_orders'] = pending_status
+            print(f"     ℹ️ Context {ticker}: {pending_status}")
         
-        for ticker in to_analyze:
-            try:
-                current_price = gv_trader.get_current_price(ticker)
-                if not current_price:
-                    print(f"   ⚠️ Skipping {ticker}: No price.")
-                    continue
-                
-                result = analyze_stock(ticker, current_price) 
-                
-                # Default trade status
-                trade_status = "ANALYZED_ONLY"
-                trade_details = {"qty": 0, "cost": 0}
+        if qty > 0:
+            print(f"     ℹ️ Context {ticker}: We hold {qty} shares.")
 
-                if result:
-                    print_analysis_table(result)
-                    
-                    action = result.get('action')
-                    status = result.get('status')
-                    conf = result.get('confidence')
-                    valuation = result.get('valuation')
-                    rebound = result.get('rebound_potential')
-
-                    # EXECUTE LOGIC
-                    if (action == "BUY" and status == "SAFE" and 
-                        valuation == "BARGAIN" and rebound == "HIGH" and 
-                        conf == "HIGH"):
-                        
-                        print(f"   🚨 HIGH CONVICTION SIGNAL! Executing...")
-                        
-                        exec_plan = result.get('execution', {})
-                        invest_amt = getattr(config, 'INVEST_PER_TRADE', 10)
-                        
-                        trade = gv_trader.place_smart_trade(
-                            ticker, 
-                            invest_amt,
-                            exec_plan.get('buy_limit'),
-                            exec_plan.get('take_profit'),
-                            exec_plan.get('stop_loss')
-                        )
-                        
-                        if trade: 
-                            trades_placed += 1
-                            trade_status = "ORDER_PLACED"
-                            # Calculate estimated qty based on limit price
-                            limit_price = float(exec_plan.get('buy_limit'))
-                            qty = int(invest_amt / limit_price)
-                            trade_details = {"qty": qty, "cost": qty * limit_price}
-                        else:
-                            trade_status = "FAILED_ORDER"
-                    else:
-                         trade_status = "SKIPPED_CRITERIA"
-                         print(f"   ✋ Criteria not met (Status: {status}, Val: {valuation})")
-
-                    # --- LOG TO GOOGLE SHEETS ---
-                    log_decision_to_sheet(ticker, result, trade_status, trade_details)
-                    # ----------------------------
-
-                else:
-                    print(f"   ℹ️ No insight for {ticker}.")
+    # 3. Get Context & Analyze
+    context = senior_history.get_last_strategy()
+    decision = senior_agent.rank_portfolio(
+        high_conviction, 
+        top_n=getattr(config, 'SENIOR_TOP_PICKS', 5),
+        prev_context=context
+    )
+    
+    if decision:
+        # 4. LOGGING (Double-Decker)
+        # A. The Morning Newspaper (Markdown Summary)
+        senior_history.log_strategy(decision)
+        
+        # B. The Database Ledger (Structured Rows) <--- NEW CALL
+        senior_history.log_detailed_decisions(decision, holdings_map)
+        
+        print("\n" + "="*80)
+        print("📢  EXECUTIVE STRATEGY BRIEF  📢")
+        print("="*80)
+        print(decision.get('ceo_report'))
+        
+# 5. EXECUTE & LOG TRADES (Updated)
+        print(f"\n⚡ Processing Senior Manager Commands...")
+        
+        for order in decision.get('final_execution_orders', []):
+            ticker = order.get('ticker')
+            action = order.get('action', 'HOLD').upper() # OPEN_NEW or UPDATE_EXISTING
+            p = order.get('confirmed_params', {})
             
-            except Exception as e:
-                print(f"   ❌ Error processing {ticker}: {e}")
+            trade_events = []
+            
+            # --- COMMAND DISPATCHER ---
+            if action == "OPEN_NEW":
+                # Senior Manager says BUY. We BUY.
+                trade_events = trader.execute_entry(
+                    ticker, 
+                    config.INVEST_PER_TRADE, 
+                    p.get('buy_limit', 0), 
+                    p.get('take_profit', 0), 
+                    p.get('stop_loss', 0)
+                )
+                
+            elif action == "UPDATE_EXISTING":
+                # Senior Manager says UPDATE. We UPDATE.
+                # Note: We do NOT pass buy_limit here, avoiding the ZeroDivisionError.
+                trade_events = trader.execute_update(
+                    ticker,
+                    p.get('take_profit', 0), 
+                    p.get('stop_loss', 0)
+                )
+                
+            elif action == "HOLD":
+                print(f"   ✋ Holding {ticker} (No Action).")
                 continue
+                
+            else:
+                print(f"   ⚠️ Unknown Action '{action}' for {ticker}")
 
-            time.sleep(5) 
+            # --- LOGGING (Same as before) ---
+            # (Check for Raw Objects or Lists and log to Sheets)
+            if hasattr(trade_events, 'id'): trade_events = [{"event": "NEW_ENTRY", "info": "Recovered", "order_id": str(trade_events.id)}]
+            if isinstance(trade_events, dict): trade_events = [trade_events]
             
-        print("\n" + "="*60)
-        print(f"🏁 SCAN COMPLETE. Trades: {trades_placed}")
-        print("="*60 + "\n")
+            for event in trade_events:
+                if isinstance(event, dict):
+                    evt_type = event.get('event', 'UNKNOWN')
+                    if evt_type not in ["HOLD", "ERROR"]:
+                        senior_history.log_trade_event(ticker, evt_type, event)
+                    elif evt_type == "ERROR":
+                        print(f"   ❌ Execution Error for {ticker}: {event.get('info')}")
 
+# 6. SEND EXECUTIVE BRIEF (NEW SECTION)
+    print("\n📧 Generating Executive Brief...")
+    try:
+        # Fetch latest account data from Alpaca
+        account_info = trader.trading_client.get_account()
+        
+        # Send the email with: Decision, Account Data, and Junior Reports
+        notifier.send_executive_brief(decision, account_info, reports)
+        
     except Exception as e:
-        print(f"\n❌ CRITICAL FAILURE IN SCAN JOB: {e}")
+        print(f"❌ Failed to send email: {e}")
 
+    print("\n" + "="*80)
+    print("✅ PIPELINE COMPLETE. Check Sheets & Email.")
+    print("="*80 + "\n")
+
+    print("\n" + "="*80)
+    print("✅ PIPELINE COMPLETE. Check Sheets: 'Trade_Log', 'Senior_Decisions', 'Executive_Briefs'")
+    print("="*80 + "\n")
 
 @main_routes.route('/tradingbot')
-def trigger_good_value_quick_money_scan():
-    print("--- /tradingbot route hit! ---")
-    thread = threading.Thread(target=run_good_value_quick_money_scan)
+def trigger_scan():
+    thread = threading.Thread(target=run_pipeline)
     thread.start()
-    return jsonify(status="good_value_quick_money_scan_started"), 202
+    return jsonify(status="pipeline_started"), 202
 
-# ... (Health/Webhook unchanged) ...
 @main_routes.route('/health')
-def health_check():
-    return jsonify(status="ok"), 200
+def health_check(): return jsonify(status="ok"), 200
+
 @main_routes.route('/webhook', methods=['POST'])
-def handle_tradingview_webhook():
-    return jsonify(status="webhook_received"), 200
-if __name__ == "__main__":
-    app = Flask(__name__)
-    app.register_blueprint(main_routes)
-    app.run(host='0.0.0.0', port=10000)
+def handle_webhook(): return jsonify(status="received"), 200

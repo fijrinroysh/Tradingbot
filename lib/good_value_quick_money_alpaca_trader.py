@@ -4,6 +4,7 @@ from alpaca.trading.requests import MarketOrderRequest, LimitOrderRequest, TakeP
 from alpaca.trading.enums import OrderSide, TimeInForce, OrderClass
 from alpaca.data.historical import StockHistoricalDataClient
 from alpaca.data.requests import StockLatestQuoteRequest, StockLatestTradeRequest
+from alpaca.trading.requests import ReplaceOrderRequest
 
 # Initialize Clients
 trading_client = TradingClient(config.ALPACA_KEY_ID, config.ALPACA_SECRET_KEY, paper=True)
@@ -127,3 +128,58 @@ def place_smart_trade(ticker, investment_amount, buy_limit, take_profit, stop_lo
     except Exception as e:
         print(f"❌ TRADER FAILED: {e}")
         return None
+    
+    
+
+def manage_smart_trade(ticker, invest_amt, buy_limit, take_profit, stop_loss):
+    """
+    Smart Order Router:
+    1. If No Position -> Place New Bracket Order.
+    2. If Position Exists -> Update TP/SL orders if values changed > 1%.
+    """
+    ticker = normalize_ticker(ticker)
+    print(f"--- TRADER: Managing Position for {ticker} ---")
+    
+    # 1. Check Existing Position
+    qty = get_position(ticker)
+    
+    if qty == 0:
+        # CASE A: NEW TRADE
+        print(f"   > No position found. Placing NEW Entry.")
+        return place_smart_trade(ticker, invest_amt, buy_limit, take_profit, stop_loss)
+    
+    else:
+        # CASE B: MANAGE EXISTING TRADE
+        print(f"   > Found active position ({qty} shares). Checking for updates...")
+        
+        try:
+            # Get Open Orders for this symbol
+            orders = trading_client.get_orders(
+                filter={"status": "open", "symbols": [ticker]}
+            )
+            
+            # Find the TP and SL legs
+            tp_order = next((o for o in orders if o.type == 'limit' and o.side == 'sell'), None)
+            sl_order = next((o for o in orders if o.type == 'stop' and o.side == 'sell'), None)
+            
+            # Update Logic (Only if difference is significant to avoid API spam)
+            updates_made = False
+            
+            if tp_order and abs(float(tp_order.limit_price) - take_profit) > (take_profit * 0.01):
+                print(f"   > Updating TP: ${tp_order.limit_price} -> ${take_profit}")
+                trading_client.replace_order(tp_order.id, ReplaceOrderRequest(limit_price=take_profit))
+                updates_made = True
+                
+            if sl_order and abs(float(sl_order.stop_price) - stop_loss) > (stop_loss * 0.01):
+                print(f"   > Updating SL: ${sl_order.stop_price} -> ${stop_loss}")
+                trading_client.replace_order(sl_order.id, ReplaceOrderRequest(stop_price=stop_loss))
+                updates_made = True
+                
+            if not updates_made:
+                print("   > Orders are aligned. No changes needed.")
+                
+            return True
+
+        except Exception as e:
+            print(f"❌ TRADER ERROR updating {ticker}: {e}")
+            return None

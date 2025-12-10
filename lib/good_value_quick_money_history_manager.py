@@ -3,6 +3,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
 import os
 import json
+from datetime import datetime, timedelta
 
 SHEET_NAME = "TradingBot_History"
 COOLDOWN_DAYS = 10 
@@ -113,3 +114,75 @@ def mark_as_analyzed(ticker):
     # We don't need a separate simple logger anymore since 
     # log_decision_to_sheet handles the full record.
     pass
+
+def fetch_recent_candidates(lookback_days):
+    """
+    Retrieves Junior Analyst reports from the last N days.
+    Reconstructs them into dictionaries for the Senior Manager.
+    """
+    client = get_client()
+    if not client: return []
+
+    print(f"📚 [HISTORY] Fetching reports from the last {lookback_days} days...")
+    
+    try:
+        sheet = client.open(SHEET_NAME).sheet1
+        records = sheet.get_all_values()
+        
+        # Assume Header is Row 0
+        # Columns map based on our log_decision_to_sheet order:
+        # 0:Date, 1:Ticker, 2:Sector, 3:Action, 4:Score, 5:Status, 6:Stat_Reas, 
+        # 7:Val, 8:Val_Reas, 9:Reb, 10:Reb_Reas, 11:Cat, 
+        # 12:Buy, 13:TP, 14:SL, 15:Exec, 16:Shares, 17:Intel
+        
+        candidates = []
+        cutoff_date = datetime.now() - timedelta(days=lookback_days)
+        
+        for row in records[1:]: # Skip header
+            try:
+                if len(row) < 17: continue # Skip incomplete rows
+                
+                # Parse Date
+                row_date_str = row[0]
+                try:
+                    row_date = datetime.strptime(row_date_str, "%Y-%m-%d %H:%M")
+                except:
+                    # Fallback for old date format if needed
+                    row_date = datetime.strptime(row_date_str.split(" ")[0], "%Y-%m-%d")
+
+                if row_date < cutoff_date:
+                    continue # Too old
+
+                # Reconstruct Dictionary Object
+                candidate = {
+                    "analysis_date": row_date_str, # Useful context for Manager
+                    "ticker": row[1],
+                    "sector": row[2],
+                    "action": row[3],
+                    "conviction_score": row[4],
+                    "status": row[5],
+                    "status_rationale": row[6],
+                    "valuation": row[7],
+                    "valuation_rationale": row[8],
+                    "rebound_potential": row[9],
+                    "rebound_rationale": row[10],
+                    "catalyst": row[11],
+                    "intel": row[17],
+                    "execution": {
+                        "buy_limit": row[12],
+                        "take_profit": row[13],
+                        "stop_loss": row[14]
+                    }
+                }
+                candidates.append(candidate)
+                
+            except Exception as e:
+                # print(f"Skipping bad row: {e}") 
+                continue
+                
+        print(f"✅ [HISTORY] Retrieved {len(candidates)} valid reports.")
+        return candidates
+
+    except Exception as e:
+        print(f"⚠️ [HISTORY] Fetch Error: {e}")
+        return []

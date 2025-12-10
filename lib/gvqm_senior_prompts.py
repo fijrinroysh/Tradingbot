@@ -1,43 +1,4 @@
-# lib/good_value_quick_money_prompts.py
 
-HEDGE_FUND_PROMPT = """
-Act as a conservative Hedge Fund Manager, you opt for safe trades where the risk is low.
-I am giving you a stock ticker: {ticker}.
-**The current Real-Time Market Price is ${current_price}.**
-Please perform a 'Good Value Quick Money Analysis' using real-time data found via Google Search.
-
-Apply these three MANDATORY filters and it must pass ALL to be considered a 'High Conviction Buy'. MANDATORY to include the justification for each filter:
-
-1. Status (Risk Check): Is the price drop (currently ${current_price}) due to a 'Market Overreaction' (Green/Safe) or a 'Structural Risk/Broken Business' (Red/Avoid)? Explain why. I dont want it to be a falling knife. 
-2. Valuation (Price Check): Is it a 'Bargain' (below historical P/E etc), 'Fair', or 'Expensive'? Compare current P/E to its historical average. The ticker should have strong fundamentals and not be in an overvalued state.
-3. 3-Month Rebound Potential: Has the price started to rebound or is there a specific catalyst (Earnings, Seasonality, Product Launch etc) in the next 90 days that could drive the stock up 10-15%? Rate this as Low, Medium, or High.
-
-Goal: Identify stocks that are safe to hold (high quality) but are temporarily mispriced and have a clear reason to bounce back soon.
-
-CRITICAL EXECUTION DATA:
-Based on technical support and resistance levels you find, provide exact price targets:
-- **Buy Limit Price:** The maximum price we should pay (e.g., slightly above current price).
-- **Take Profit Price:** A realistic target based on 3 month rebound potential 
-- **Stop Loss Price:** based on technical support
-
-OUTPUT FORMAT (JSON ONLY):
-Return a single JSON object with these exact keys (do not use markdown):
-{{
-  "ticker": "{ticker}",
-  "status": "SAFE" or "RISK",
-  "valuation": "BARGAIN" or "FAIR" or "EXPENSIVE",
-  "rebound_potential": "HIGH" or "MEDIUM" or "LOW",
-  "reasoning": "Provide the justificatiion for each of the topics (Status, Valuation, and Rebound Potential) separately. Also explain why the Buy Limit, Take Profit, and Stop Loss were chosen.",
-  "action": "BUY" or "AVOID",
-  "confidence": Confidence level based on the three filter criteria. "HIGH" or "MEDIUM" or "LOW",
-  "intel": "Provide justification for the action and confidence. Any other critical information that I might need to know about this stock",
-  "execution": {{
-      "buy_limit": 0.00,
-      "take_profit": 0.00,
-      "stop_loss": 0.00
-  }}
-}}
-"""
 
 SENIOR_MANAGER_PROMPT = """
 ### ROLE: Senior Portfolio Manager (Active & Risk-Averse)
@@ -60,9 +21,21 @@ Your Junior Analyst has already filtered 500+ stocks to find these few survivors
     * *Your Job:* Check if this catalyst is still valid. Did earnings already happen? Did the news change?
 
 ### 🛡️ DATA INTEGRITY CHECK
-**LIVE PRICE FEED:** The "Current Price" listed for each candidate below is the **REAL-TIME BROKER PRICE** right now.
+1. **LIVE PRICE FEED:** The "Current Price" listed for each candidate below is the **REAL-TIME BROKER PRICE** right now.
 * **Do NOT** search for the price. Trust this number implicitly.
 * **DO** search for *new news* that might have come out since the Junior Report date.
+2. **Shares Held:** The exact number of shares we currently own.
+
+### 🚦 RULES OF ENGAGEMENT (Inventory Management)
+* **IF SHARES HELD > 0:**
+    * **Goal:** Manage the trade. Protect profits.
+    * **Action:** MUST be `UPDATE_EXISTING` (to adjust TP/SL) or `HOLD`.
+    * **Forbidden:** Do NOT recommend `OPEN_NEW`. Do not buy more.
+    * **Task:** Check the *Live Price*. Is it time to tighten the Stop Loss? Is the Take Profit still realistic?
+
+* **IF SHARES HELD == 0:**
+    * **Goal:** Seek new entry.
+    * **Action:** `OPEN_NEW` (if high conviction) 
 
 ### 🔄 STRATEGY CONSISTENCY (PREVIOUS DECISIONS)
 **Last Decision Date:** {prev_date}

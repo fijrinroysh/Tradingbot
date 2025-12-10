@@ -1,4 +1,7 @@
-print("--- TRADER VERSION: FINAL FIX (Objects) ---")
+import os
+
+# VERBOSE TRADER CODE (Version 8.0)
+VERBOSE_CODE = r'''print("--- TRADER LOADED: VERSION 8.0 (VERBOSE DEBUG) ---")
 import config
 from alpaca.trading.client import TradingClient
 from alpaca.trading.requests import LimitOrderRequest, TakeProfitRequest, StopLossRequest, ReplaceOrderRequest
@@ -10,7 +13,6 @@ from alpaca.data.requests import StockLatestTradeRequest
 trading_client = TradingClient(config.ALPACA_KEY_ID, config.ALPACA_SECRET_KEY, paper=True)
 data_client = StockHistoricalDataClient(config.ALPACA_KEY_ID, config.ALPACA_SECRET_KEY)
 
-# --- SAFETY LAYER ---
 def _enforce_contract(data, context="UNKNOWN"):
     """Forces return data into a List of Dictionaries."""
     if hasattr(data, 'id'):
@@ -67,12 +69,8 @@ def place_smart_trade(ticker, investment_amount, buy_limit, take_profit, stop_lo
         print(f"   ❌ Insufficient Buying Power (${cash}).")
         return _enforce_contract({"event": "ERROR", "info": f"Insufficient Funds: ${cash}"})
 
-    if buy_limit <= 0:
-        return _enforce_contract({"event": "ERROR", "info": "Invalid Buy Limit"})
-
     qty = int(investment_amount / buy_limit)
     if qty < 1: 
-        print(f"   ❌ Price too high for investment amount.")
         return _enforce_contract({"event": "ERROR", "info": "Qty < 1"})
 
     order_data = LimitOrderRequest(
@@ -110,31 +108,37 @@ def manage_smart_trade(ticker, invest_amt, buy_limit, take_profit, stop_loss):
             tp_order = next((o for o in orders if o.type == 'limit' and o.side == 'sell'), None)
             sl_order = next((o for o in orders if o.type == 'stop' and o.side == 'sell'), None)
             
-            # --- FIXED UPDATE LOGIC (Using Objects) ---
+            # --- VERBOSE UPDATE LOGIC ---
             if tp_order:
                 current_limit = float(tp_order.limit_price)
                 new_limit = float(take_profit)
                 if abs(current_limit - new_limit) > (new_limit * 0.01):
+                    print(f"   🔍 [DEBUG] TP Change Detected: {current_limit} -> {new_limit}")
                     try:
-                        # CRITICAL FIX: Use ReplaceOrderRequest Object
                         req = ReplaceOrderRequest(limit_price=new_limit)
+                        print(f"   🔍 [DEBUG] Sending Req: {req}")
+                        
                         trading_client.replace_order(tp_order.id, req)
                         print(f"   ♻️ TP Updated: ${new_limit}")
                         actions_log.append({"event": "UPDATE_TP", "info": f"Old: {current_limit}"})
                     except Exception as e:
+                        print(f"   ❌ [DEBUG] TP Update FAILED: {e}")
                         actions_log.append({"event": "ERROR", "info": f"TP Fail: {e}"})
 
             if sl_order:
                 current_stop = float(sl_order.stop_price)
                 new_stop = float(stop_loss)
                 if abs(current_stop - new_stop) > (new_stop * 0.01):
+                    print(f"   🔍 [DEBUG] SL Change Detected: {current_stop} -> {new_stop}")
                     try:
-                        # CRITICAL FIX: Use ReplaceOrderRequest Object
                         req = ReplaceOrderRequest(stop_price=new_stop)
+                        print(f"   🔍 [DEBUG] Sending Req: {req}")
+                        
                         trading_client.replace_order(sl_order.id, req)
                         print(f"   ♻️ SL Updated: ${new_stop}")
                         actions_log.append({"event": "UPDATE_SL", "info": f"Old: {current_stop}"})
                     except Exception as e:
+                        print(f"   ❌ [DEBUG] SL Update FAILED: {e}")
                         actions_log.append({"event": "ERROR", "info": f"SL Fail: {e}"})
                 
             if not actions_log:
@@ -146,3 +150,13 @@ def manage_smart_trade(ticker, invest_amt, buy_limit, take_profit, stop_loss):
         except Exception as e:
             print(f"❌ TRADER ERROR updating {ticker}: {e}")
             return _enforce_contract({"event": "ERROR", "info": str(e)})
+'''
+
+# Write the file
+file_path = os.path.join("lib", "gvqm_alpaca_trader.py")
+try:
+    with open(file_path, "w", encoding="utf-8") as f:
+        f.write(VERBOSE_CODE)
+    print(f"✅ VERBOSE TRADER CODE WRITTEN TO: {file_path}")
+except Exception as e:
+    print(f"❌ Error writing file: {e}")

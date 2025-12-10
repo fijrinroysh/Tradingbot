@@ -9,9 +9,7 @@ load_dotenv()
 # 1. NewsAPI Key
 NEWS_API_KEY = "41c62705f4db4931a0a7e551870a6d87"
 
-# 2. Alpaca Paper Trading Keys
-ALPACA_KEY_ID = "PKXCY2TEO63WB6MWUNWP6L3S3N"
-ALPACA_SECRET_KEY = "7FiWKR9LSCqb1eQRrivkLZv4dnfQoLEHBmp6uUDELgsg"
+
 TRADINGVIEW_SECRET = "IAMIRONMAN"
 
 
@@ -64,17 +62,38 @@ MAX_SENTIMENT_SCORE = -0.4 # How negative the news must be to sell
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") # <-- This is now safe
 # --- GEMINI SETTINGS (Pro Model) ---
-# We use the stable 2.5 Pro model from your list
+## JUNIOR ANALYST: High volume, initial filtering. 
+# Default: "gemini-2.0-flash" (Free/Cheap). Can switch to "gemini-3-pro-preview" if needed.
+GEMINI_JUNIOR_MODEL = "gemini-3-pro-preview"
 
+# SENIOR MANAGER: High reasoning, final decision.
+# Default: "gemini-3-pro-preview" (Smartest).
+GEMINI_SENIOR_MODEL = "gemini-3-pro-preview"
 
-GEMINI_MODEL_NAME = "models/gemini-3-pro-preview"
+# --- STRATEGY LIMITS ---
+# 1. JUNIOR LIMIT: How many stocks to analyze per day.
+# If using Flash, set to 200+. If using Pro, set to ~20 to stay within limits.
+# This ensures you cover the 200-stock universe in chunks (e.g., 20/day = 10 days).
+DAILY_SCAN_LIMIT = int(os.getenv("DAILY_SCAN_LIMIT", 20))
+#DAILY_SCAN_LIMIT = 10
+COOLDOWN_DAYS = int(os.getenv("COOLDOWN_DAYS", 10)) # <--- NEW: Default 10 Days
 
-
-# Max Gemini calls to use for the daily scan (keep < 50 for free tier)
-
-DAILY_SCAN_LIMIT = int(os.getenv("DAILY_SCAN_LIMIT"))
 
 # Dollar amount to invest in each "High Conviction" Buy
 INVEST_PER_TRADE = int(os.getenv("INVEST_PER_TRADE"))
+
+# --- SENIOR MANAGER SETTINGS ---
+SENIOR_TOP_PICKS = int(os.getenv("SENIOR_TOP_PICKS", 5)) 
+SENIOR_LOOKBACK_DAYS = int(os.getenv("SENIOR_LOOKBACK_DAYS", 10)) # <--- NEW
+
+
+# 2. Alpaca Paper Trading Keys
+ALPACA_KEY_ID = os.getenv("ALPACA_KEY_ID") 
+ALPACA_SECRET_KEY = os.getenv("ALPACA_SECRET_KEY") 
+
+# --- EMAIL NOTIFICATION SETTINGS ---
+EMAIL_SENDER = os.getenv("EMAIL")
+EMAIL_RECIPIENT = os.getenv("EMAIL") # Can be the same as sender
+EMAIL_PASSWORD =  os.getenv("EMAIL_PASSWORD")  # The 16-character App Password
 
 

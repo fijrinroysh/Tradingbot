@@ -1,8 +1,21 @@
-print("--- TRADER VERSION: FINAL FIX (Objects) ---")
+import os
+import sys
+
+print("🔧 APPLYING FINAL ALPACA ENUM FIX...")
+
+# THE CORRECT CODE (Imports QueryOrderStatus)
+CORRECT_CODE = r'''print("--- TRADER LOADED: VERSION 10.0 (QUERY_STATUS FIX) ---")
 import config
 from alpaca.trading.client import TradingClient
-from alpaca.trading.requests import LimitOrderRequest, TakeProfitRequest, StopLossRequest, ReplaceOrderRequest
-from alpaca.trading.enums import OrderSide, TimeInForce, OrderClass
+from alpaca.trading.requests import (
+    LimitOrderRequest, 
+    TakeProfitRequest, 
+    StopLossRequest, 
+    ReplaceOrderRequest,
+    GetOrdersRequest
+)
+# CRITICAL FIX: Import QueryOrderStatus for filtering
+from alpaca.trading.enums import OrderSide, TimeInForce, OrderClass, QueryOrderStatus
 from alpaca.data.historical import StockHistoricalDataClient
 from alpaca.data.requests import StockLatestTradeRequest
 
@@ -67,12 +80,8 @@ def place_smart_trade(ticker, investment_amount, buy_limit, take_profit, stop_lo
         print(f"   ❌ Insufficient Buying Power (${cash}).")
         return _enforce_contract({"event": "ERROR", "info": f"Insufficient Funds: ${cash}"})
 
-    if buy_limit <= 0:
-        return _enforce_contract({"event": "ERROR", "info": "Invalid Buy Limit"})
-
     qty = int(investment_amount / buy_limit)
     if qty < 1: 
-        print(f"   ❌ Price too high for investment amount.")
         return _enforce_contract({"event": "ERROR", "info": "Qty < 1"})
 
     order_data = LimitOrderRequest(
@@ -106,17 +115,22 @@ def manage_smart_trade(ticker, invest_amt, buy_limit, take_profit, stop_loss):
     else:
         print(f"--- TRADER: Managing Position for {ticker} ---")
         try:
-            orders = trading_client.get_orders(filter={"status": "open", "symbols": [ticker]})
+            # --- CRITICAL FIX: Use QueryOrderStatus.OPEN ---
+            req_filter = GetOrdersRequest(
+                status=QueryOrderStatus.OPEN,  # <--- CHANGED THIS
+                symbols=[ticker]
+            )
+            orders = trading_client.get_orders(filter=req_filter)
+            
             tp_order = next((o for o in orders if o.type == 'limit' and o.side == 'sell'), None)
             sl_order = next((o for o in orders if o.type == 'stop' and o.side == 'sell'), None)
             
-            # --- FIXED UPDATE LOGIC (Using Objects) ---
+            # Update TP
             if tp_order:
                 current_limit = float(tp_order.limit_price)
                 new_limit = float(take_profit)
                 if abs(current_limit - new_limit) > (new_limit * 0.01):
                     try:
-                        # CRITICAL FIX: Use ReplaceOrderRequest Object
                         req = ReplaceOrderRequest(limit_price=new_limit)
                         trading_client.replace_order(tp_order.id, req)
                         print(f"   ♻️ TP Updated: ${new_limit}")
@@ -124,12 +138,12 @@ def manage_smart_trade(ticker, invest_amt, buy_limit, take_profit, stop_loss):
                     except Exception as e:
                         actions_log.append({"event": "ERROR", "info": f"TP Fail: {e}"})
 
+            # Update SL
             if sl_order:
                 current_stop = float(sl_order.stop_price)
                 new_stop = float(stop_loss)
                 if abs(current_stop - new_stop) > (new_stop * 0.01):
                     try:
-                        # CRITICAL FIX: Use ReplaceOrderRequest Object
                         req = ReplaceOrderRequest(stop_price=new_stop)
                         trading_client.replace_order(sl_order.id, req)
                         print(f"   ♻️ SL Updated: ${new_stop}")
@@ -146,3 +160,13 @@ def manage_smart_trade(ticker, invest_amt, buy_limit, take_profit, stop_loss):
         except Exception as e:
             print(f"❌ TRADER ERROR updating {ticker}: {e}")
             return _enforce_contract({"event": "ERROR", "info": str(e)})
+'''
+
+# Overwrite the file
+try:
+    with open(os.path.join("lib", "gvqm_alpaca_trader.py"), "w") as f:
+        f.write(CORRECT_CODE)
+    print("✅ Trader File Repaired (Version 10.0).")
+    print("👉 Please RESTART 'routes.py' now.")
+except Exception as e:
+    print(f"❌ Error: {e}")
