@@ -44,11 +44,11 @@ def rank_portfolio(candidates_list, top_n=5, lookback_days=10, prev_context=None
             candidates_data=json.dumps(candidates_list, indent=2)
         )
          #--- DEBUG: LOG THE FULL PROMPT ---
-        print("\n" + "="*40)
-        print("📝 [DEBUG] SENIOR AGENT FULL PROMPT:")
-        print("="*40)
-        print(prompt) # PRINT EVERYTHING
-        print("="*40 + "\n")
+        #print("\n" + "="*40)
+        #print("📝 [DEBUG] SENIOR AGENT FULL PROMPT:")
+        #print("="*40)
+        #print(prompt) # PRINT EVERYTHING
+        #print("="*40 + "\n")
         
     except Exception as e:
         log_debug(f"CRITICAL: Failed to construct prompt. Error: {e}")

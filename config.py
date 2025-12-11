@@ -84,7 +84,11 @@ INVEST_PER_TRADE = int(os.getenv("INVEST_PER_TRADE"))
 
 # --- SENIOR MANAGER SETTINGS ---
 SENIOR_TOP_PICKS = int(os.getenv("SENIOR_TOP_PICKS", 5)) 
-SENIOR_LOOKBACK_DAYS = int(os.getenv("COOLDOWN_DAYS", 10)) # <--- NEW
+
+# <--- Lookback period for Senior Manager to review past picks is usally aligned with cooldown period 
+# because within the cool down period the junior analyst will not analyze the same stocks twice 
+# and most likely would have covered all the stocks in her list
+SENIOR_LOOKBACK_DAYS = int(os.getenv("COOLDOWN_DAYS", 10)) 
 
 
 # 2. Alpaca Paper Trading Keys
