@@ -62,7 +62,7 @@ def get_position(ticker):
 
 # --- DEEP DATA FETCH ---
 def get_position_details(ticker):
-    """Returns dict with shares_held, pending_buy_limit, active_tp, active_sl."""
+																				 
     ticker = normalize_ticker(ticker)
     details = {
         "shares_held": get_position(ticker),
@@ -96,7 +96,7 @@ def get_position_details(ticker):
                 details["status_msg"] = f"ACTIVE POS ({details['shares_held']}) | NO BRACKET"
                 
         return details
-		
+  
     except Exception as e:
         print(f"⚠️ [TRADER] Error getting details for {ticker}: {e}")
         return details
@@ -163,7 +163,7 @@ def execute_entry(ticker, investment_amount, buy_limit, take_profit, stop_loss):
 # ==========================================================
 #  COMMAND 2: EXECUTE UPDATE
 # ==========================================================
-def execute_update(ticker, take_profit, stop_loss, buy_limit=0): # Added buy_limit param support
+def execute_update(ticker, take_profit, stop_loss, buy_limit=0):
     ticker = normalize_ticker(ticker)
     print(f"♻️ TRADER: Executing UPDATE_EXISTING for {ticker}...")
     actions_log = []
@@ -179,8 +179,8 @@ def execute_update(ticker, take_profit, stop_loss, buy_limit=0): # Added buy_lim
             current_limit = float(parent_buy.limit_price)
             if abs(current_limit - float(buy_limit)) > (float(buy_limit) * 0.005):
                 try:
-                    # Update the Parent Order Limit Price
-                    trading_client.replace_order(parent_buy.id, ReplaceOrderRequest(limit_price=float(buy_limit)))
+                    # FIX: Use 'replace_order_by_id' instead of 'replace_order'
+                    trading_client.replace_order_by_id(parent_buy.id, ReplaceOrderRequest(limit_price=float(buy_limit)))
                     print(f"   ✅ Pending BUY Updated: {current_limit} -> {buy_limit}")
                     actions_log.append({"event": "UPDATE_BUY", "info": f"New Entry: {buy_limit}"})
                     return _enforce_contract(actions_log)
@@ -200,19 +200,24 @@ def execute_update(ticker, take_profit, stop_loss, buy_limit=0): # Added buy_lim
              qty = get_position(ticker)
              if qty > 0:
                  print(f"   ⚠️ Shares found ({qty}) but NO valid TP/SL. Rescuing...")
- 
- 
+                 
+                 # --- STRICT MODE: NO AUTO-CALCULATION ---
+                 if take_profit <= 0 or stop_loss <= 0:
+                     err = f"Missing targets for rescue (TP={take_profit}, SL={stop_loss})."
+                     print(f"   ❌ {err}")
+                     return _enforce_contract({"event": "ERROR", "info": err})
+
                  if orders: trading_client.cancel_orders(symbols=[ticker])
                  
-															
+                 # --- GTC RESCUE ---
                  oco_data = LimitOrderRequest(
                     symbol=ticker, 
                     qty=qty, 
                     side=OrderSide.SELL, 
                     time_in_force=TimeInForce.GTC,
-                    limit_price=take_profit,
+                    limit_price=take_profit, # Main Order Limit (TP)
                     order_class=OrderClass.OCO,
-                    take_profit=TakeProfitRequest(limit_price=take_profit),
+                    take_profit=TakeProfitRequest(limit_price=take_profit), # REQUIRED for OCO
                     stop_loss=StopLossRequest(stop_price=stop_loss)
                  )
                  try:
@@ -230,7 +235,8 @@ def execute_update(ticker, take_profit, stop_loss, buy_limit=0): # Added buy_lim
             current_limit = float(tp_order.limit_price)
             if take_profit > 0 and abs(current_limit - float(take_profit)) > (float(take_profit) * 0.005):
                 try:
-                    trading_client.replace_order(tp_order.id, ReplaceOrderRequest(limit_price=float(take_profit)))
+                    # FIX: Use 'replace_order_by_id'
+                    trading_client.replace_order_by_id(tp_order.id, ReplaceOrderRequest(limit_price=float(take_profit)))
                     print(f"   ✅ TP Updated: {current_limit} -> {take_profit}")
                     actions_log.append({"event": "UPDATE_TP", "info": f"Old: {current_limit}"})
                 except Exception as e:
@@ -240,7 +246,8 @@ def execute_update(ticker, take_profit, stop_loss, buy_limit=0): # Added buy_lim
             current_stop = float(sl_order.stop_price)
             if stop_loss > 0 and abs(current_stop - float(stop_loss)) > (float(stop_loss) * 0.005):
                 try:
-                    trading_client.replace_order(sl_order.id, ReplaceOrderRequest(stop_price=float(stop_loss)))
+                    # FIX: Use 'replace_order_by_id'
+                    trading_client.replace_order_by_id(sl_order.id, ReplaceOrderRequest(stop_price=float(stop_loss)))
                     print(f"   ✅ SL Updated: {current_stop} -> {stop_loss}")
                     actions_log.append({"event": "UPDATE_SL", "info": f"Old: {current_stop}"})
                 except Exception as e:
