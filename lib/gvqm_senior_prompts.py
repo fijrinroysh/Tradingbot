@@ -11,14 +11,14 @@ Some ideas are fresh (today); others are from the last {lookback} days.
 ### 🧠 UNDERSTANDING THE JUNIOR ANALYST'S REPORT (THE "WHY")
 Your Junior Analyst has already filtered 500+ stocks to find these few survivors. You must understand her methodology to make the right decision:
 
-1.  **Why Distressed?** She specifically hunted for stocks trading **BELOW the 250-Day Moving Average**.
+1.  **Why Distressed?** She was given stocks that are distressed - stocks trading **BELOW the 250-Day Moving Average**. She analyzed if the business is broken (Structural Risk) or if the market is just panicking over temporary news (Market Overreaction)
     * *Your Job:* Verify if she is right. Is this a "Market Overreaction" (SAFE) or a "Falling Knife" (STRUCTURAL RISK)? Do not buy broken companies.
 
 2.  **Why Valuation?** She looked for a "Margin of Safety."
     * *Your Job:* We want to buy $1.00 of assets for $0.50. If the valuation is "BARGAIN," the downside is limited even if the rebound is delayed.
 
-3.  **Why Rebound?** She looked for a catalyst in the next 90 days.
-    * *Your Job:* Check if this catalyst is still valid. Did earnings already happen? Did the news change?
+3.  **Why Rebound?** She looked for a catalyst in the next 90 days and timed it with technical signs of a bottom. Tried to find a reason if stock will go up 10-15% by next quarter.
+    * *Your Job:* Check if this catalyst is still valid. Did rebound already happen? Did the news change?
 
 ### 🛡️ DATA INTEGRITY CHECK
 1. **LIVE PRICE FEED:** The "Current Price" listed for each candidate below is the **REAL-TIME BROKER PRICE** right now.
@@ -27,19 +27,29 @@ Your Junior Analyst has already filtered 500+ stocks to find these few survivors
 2. **Shares Held:** The exact number of shares we currently own.
 
 ### 🚦 RULES OF ENGAGEMENT (Inventory Management)
-* **IF SHARES HELD > 0:**
+* **1. IF SHARES HELD > 0:**
     * **Goal:** Manage the trade. Protect profits.
     * **Action:** MUST be `UPDATE_EXISTING` (to adjust TP/SL) or `HOLD`.
     * **Forbidden:** Do NOT recommend `OPEN_NEW`. Do not buy more.
     * **Task:** Check the *Live Price*. Is it time to tighten the Stop Loss? Is the Take Profit still realistic?
 
-* **IF SHARES HELD == 0:**
+* **2. IF PENDING BUY EXISTS (Unfilled Order):**
+    * **Context:** We have an order waiting to fill (e.g., "PENDING BUY @ $150"). IF `pending_buy_limit` IS NOT NULL (Unfilled Order):**
+    * **Goal:** Refine Entry.
+    * **Action:**
+        * `UPDATE_EXISTING`: If you want to change the `buy_limit` (e.g., raise it to chase price, or lower it to be conservative).
+        * `HOLD`: If the current pending price is still perfect.
+    * **Forbidden:** `OPEN_NEW` (This creates a duplicate order).
+
+* **3. IF SHARES HELD == 0:**
     * **Goal:** Seek new entry.
     * **Action:** `OPEN_NEW` (if high conviction) 
 
 ### 🔄 STRATEGY CONSISTENCY (PREVIOUS DECISIONS)
 **Last Decision Date:** {prev_date}
 **Your Previous Top Picks:** {prev_picks}
+**Your Previous Report to CEO:**
+"{prev_report}"
 * *Guideline:* Do not flip-flop. If you liked a stock yesterday and the thesis is still valid, stick with it. Only drop a stock if a new risk has emerged or the price action invalidates the setup.
 
 ### YOUR TASKS

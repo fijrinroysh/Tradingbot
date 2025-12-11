@@ -3,11 +3,14 @@ import threading
 import time
 import config
 import sys, os
+import datetime
 
+# Setup Paths
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(SCRIPT_DIR)
 sys.path.append(parent_dir)
 
+# Imports
 import lib.good_value_quick_money_market_scanner as scanner
 import lib.gvqm_alpaca_trader as trader
 import lib.gvqm_junior_agent as junior_agent
@@ -18,63 +21,107 @@ import lib.gvqm_email_notifier as notifier
 
 main_routes = Blueprint('main_routes', __name__)
 
+def log_pipeline(message):
+    """Central logger for the pipeline process"""
+    timestamp = datetime.datetime.now().strftime("%H:%M:%S")
+    print(f"[{timestamp}] [PIPELINE] {message}")
+
+def get_safe_score(report):
+    """Safely extracts conviction score, returning 0 if invalid."""
+    try:
+        val = report.get('conviction_score', 0)
+        if val is None or val == "": return 0
+        return int(float(val))
+    except (ValueError, TypeError):
+        return 0
+
 def run_pipeline():
-    print("🚀 [BOT] Starting Daily Pipeline")
+    print("\n" + "="*60)
+    log_pipeline("🚀 STARTING DAILY TRADING PIPELINE (DEEP CONTEXT)")
+    print("="*60)
     
-    #if not trader.is_market_open():
-    #    print("💤 Market Closed.")
+    # 1. MARKET CHECK
+    # if not trader.is_market_open():
+    #    log_pipeline("💤 Market Closed. Aborting.")
     #    return
 
     # --- JUNIOR PHASE ---
-    print("\n🕵️ [JUNIOR] Starting Research...")
-    candidates = scanner.find_distressed_stocks()
-    limit = getattr(config, 'DAILY_SCAN_LIMIT', 20)
-    print(f"⚙️ Applying Daily Scan Limit: {limit}")
-    fresh_candidates = junior_history.filter_candidates(candidates, limit=limit)
+    log_pipeline("🕵️ PHASE 1: JUNIOR ANALYST RESEARCH")
     
-    for ticker in fresh_candidates:
-        price = trader.get_current_price(ticker)
-        if not price: continue
-        report = junior_agent.analyze_stock(ticker, price)
-        if report:
-            junior_history.log_report(ticker, report)
-        time.sleep(2)
+    try:
+        candidates = scanner.find_distressed_stocks()
+        log_pipeline(f"Scanner found {len(candidates)} raw candidates.")
+        
+        limit = getattr(config, 'DAILY_SCAN_LIMIT', 20)
+        fresh_candidates = junior_history.filter_candidates(candidates, limit=limit)
+        log_pipeline(f"Filtered to {len(fresh_candidates)} fresh candidates (Limit: {limit}).")
+        
+        processed_count = 0
+        for ticker in fresh_candidates:
+            price = trader.get_current_price(ticker)
+            if not price: 
+                log_pipeline(f"⚠️ Skipping {ticker}: No price data available.")
+                continue
+                
+            report = junior_agent.analyze_stock(ticker, price)
+            if report:
+                junior_history.log_report(ticker, report)
+                processed_count += 1
+            time.sleep(1)
+        log_pipeline(f"Junior Analyst filed {processed_count} new reports.")
+            
+    except Exception as e:
+        log_pipeline(f"❌ CRITICAL ERROR in Junior Phase: {e}")
 
     # --- SENIOR PHASE ---
-    print("\n👨‍💼 [SENIOR] Starting Strategy Review...")
+    log_pipeline("\n👨‍💼 PHASE 2: SENIOR MANAGER STRATEGY")
     
-    # 1. Get Data
-    reports = senior_history.fetch_junior_reports(getattr(config, 'SENIOR_LOOKBACK_DAYS', 10))
-    high_conviction = [r for r in reports if int(r.get('conviction_score', 0)) >= 85]
+    # 2. FETCH DATA
+    lookback = getattr(config, 'SENIOR_LOOKBACK_DAYS', 10)
+    reports = senior_history.fetch_junior_reports(lookback)
+    log_pipeline(f"Fetched {len(reports)} total reports from history (Last {lookback} days).")
+    
+    # Filter
+    high_conviction = [r for r in reports if get_safe_score(r) >= 85]
+    log_pipeline(f"Identified {len(high_conviction)} HIGH CONVICTION candidates (Score >= 85).")
     
     if not high_conviction:
-        print("📉 No high-conviction candidates found.")
+        log_pipeline("📉 No high-conviction candidates found. Stopping Senior Phase.")
         return
 
-# 2. INJECT LIVE CONTEXT (Price + Holdings + PENDING ORDERS)
-    print(f"   > Fetching Live Data (Price & Holdings) for {len(high_conviction)} candidates...")
+    # 3. INJECT LIVE CONTEXT (THE UPGRADE)
+    log_pipeline(f"Fetching Live Data & X-Ray Context for {len(high_conviction)} candidates...")
     holdings_map = {} 
     
     for c in high_conviction:
         ticker = c['ticker']
         c['current_price'] = trader.get_current_price(ticker)
         
-        # Check holdings
-        qty = trader.get_position(ticker)
-        c['shares_held'] = qty
-        holdings_map[ticker] = qty
-        
-        # --- NEW: Check Pending Orders ---
-        pending_status = trader.get_pending_order_status(ticker)
-        if pending_status:
-            c['pending_orders'] = pending_status
-            print(f"     ℹ️ Context {ticker}: {pending_status}")
-        
-        if qty > 0:
-            print(f"     ℹ️ Context {ticker}: We hold {qty} shares.")
+        # --- RICH DATA FETCH ---
+        if hasattr(trader, 'get_position_details'):
+            details = trader.get_position_details(ticker)
+            
+            # Inject raw numbers for the Senior Agent
+            c['shares_held'] = details['shares_held']
+            c['current_active_tp'] = details['active_tp']
+            c['current_active_sl'] = details['active_sl']
+            c['pending_buy_limit'] = details['pending_buy_limit']
+            
+            # Map for logging
+            holdings_map[ticker] = details['shares_held']
+            
+            # Log Status
+            if details['status_msg'] != "NONE":
+                log_pipeline(f"   ℹ️ [CONTEXT] {ticker}: {details['status_msg']}")
+        else:
+            # Fallback
+            c['shares_held'] = trader.get_position(ticker)
+            holdings_map[ticker] = c['shares_held']
 
-    # 3. Get Context & Analyze
+    # 4. STRATEGY & DECISION
+    log_pipeline("Calling Senior Agent AI for ranking...")
     context = senior_history.get_last_strategy()
+    
     decision = senior_agent.rank_portfolio(
         high_conviction, 
         top_n=getattr(config, 'SENIOR_TOP_PICKS', 5),
@@ -82,11 +129,8 @@ def run_pipeline():
     )
     
     if decision:
-        # 4. LOGGING (Double-Decker)
-        # A. The Morning Newspaper (Markdown Summary)
+        # Log to Sheets
         senior_history.log_strategy(decision)
-        
-        # B. The Database Ledger (Structured Rows) <--- NEW CALL
         senior_history.log_detailed_decisions(decision, holdings_map)
         
         print("\n" + "="*80)
@@ -94,74 +138,59 @@ def run_pipeline():
         print("="*80)
         print(decision.get('ceo_report'))
         
-# 5. EXECUTE & LOG TRADES (Updated)
-        print(f"\n⚡ Processing Senior Manager Commands...")
+        # 5. EXECUTE TRADES
+        orders = decision.get('final_execution_orders', [])
+        log_pipeline(f"\n⚡ PHASE 3: EXECUTION ({len(orders)} Commands)")
         
-        for order in decision.get('final_execution_orders', []):
+        for order in orders:
             ticker = order.get('ticker')
-            action = order.get('action', 'HOLD').upper() # OPEN_NEW or UPDATE_EXISTING
+            action = order.get('action', 'HOLD').upper() 
             p = order.get('confirmed_params', {})
+            
+            log_pipeline(f"   👉 Processing Command: {action} {ticker}")
             
             trade_events = []
             
-            # --- COMMAND DISPATCHER ---
-            if action == "OPEN_NEW":
-                # Senior Manager says BUY. We BUY.
-                trade_events = trader.execute_entry(
-                    ticker, 
-                    config.INVEST_PER_TRADE, 
-                    p.get('buy_limit', 0), 
-                    p.get('take_profit', 0), 
-                    p.get('stop_loss', 0)
-                )
-                
-            elif action == "UPDATE_EXISTING":
-                # Senior Manager says UPDATE. We UPDATE.
-                # Note: We do NOT pass buy_limit here, avoiding the ZeroDivisionError.
-                trade_events = trader.execute_update(
-                    ticker,
-                    p.get('take_profit', 0), 
-                    p.get('stop_loss', 0)
-                )
-                
-            elif action == "HOLD":
-                print(f"   ✋ Holding {ticker} (No Action).")
-                continue
-                
-            else:
-                print(f"   ⚠️ Unknown Action '{action}' for {ticker}")
+            try:
+                if action == "OPEN_NEW":
+                    trade_events = trader.execute_entry(
+                        ticker, config.INVEST_PER_TRADE, 
+                        p.get('buy_limit', 0), p.get('take_profit', 0), p.get('stop_loss', 0)
+                    )
+                elif action == "UPDATE_EXISTING":
+                    trade_events = trader.execute_update(
+                        ticker, p.get('take_profit', 0), p.get('stop_loss', 0),buy_limit=p.get('buy_limit', 0)
+                    )
+                elif action == "HOLD":
+                    log_pipeline(f"      ✋ Holding {ticker} (No Action Taken).")
+                    continue
+                else:
+                    log_pipeline(f"      ⚠️ Unknown Action '{action}' - Skipping.")
+            except Exception as e:
+                log_pipeline(f"      ❌ Execution Exception for {ticker}: {e}")
 
-            # --- LOGGING (Same as before) ---
-            # (Check for Raw Objects or Lists and log to Sheets)
-            if hasattr(trade_events, 'id'): trade_events = [{"event": "NEW_ENTRY", "info": "Recovered", "order_id": str(trade_events.id)}]
+            # Logging Events
             if isinstance(trade_events, dict): trade_events = [trade_events]
-            
             for event in trade_events:
                 if isinstance(event, dict):
                     evt_type = event.get('event', 'UNKNOWN')
                     if evt_type not in ["HOLD", "ERROR"]:
                         senior_history.log_trade_event(ticker, evt_type, event)
+                        log_pipeline(f"      ✅ Event Logged: {evt_type}")
                     elif evt_type == "ERROR":
-                        print(f"   ❌ Execution Error for {ticker}: {event.get('info')}")
+                        log_pipeline(f"      ❌ Error Event: {event.get('info')}")
 
-# 6. SEND EXECUTIVE BRIEF (NEW SECTION)
-    print("\n📧 Generating Executive Brief...")
-    try:
-        # Fetch latest account data from Alpaca
-        account_info = trader.trading_client.get_account()
-        
-        # Send the email with: Decision, Account Data, and Junior Reports
-        notifier.send_executive_brief(decision, account_info, reports)
-        
-    except Exception as e:
-        print(f"❌ Failed to send email: {e}")
+        # 6. SEND EMAIL
+        log_pipeline("\n📧 PHASE 4: NOTIFICATION")
+        try:
+            account_info = trader.trading_client.get_account()
+            notifier.send_executive_brief(decision, account_info, reports)
+            log_pipeline("✅ Executive Brief email dispatched.")
+        except Exception as e:
+            log_pipeline(f"❌ Failed to send email: {e}")
 
     print("\n" + "="*80)
-    print("✅ PIPELINE COMPLETE. Check Sheets & Email.")
-    print("="*80 + "\n")
-
-    print("\n" + "="*80)
-    print("✅ PIPELINE COMPLETE. Check Sheets: 'Trade_Log', 'Senior_Decisions', 'Executive_Briefs'")
+    log_pipeline("✅ PIPELINE COMPLETE. Check Sheets & Email.")
     print("="*80 + "\n")
 
 @main_routes.route('/tradingbot')

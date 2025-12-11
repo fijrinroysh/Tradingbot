@@ -84,7 +84,7 @@ INVEST_PER_TRADE = int(os.getenv("INVEST_PER_TRADE"))
 
 # --- SENIOR MANAGER SETTINGS ---
 SENIOR_TOP_PICKS = int(os.getenv("SENIOR_TOP_PICKS", 5)) 
-SENIOR_LOOKBACK_DAYS = int(os.getenv("SENIOR_LOOKBACK_DAYS", 10)) # <--- NEW
+SENIOR_LOOKBACK_DAYS = int(os.getenv("COOLDOWN_DAYS", 10)) # <--- NEW
 
 
 # 2. Alpaca Paper Trading Keys

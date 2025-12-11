@@ -1,124 +1,143 @@
 import gspread
 from google.oauth2.service_account import Credentials
-from datetime import datetime, timedelta
-import os
+import config
+import datetime
 import json
+import os
 import time
 
-SHEET_NAME = "TradingBot_History"
+SCOPES = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
 
-SCOPES = [
-    'https://www.googleapis.com/auth/spreadsheets',
-    'https://www.googleapis.com/auth/drive'
-]
+# 1. PARAMETERIZED SHEET NAME
+SHEET_NAME = getattr(config, 'GOOGLE_SHEET_NAME', "TradingBot_History")
 
 def get_client():
     creds_json = os.getenv("GOOGLE_SHEETS_CREDENTIALS")
     if not creds_json:
+																							 
         if os.path.exists("google_credentials.json"):
+	
             creds_json = open("google_credentials.json").read()
+						
+			
         else: return None
     
     try:
         creds_dict = json.loads(creds_json)
+									 
         creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
         return gspread.authorize(creds)
     except Exception as e:
         print(f"⚠️ [SENIOR HISTORY] Auth Error: {e}")
         return None
 
-def fetch_junior_reports(lookback_days):
-    # (Same as before - keeping existing logic)
+
+def clean_score(value):
+    try:
+        if isinstance(value, str): value = value.replace('%', '').strip()
+        if not value: return 0
+        return int(float(value))
+    except: return 0
+
+# --- 2. ROBUST FETCHING (NO SPLITTING) ---
+def fetch_junior_reports(lookback_days=10):
     for attempt in range(3):
         try:
             client = get_client()
             if not client: return []
             
             sheet = client.open(SHEET_NAME).sheet1
-            records = sheet.get_all_values()
-            candidates = []
-            cutoff = datetime.now() - timedelta(days=lookback_days)
+            raw_records = sheet.get_all_records()
             
-            for row in records[1:]:
-                if len(row) < 16: continue
+            clean_records = []
+            today = datetime.date.today()
+            limit_date = today - datetime.timedelta(days=lookback_days)
+
+            print(f"   📚 [HISTORY] Scanning {len(raw_records)} rows from Sheets...")
+
+            for row in raw_records:
+                raw_score = row.get('Score', 0)
+                score = clean_score(raw_score)
+                ticker = row.get('Ticker', '').upper().strip()
+                
+                # --- DATE HANDLING (AS IS) ---
+                date_str = str(row.get('Date', '')) # e.g. "2025-12-09 21:47"
+																	 
+
+                if not ticker or score == 0: continue
+
                 try:
-                    try:
-                        row_date = datetime.strptime(row[0], "%Y-%m-%d %H:%M")
-                    except:
-                        row_date = datetime.strptime(row[0].split(" ")[0], "%Y-%m-%d")
-                        
-                    if row_date < cutoff: continue
-                    
-                    candidates.append({
-                        "analysis_date": row[0],
-                        "ticker": row[1],
-                        "sector": row[2],
-                        "conviction_score": row[4],
-                        "status": row[5],
-                        "status_rationale": row[6],
-                        "valuation": row[7],
-                        "valuation_rationale": row[8],
-                        "rebound": row[9],
-                        "rebound_rationale": row[10],
-                        "catalyst": row[11],
-                        "proposed_execution": {
-                            "buy_limit": row[12],
-                            "take_profit": row[13],
-                            "stop_loss": row[14]
-                        },
-                        "intel": row[15]
-                    })
-                except: continue
-            return candidates
-            
+                    if date_str:
+                        # Parse the full format directly
+                        report_dt = datetime.datetime.strptime(date_str, "%Y-%m-%d %H:%M")
+                        if report_dt.date() < limit_date: continue 
+                except: continue 
+
+                # Full Fidelity Data
+                clean_records.append({
+                    "ticker": ticker,
+                    "report_date": date_str, # Keep original format
+                    "conviction_score": score,
+                    "sector": row.get('Sector', ''),
+                    "recommended_action": row.get('Action', ''),
+                    "status": row.get('Status', ''),
+                    "status_reason": row.get('Status_Reason', ''),
+                    "valuation": row.get('Valuation', ''),
+                    "valuation_reason": row.get('Valuation_Reason', ''),
+                    "rebound_potential": row.get('Rebound', ''),
+                    "rebound_reason": row.get('Rebound_Reason', ''),
+                    "catalyst": row.get('Catalyst', ''),
+                    "intel": row.get('Intel', ''),
+                    "junior_targets": {
+                        "buy_limit": row.get('Buy_Limit', 0),
+                        "take_profit": row.get('Take_Profit', 0),
+                        "stop_loss": row.get('Stop_Loss', 0)
+                    }
+                })
+            print(f"   ✅ Found {len(clean_records)} valid reports.")
+            return clean_records
+
         except Exception as e:
-            print(f"⚠️ Senior Fetch Error (Attempt {attempt+1}): {e}")
-            time.sleep(5)
+            print(f"   ⚠️ Fetch Error (Attempt {attempt+1}/3): {e}")
+            time.sleep(2)
             
     return []
 
-def get_last_strategy():
-    # (Same as before)
-    for attempt in range(3):
-        try:
-            client = get_client()
-            if not client: return None
-            sheet = client.open(SHEET_NAME).worksheet("Executive_Briefs")
-            last_row = sheet.get_all_values()[-1]
-            return {"date": last_row[0], "top_tickers": last_row[3]}
-        except: 
-            time.sleep(2)
-    return None
-
-def log_strategy(report):
-    # (Logs the markdown summary - Same as before)
+# --- 3. STRATEGY LOGGING (YYYY-MM-DD HH:MM) ---
+def log_strategy(decision):
+												  
     for attempt in range(3):
         try:
             client = get_client()
             if not client: return
+            
             sh = client.open(SHEET_NAME)
             try: sheet = sh.worksheet("Executive_Briefs")
-            except: sheet = sh.add_worksheet(title="Executive_Briefs", rows="1000", cols="5"); sheet.append_row(["Date", "Total", "Top_Count", "Top_Tickers", "Report"])
+            except: 
+                sheet = sh.add_worksheet(title="Executive_Briefs", rows=1000, cols=10)
+                sheet.append_row(["Date", "Total", "Top_Count", "Top_Tickers", "CEO_Report"])
+                
+            trades = decision.get('final_execution_orders', [])
+            trades_summary = ", ".join([f"{t.get('action')} {t.get('ticker')}" for t in trades])
             
-            top_picks = report.get('final_execution_orders', [])
+            # --- STANDARDIZED TIMESTAMP ---
+            timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+            
             row = [
-                datetime.now().strftime("%Y-%m-%d %H:%M"),
-                len(top_picks),
-                ", ".join([p['ticker'] for p in top_picks]),
-                report.get('ceo_report', 'N/A')
+                timestamp,
+                len(trades),
+                trades_summary,
+                decision.get('ceo_report', 'N/A')
             ]
             sheet.append_row(row)
-            print("✅ [SENIOR] Strategy Brief Logged.")
+            print("   ✅ [SENIOR] Strategy Brief Logged.")
             return
         except Exception as e:
-            print(f"⚠️ Senior Log Error: {e}")
-            time.sleep(5)
+            print(f"   ⚠️ Strategy Log Error (Attempt {attempt+1}/3): {e}")
+            time.sleep(2)
 
+# --- 4. DETAILED LOGGING (YYYY-MM-DD HH:MM) ---
 def log_detailed_decisions(decision_data, holdings_map=None):
-    """
-    NEW: Logs every individual trade recommendation to a structured 'Senior_Decisions' tab.
-    Acts as a database for performance tracking.
-    """
     if holdings_map is None: holdings_map = {}
     
     for attempt in range(3):
@@ -127,19 +146,15 @@ def log_detailed_decisions(decision_data, holdings_map=None):
             if not client: return
             sh = client.open(SHEET_NAME)
             
-            # 1. Get/Create Tab
-            try: 
-                sheet = sh.worksheet("Senior_Decisions")
+            try: sheet = sh.worksheet("Senior_Decisions")
             except: 
-                sheet = sh.add_worksheet(title="Senior_Decisions", rows="2000", cols="9")
-                sheet.append_row([
-                    "Date", "Ticker", "Rank", "Action", "Reasoning", 
-                    "Buy_Limit", "Take_Profit", "Stop_Loss", "Shares_Held"
-                ])
+                sheet = sh.add_worksheet(title="Senior_Decisions", rows=2000, cols=10)
+                sheet.append_row(["Date", "Ticker", "Rank", "Action", "Reason", "Buy_Limit", "Take_Profit", "Stop_Loss", "Shares_Held"])
             
-            # 2. Parse & Append Rows
             orders = decision_data.get('final_execution_orders', [])
-            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+            
+            # --- STANDARDIZED TIMESTAMP ---
+            timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
             
             for order in orders:
                 ticker = order.get('ticker')
@@ -148,62 +163,86 @@ def log_detailed_decisions(decision_data, holdings_map=None):
                 row = [
                     timestamp,
                     ticker,
-                    order.get('rank'),
-                    order.get('action'),
-                    order.get('reason'),
+                    order.get('rank', 0),
+                    order.get('action', 'HOLD'),
+                    order.get('reason', 'N/A'),
                     params.get('buy_limit', 0),
                     params.get('take_profit', 0),
                     params.get('stop_loss', 0),
-                    holdings_map.get(ticker, 0) # Log how many we held at this moment
+                    holdings_map.get(ticker, 0)
                 ]
                 sheet.append_row(row)
                 
-            print(f"✅ [SENIOR] Detailed Ledger Updated ({len(orders)} rows).")
+            print(f"   ✅ [SENIOR] Detailed Ledger Updated ({len(orders)} rows).")
             return
 
         except Exception as e:
-            print(f"⚠️ Ledger Log Error (Attempt {attempt+1}): {e}")
-            time.sleep(5)
+            print(f"   ⚠️ Ledger Log Error (Attempt {attempt+1}/3): {e}")
+            time.sleep(2)
 
-
-
+# --- 5. TRADE LOGGING (YYYY-MM-DD HH:MM) ---
 def log_trade_event(ticker, event_type, details):
-    """
-    Logs concrete broker actions (Orders Placed, Updated, Rejected).
-    Tab: 'Trade_Log'
-    """
     for attempt in range(3):
+							 
+							 
         try:
             client = get_client()
             if not client: return
+																										  
+																													 
+		
+																   
+																									 
+									 
+										  
+											
+									  
+																		 
+            
             sh = client.open(SHEET_NAME)
+            try: sheet = sh.worksheet("Trade_Log")
+            except:
+                sheet = sh.add_worksheet(title="Trade_Log", rows=1000, cols=10)
+                sheet.append_row(["Timestamp", "Ticker", "Event", "Qty", "Price", "Stop_Loss", "Take_Profit", "Details"])
             
-            # 1. Get/Create Tab
-            try: 
-                sheet = sh.worksheet("Trade_Log")
-            except: 
-                sheet = sh.add_worksheet(title="Trade_Log", rows="5000", cols="8")
-                sheet.append_row([
-                    "Timestamp", "Ticker", "Event", "Qty", "Price/Limit", 
-                    "Stop_Loss", "Take_Profit", "Order_ID / Details"
-                ])
+            # --- STANDARDIZED TIMESTAMP ---
+            now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
             
-            # 2. Format Data
-            row = [
-                datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                ticker,
-                event_type,              # e.g., "NEW_ENTRY", "UPDATE_SL"
-                details.get('qty', '-'),
-                details.get('price', '-'),
-                details.get('stop_loss', '-'),
-                details.get('take_profit', '-'),
-                str(details.get('order_id', details.get('info', '')))
-            ]
-            
+            price = details.get('price') or details.get('buy_limit') or details.get('limit_price') or '-'
+            qty = details.get('qty', '-')
+            sl = details.get('stop_loss', '-')
+            tp = details.get('take_profit', '-')
+            info = details.get('info', '')
+            if 'order_id' in details: info += f" | ID: {details['order_id']}"
+                
+            row = [now, ticker, event_type, qty, price, sl, tp, info]
             sheet.append_row(row)
-            print(f"✅ [HISTORY] Trade Event Logged: {event_type} for {ticker}")
+            print(f"   ✅ [HISTORY] Trade Event Logged: {event_type} for {ticker}")
             return
-
         except Exception as e:
-            print(f"⚠️ Trade Log Error (Attempt {attempt+1}): {e}")
+            print(f"   ⚠️ Trade Log Error (Attempt {attempt+1}/3): {e}")
             time.sleep(2)
+
+# --- 6. MEMORY RECALL ---
+def get_last_strategy():
+    for attempt in range(3):
+        try:
+            client = get_client()
+            if not client: return None
+            
+            sheet = client.open(SHEET_NAME).worksheet("Executive_Briefs")
+            records = sheet.get_all_records()
+            
+            if records:
+                last_row = records[-1]
+                return {
+                    "date": last_row.get("Date", "Unknown"),
+                    "top_tickers": last_row.get("Top_Tickers", "None"),
+                    "ceo_report": last_row.get("CEO_Report") or last_row.get("Report", "None")
+                }
+            return None
+        except Exception as e:
+            if attempt == 2: print(f"   ⚠️ Memory Recall Error: {e}")
+            time.sleep(2)
+            
+    return None
