@@ -19,6 +19,7 @@ data_client = StockHistoricalDataClient(config.ALPACA_KEY_ID, config.ALPACA_SECR
 def _enforce_contract(data, context="UNKNOWN"):
     """Forces return data into a List of Dictionaries."""
     if hasattr(data, 'id'):
+        # Fallback for raw objects (should rarely be used now)
         return [{
             "event": "NEW_ENTRY",
             "order_id": str(data.id),
@@ -62,7 +63,7 @@ def get_position(ticker):
 
 # --- DEEP DATA FETCH ---
 def get_position_details(ticker):
-																				 
+					 
     ticker = normalize_ticker(ticker)
     details = {
         "shares_held": get_position(ticker),
@@ -155,7 +156,17 @@ def execute_entry(ticker, investment_amount, buy_limit, take_profit, stop_loss):
     try:
         trade = trading_client.submit_order(order_data)
         print(f"   ✅ Buy Order Placed. ID: {trade.id}")
-        return _enforce_contract(trade, context=f"execute_entry({ticker})")
+        
+        # --- FIX: Return Explicit Data for Logging ---
+        return _enforce_contract({
+            "event": "NEW_ENTRY",
+            "order_id": str(trade.id),
+            "qty": qty,
+            "price": buy_limit,       # Explicitly passing the Limit Price
+            "take_profit": take_profit, # Explicitly passing TP
+            "stop_loss": stop_loss,     # Explicitly passing SL
+            "info": "Order Placed"
+        })
     except Exception as e:
         print(f"   ❌ Order Failed: {e}")
         return _enforce_contract({"event": "ERROR", "info": str(e)})
@@ -179,14 +190,17 @@ def execute_update(ticker, take_profit, stop_loss, buy_limit=0):
             current_limit = float(parent_buy.limit_price)
             if abs(current_limit - float(buy_limit)) > (float(buy_limit) * 0.005):
                 try:
-                    # FIX: Use 'replace_order_by_id' instead of 'replace_order'
+																			   
                     trading_client.replace_order_by_id(parent_buy.id, ReplaceOrderRequest(limit_price=float(buy_limit)))
                     print(f"   ✅ Pending BUY Updated: {current_limit} -> {buy_limit}")
-                    actions_log.append({"event": "UPDATE_BUY", "info": f"New Entry: {buy_limit}"})
-                    return _enforce_contract(actions_log)
+                    actions_log.append({
+                        "event": "UPDATE_BUY", 
+                        "price": buy_limit, 
+                        "info": f"Old: {current_limit}"
+                    })
                 except Exception as e:
                     print(f"   ❌ Failed to update Pending Buy: {e}")
-                    return _enforce_contract({"event": "ERROR", "info": f"Buy Update Fail: {e}"})
+                    actions_log.append({"event": "ERROR", "info": f"Buy Update Fail: {e}"})
             else:
                 print(f"   ✋ Pending Buy aligned ({current_limit}). No change.")
                 return _enforce_contract({"event": "HOLD", "info": "Pending Buy Aligned"})
@@ -201,7 +215,7 @@ def execute_update(ticker, take_profit, stop_loss, buy_limit=0):
              if qty > 0:
                  print(f"   ⚠️ Shares found ({qty}) but NO valid TP/SL. Rescuing...")
                  
-                 # --- STRICT MODE: NO AUTO-CALCULATION ---
+                 # STRICT MODE: NO AUTO-CALCULATION
                  if take_profit <= 0 or stop_loss <= 0:
                      err = f"Missing targets for rescue (TP={take_profit}, SL={stop_loss})."
                      print(f"   ❌ {err}")
@@ -209,21 +223,27 @@ def execute_update(ticker, take_profit, stop_loss, buy_limit=0):
 
                  if orders: trading_client.cancel_orders(symbols=[ticker])
                  
-                 # --- GTC RESCUE ---
+                 # GTC RESCUE
                  oco_data = LimitOrderRequest(
                     symbol=ticker, 
                     qty=qty, 
                     side=OrderSide.SELL, 
                     time_in_force=TimeInForce.GTC,
-                    limit_price=take_profit, # Main Order Limit (TP)
+                    limit_price=take_profit,
                     order_class=OrderClass.OCO,
-                    take_profit=TakeProfitRequest(limit_price=take_profit), # REQUIRED for OCO
+                    take_profit=TakeProfitRequest(limit_price=take_profit),
                     stop_loss=StopLossRequest(stop_price=stop_loss)
                  )
                  try:
                      trade = trading_client.submit_order(oco_data)
                      print(f"   ✅ Rescue Successful. ID: {trade.id}")
-                     return _enforce_contract({"event": "RESCUE_OCO", "info": "Reset TP/SL", "order_id": str(trade.id)})
+                     return _enforce_contract({
+                         "event": "RESCUE_OCO", 
+                         "take_profit": take_profit,
+                         "stop_loss": stop_loss,
+                         "info": "Reset TP/SL", 
+                         "order_id": str(trade.id)
+                     })
                  except Exception as ex:
                      return _enforce_contract({"event": "ERROR", "info": str(ex)})
              else:
@@ -235,10 +255,14 @@ def execute_update(ticker, take_profit, stop_loss, buy_limit=0):
             current_limit = float(tp_order.limit_price)
             if take_profit > 0 and abs(current_limit - float(take_profit)) > (float(take_profit) * 0.005):
                 try:
-                    # FIX: Use 'replace_order_by_id'
+													
                     trading_client.replace_order_by_id(tp_order.id, ReplaceOrderRequest(limit_price=float(take_profit)))
                     print(f"   ✅ TP Updated: {current_limit} -> {take_profit}")
-                    actions_log.append({"event": "UPDATE_TP", "info": f"Old: {current_limit}"})
+                    actions_log.append({
+                        "event": "UPDATE_TP", 
+                        "take_profit": take_profit, 
+                        "info": f"Old: {current_limit}"
+                    })
                 except Exception as e:
                     actions_log.append({"event": "ERROR", "info": f"TP Fail: {e}"})
 
@@ -246,10 +270,14 @@ def execute_update(ticker, take_profit, stop_loss, buy_limit=0):
             current_stop = float(sl_order.stop_price)
             if stop_loss > 0 and abs(current_stop - float(stop_loss)) > (float(stop_loss) * 0.005):
                 try:
-                    # FIX: Use 'replace_order_by_id'
+													
                     trading_client.replace_order_by_id(sl_order.id, ReplaceOrderRequest(stop_price=float(stop_loss)))
                     print(f"   ✅ SL Updated: {current_stop} -> {stop_loss}")
-                    actions_log.append({"event": "UPDATE_SL", "info": f"Old: {current_stop}"})
+                    actions_log.append({
+                        "event": "UPDATE_SL", 
+                        "stop_loss": stop_loss, 
+                        "info": f"Old: {current_stop}"
+                    })
                 except Exception as e:
                     actions_log.append({"event": "ERROR", "info": f"SL Fail: {e}"})
 
