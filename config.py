@@ -100,4 +100,8 @@ EMAIL_SENDER = os.getenv("EMAIL")
 EMAIL_RECIPIENT = os.getenv("EMAIL") # Can be the same as sender
 EMAIL_PASSWORD =  os.getenv("EMAIL_PASSWORD")  # The 16-character App Password
 
+RESEND_API_KEY =  os.getenv("RESEND_API_KEY")# Get this from Resend dashboard
+EMAIL_SENDER = "onboarding@resend.dev" # Or your verified domain email
+EMAIL_RECIPIENT = os.getenv("EMAIL")
+
 

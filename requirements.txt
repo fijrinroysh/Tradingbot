@@ -1,9 +1,9 @@
 flask
 requests
 gunicorn
-vaderSentiment
+#vaderSentiment
 alpaca-py
-finnhub-python
+#finnhub-python
 
 #Needed for Finbert
 #torch
@@ -26,3 +26,4 @@ lxml
 gspread 
 google-auth
 dotenv
+resend
