@@ -19,7 +19,7 @@ data_client = StockHistoricalDataClient(config.ALPACA_KEY_ID, config.ALPACA_SECR
 def _enforce_contract(data, context="UNKNOWN"):
     """Forces return data into a List of Dictionaries."""
     if hasattr(data, 'id'):
-        # Fallback for raw objects (should rarely be used now)
+															  
         return [{
             "event": "NEW_ENTRY",
             "order_id": str(data.id),
@@ -61,9 +61,9 @@ def get_position(ticker):
     except:
         return 0.0
 
-# --- DEEP DATA FETCH ---
+# --- IMPROVED ORDER DETECTION & LOGGING ---
 def get_position_details(ticker):
-					 
+	  
     ticker = normalize_ticker(ticker)
     details = {
         "shares_held": get_position(ticker),
@@ -84,15 +84,24 @@ def get_position_details(ticker):
             details["status_msg"] = f"PENDING BUY @ ${details['pending_buy_limit']}"
             
         # 2. Check for Active TP/SL (Sell Orders)
-        tp_order = next((o for o in orders if o.side == OrderSide.SELL and o.type == OrderType.LIMIT), None)
-        sl_order = next((o for o in orders if o.side == OrderSide.SELL and o.type == OrderType.STOP), None)
-        
-        if tp_order: details["active_tp"] = float(tp_order.limit_price)
-        if sl_order: details["active_sl"] = float(sl_order.stop_price)
+        # Scan ALL sell orders to find the legs
+        for o in orders:
+            if o.side == OrderSide.SELL:
+                # TAKE PROFIT is usually a LIMIT order ABOVE current price (or tagged as TP)
+                if o.type == OrderType.LIMIT:
+                    details["active_tp"] = float(o.limit_price)
+                
+                # STOP LOSS is usually a STOP order (or STOP_LIMIT)
+                elif o.type in [OrderType.STOP, OrderType.STOP_LIMIT]:
+                    details["active_sl"] = float(o.stop_price) if o.stop_price else float(o.limit_price)
         
         if details["shares_held"] > 0:
-            if tp_order and sl_order:
+            if details["active_tp"] and details["active_sl"]:
                 details["status_msg"] = f"ACTIVE POS ({details['shares_held']}) | TP: ${details['active_tp']} | SL: ${details['active_sl']}"
+            elif details["active_tp"]:
+                details["status_msg"] = f"ACTIVE POS ({details['shares_held']}) | TP ONLY: ${details['active_tp']}"
+            elif details["active_sl"]:
+                details["status_msg"] = f"ACTIVE POS ({details['shares_held']}) | SL ONLY: ${details['active_sl']}"
             else:
                 details["status_msg"] = f"ACTIVE POS ({details['shares_held']}) | NO BRACKET"
                 
@@ -157,14 +166,14 @@ def execute_entry(ticker, investment_amount, buy_limit, take_profit, stop_loss):
         trade = trading_client.submit_order(order_data)
         print(f"   ✅ Buy Order Placed. ID: {trade.id}")
         
-        # --- FIX: Return Explicit Data for Logging ---
+													   
         return _enforce_contract({
             "event": "NEW_ENTRY",
             "order_id": str(trade.id),
             "qty": qty,
-            "price": buy_limit,       # Explicitly passing the Limit Price
-            "take_profit": take_profit, # Explicitly passing TP
-            "stop_loss": stop_loss,     # Explicitly passing SL
+            "price": buy_limit,       
+            "take_profit": take_profit,
+            "stop_loss": stop_loss,     
             "info": "Order Placed"
         })
     except Exception as e:
@@ -190,7 +199,7 @@ def execute_update(ticker, take_profit, stop_loss, buy_limit=0):
             current_limit = float(parent_buy.limit_price)
             if abs(current_limit - float(buy_limit)) > (float(buy_limit) * 0.005):
                 try:
-																			   
+					  
                     trading_client.replace_order_by_id(parent_buy.id, ReplaceOrderRequest(limit_price=float(buy_limit)))
                     print(f"   ✅ Pending BUY Updated: {current_limit} -> {buy_limit}")
                     actions_log.append({
@@ -206,8 +215,14 @@ def execute_update(ticker, take_profit, stop_loss, buy_limit=0):
                 return _enforce_contract({"event": "HOLD", "info": "Pending Buy Aligned"})
 
         # --- 2. EXISTING POSITIONS (Standard Update) ---
-        tp_order = next((o for o in orders if o.type == OrderType.LIMIT and o.side == OrderSide.SELL), None)
-        sl_order = next((o for o in orders if o.type == OrderType.STOP and o.side == OrderSide.SELL), None)
+        # IMPROVED DETECTION (Matches get_position_details logic)
+        tp_order = None
+        sl_order = None
+        
+        for o in orders:
+            if o.side == OrderSide.SELL:
+                if o.type == OrderType.LIMIT: tp_order = o
+                elif o.type in [OrderType.STOP, OrderType.STOP_LIMIT]: sl_order = o
         
         # RESCUE MODE
         if not tp_order and not sl_order and not parent_buy:
@@ -255,7 +270,7 @@ def execute_update(ticker, take_profit, stop_loss, buy_limit=0):
             current_limit = float(tp_order.limit_price)
             if take_profit > 0 and abs(current_limit - float(take_profit)) > (float(take_profit) * 0.005):
                 try:
-													
+			 
                     trading_client.replace_order_by_id(tp_order.id, ReplaceOrderRequest(limit_price=float(take_profit)))
                     print(f"   ✅ TP Updated: {current_limit} -> {take_profit}")
                     actions_log.append({
@@ -267,10 +282,10 @@ def execute_update(ticker, take_profit, stop_loss, buy_limit=0):
                     actions_log.append({"event": "ERROR", "info": f"TP Fail: {e}"})
 
         if sl_order:
-            current_stop = float(sl_order.stop_price)
+            current_stop = float(sl_order.stop_price) if sl_order.stop_price else float(sl_order.limit_price)
             if stop_loss > 0 and abs(current_stop - float(stop_loss)) > (float(stop_loss) * 0.005):
                 try:
-													
+			 
                     trading_client.replace_order_by_id(sl_order.id, ReplaceOrderRequest(stop_price=float(stop_loss)))
                     print(f"   ✅ SL Updated: {current_stop} -> {stop_loss}")
                     actions_log.append({
