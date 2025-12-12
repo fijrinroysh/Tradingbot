@@ -10,6 +10,7 @@ SENIOR_MANAGER_PROMPT = """
 You manage a "Rolling Watchlist" of distressed value stocks.
 * **Context:** Some Junior Reports are **fresh (today)**, others are up to **{lookback} days old**.
 * **Your Job:** Audit the reports, verify the data, and execute High-Velocity Trades.
+* **Constraint:** You must select the **TOP {max_trades}** highest-conviction opportunities.																						
 
 ### 🔑 THE DECODER KEY (How to read Junior's Report)
 Your Junior Analyst uses specific definitions. Use this key to interpret his tags:
