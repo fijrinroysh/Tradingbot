@@ -14,17 +14,17 @@ SHEET_NAME = getattr(config, 'GOOGLE_SHEET_NAME', "TradingBot_History")
 def get_client():
     creds_json = os.getenv("GOOGLE_SHEETS_CREDENTIALS")
     if not creds_json:
-																							 
-        if os.path.exists("google_credentials.json"):
-	
-            creds_json = open("google_credentials.json").read()
 						
-			
+        if os.path.exists("google_credentials.json"):
+ 
+            creds_json = open("google_credentials.json").read()
+	  
+   
         else: return None
     
     try:
         creds_dict = json.loads(creds_json)
-									 
+		  
         creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
         return gspread.authorize(creds)
     except Exception as e:
@@ -39,8 +39,14 @@ def clean_score(value):
         return int(float(value))
     except: return 0
 
-# --- 2. ROBUST FETCHING (NO SPLITTING) ---
+# --- 2. ROBUST FETCHING (RETRY + SORT + DEDUPLICATE) ---
 def fetch_junior_reports(lookback_days=10):
+    """
+    Fetches reports with 3 layers of robustness:
+    1. RETRY: Tries 3 times if connection fails.
+    2. SORT: Sorts by Date (Newest First) in memory.
+    3. DEDUPLICATE: Keeps only the latest entry per ticker.
+    """
     for attempt in range(3):
         try:
             client = get_client()
@@ -49,34 +55,58 @@ def fetch_junior_reports(lookback_days=10):
             sheet = client.open(SHEET_NAME).sheet1
             raw_records = sheet.get_all_records()
             
+            # --- HELPER: Safe Date Parsing for Sorting ---
+            def get_date_object(record):
+                date_str = str(record.get('Date', '')).split(' ')[0]
+                try:
+                    return datetime.datetime.strptime(date_str, "%Y-%m-%d").date()
+                except:
+                    return datetime.date(1900, 1, 1) # Drop bad dates to bottom
+
+            # --- STEP 1: SORT IN MEMORY (Newest First) ---
+            print(f"   📚 [HISTORY] Sorting {len(raw_records)} records by Date (Attempt {attempt+1})...")
+            sorted_records = sorted(raw_records, key=get_date_object, reverse=True)
+
             clean_records = []
+            seen_tickers = set()
+            
             today = datetime.date.today()
             limit_date = today - datetime.timedelta(days=lookback_days)
 
-            print(f"   📚 [HISTORY] Scanning {len(raw_records)} rows from Sheets...")
-
-            for row in raw_records:
-                raw_score = row.get('Score', 0)
-                score = clean_score(raw_score)
+            # --- STEP 2: FILTER & DEDUPLICATE ---
+            for row in sorted_records:
                 ticker = row.get('Ticker', '').upper().strip()
                 
-                # --- DATE HANDLING (AS IS) ---
-                date_str = str(row.get('Date', '')) # e.g. "2025-12-09 21:47"
-																	 
+                # Deduplication: If we already saw this ticker (which was newer), skip this old one.
+                if ticker in seen_tickers:
+                    continue
+
+								   
+                raw_score = row.get('Score', 0)
+                score = clean_score(raw_score)
+															  
+				
+											   
+                date_str = str(row.get('Date', ''))
+				  
 
                 if not ticker or score == 0: continue
 
                 try:
+                    # Parse the full format directly for validation
                     if date_str:
-                        # Parse the full format directly
+														
                         report_dt = datetime.datetime.strptime(date_str, "%Y-%m-%d %H:%M")
                         if report_dt.date() < limit_date: continue 
                 except: continue 
 
+                # Mark as seen so we don't add older duplicates
+                seen_tickers.add(ticker)
+
                 # Full Fidelity Data
                 clean_records.append({
                     "ticker": ticker,
-                    "report_date": date_str, # Keep original format
+                    "report_date": date_str,
                     "conviction_score": score,
                     "sector": row.get('Sector', ''),
                     "recommended_action": row.get('Action', ''),
@@ -94,7 +124,8 @@ def fetch_junior_reports(lookback_days=10):
                         "stop_loss": row.get('Stop_Loss', 0)
                     }
                 })
-            print(f"   ✅ Found {len(clean_records)} valid reports.")
+            
+            print(f"   ✅ Found {len(clean_records)} unique, valid reports.")
             return clean_records
 
         except Exception as e:
@@ -105,7 +136,7 @@ def fetch_junior_reports(lookback_days=10):
 
 # --- 3. STRATEGY LOGGING (YYYY-MM-DD HH:MM) ---
 def log_strategy(decision):
-												  
+			  
     for attempt in range(3):
         try:
             client = get_client()
@@ -120,7 +151,7 @@ def log_strategy(decision):
             trades = decision.get('final_execution_orders', [])
             trades_summary = ", ".join([f"{t.get('action')} {t.get('ticker')}" for t in trades])
             
-            # --- STANDARDIZED TIMESTAMP ---
+											
             timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
             
             row = [
@@ -152,8 +183,8 @@ def log_detailed_decisions(decision_data, holdings_map=None):
                 sheet.append_row(["Date", "Ticker", "Rank", "Action", "Reason", "Buy_Limit", "Take_Profit", "Stop_Loss", "Shares_Held"])
             
             orders = decision_data.get('final_execution_orders', [])
-            
-            # --- STANDARDIZED TIMESTAMP ---
+			
+											
             timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
             
             for order in orders:
@@ -183,21 +214,21 @@ def log_detailed_decisions(decision_data, holdings_map=None):
 # --- 5. TRADE LOGGING (YYYY-MM-DD HH:MM) ---
 def log_trade_event(ticker, event_type, details):
     for attempt in range(3):
-							 
-							 
+		
+		
         try:
             client = get_client()
             if not client: return
-																										  
-																													 
-		
-																   
-																									 
-									 
-										  
-											
-									  
-																		 
+							
+							  
+  
+				   
+						  
+		  
+			
+		   
+		   
+				   
             
             sh = client.open(SHEET_NAME)
             try: sheet = sh.worksheet("Trade_Log")
@@ -205,7 +236,7 @@ def log_trade_event(ticker, event_type, details):
                 sheet = sh.add_worksheet(title="Trade_Log", rows=1000, cols=10)
                 sheet.append_row(["Timestamp", "Ticker", "Event", "Qty", "Price", "Stop_Loss", "Take_Profit", "Details"])
             
-            # --- STANDARDIZED TIMESTAMP ---
+											
             now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
             
             price = details.get('price') or details.get('buy_limit') or details.get('limit_price') or '-'
