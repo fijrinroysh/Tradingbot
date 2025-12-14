@@ -35,7 +35,7 @@ def send_executive_brief(decision, account_info, junior_reports, portfolio):
             <table style="width: 100%; border-collapse: collapse; color: white;">
                 <tr>
                     <td style="width: 60%;">
-                        <h2 style="margin:0;">GVQM Mirror Protocol</h2>
+                        <h2 style="margin:0;">GVQM - Good Value Quick Money</h2>
                         <p style="margin:0; font-size: 11px; opacity: 0.8;">Generated {today}</p>
                     </td>
                     <td style="width: 40%; text-align: right;">
