@@ -82,8 +82,8 @@ def run_pipeline():
     log_pipeline(f"Fetched {len(reports)} total reports from history (Last {lookback} days).")
     
     # Filter
-    high_conviction = [r for r in reports if get_safe_score(r) >= 85]
-    log_pipeline(f"Identified {len(high_conviction)} HIGH CONVICTION candidates (Score >= 85).")
+    high_conviction = [r for r in reports if get_safe_score(r) > 85]
+    log_pipeline(f"Identified {len(high_conviction)} HIGH CONVICTION candidates (Score > 85).")
     
     if not high_conviction:
         log_pipeline("📉 No high-conviction candidates found. Stopping Senior Phase.")
