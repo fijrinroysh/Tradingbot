@@ -73,7 +73,7 @@ def get_position(ticker):
                 return 0.0
     return 0.0
 
-											
+		   
 def get_position_details(ticker):
    
     ticker = normalize_ticker(ticker)
@@ -84,29 +84,56 @@ def get_position_details(ticker):
         "active_sl": None,
         "status_msg": "NONE"
     }
-	
+    
     try:
-        req_filter = GetOrdersRequest(status=QueryOrderStatus.OPEN, symbols=[ticker])
+        # 1. Fetch ALL orders (Open + Closed + Held)
+        # We need 'ALL' because 'held' orders are not considered 'OPEN' by the API filter
+        req_filter = GetOrdersRequest(
+            status=QueryOrderStatus.ALL, 
+            symbols=[ticker],
+            limit=50  # Fetch recent history to find the active bracket
+        )
         orders = trading_client.get_orders(filter=req_filter)
-		
-								  
-        buy_order = next((o for o in orders if o.side == OrderSide.BUY), None)
+        
+        # 2. DEFINE LIVE STATUSES (The "Active" List)
+        # We manually filter for anything that represents a live, working order
+        live_status_strings = [
+            'new', 'partially_filled', 'accepted', 'pending_new', 
+            'pending_replace', 'held', 'calculated', 'suspended'
+        ]
+        
+        active_orders = []
+        for o in orders:
+            # FIX: Extract the raw string value from the Enum
+            # If o.status is OrderStatus.HELD, .value gives "held"
+            current_status = o.status.value if hasattr(o.status, 'value') else str(o.status)
+            
+            if current_status in live_status_strings:
+                active_orders.append(o)
+
+        # 3. PARSE ACTIVE ORDERS
+        buy_order = next((o for o in active_orders if o.side == OrderSide.BUY), None)
         if buy_order:
-            details["pending_buy_limit"] = float(buy_order.limit_price) if buy_order.limit_price else "MKT"
+									   
+            price = buy_order.limit_price if buy_order.limit_price else "MKT"
+            details["pending_buy_limit"] = float(price) if price != "MKT" else "MKT"
             details["status_msg"] = f"PENDING BUY @ ${details['pending_buy_limit']}"
         
-												 
-											   
-        for o in orders:
+	
+	 
+        for o in active_orders:
             if o.side == OrderSide.SELL:
-																							
-											 
-                if o.type == OrderType.LIMIT: details["active_tp"] = float(o.limit_price)
-				
-																   
+		
+   
+                if o.type == OrderType.LIMIT: 
+                    details["active_tp"] = float(o.limit_price)
+                
+                # Check for STOP and STOP_LIMIT
                 elif o.type in [OrderType.STOP, OrderType.STOP_LIMIT]: 
-                    details["active_sl"] = float(o.stop_price) if o.stop_price else float(o.limit_price)
+                    price = o.stop_price if o.stop_price else o.limit_price
+                    details["active_sl"] = float(price)
         
+        # 4. CONSTRUCT STATUS MESSAGE
         if details["shares_held"] > 0:
             if details["active_tp"] and details["active_sl"]:
                 details["status_msg"] = f"ACTIVE POS ({details['shares_held']}) | TP: ${details['active_tp']} | SL: ${details['active_sl']}"
@@ -116,7 +143,7 @@ def get_position_details(ticker):
                 details["status_msg"] = f"ACTIVE POS ({details['shares_held']}) | SL ONLY: ${details['active_sl']}"
             else:
                 details["status_msg"] = f"ACTIVE POS ({details['shares_held']}) | NO BRACKET"
-				
+                
         return details
   
     except Exception as e:
@@ -202,40 +229,103 @@ def execute_entry(ticker, investment_amount, buy_limit, take_profit, stop_loss):
 
 # ==========================================================
 #  COMMAND 2: EXECUTE UPDATE
-# ==========================================================
+# ==========================================================						
 def execute_update(ticker, take_profit, stop_loss, buy_limit=0):
     ticker = normalize_ticker(ticker)
     print(f"♻️ TRADER: Executing UPDATE_EXISTING for {ticker}...")
     actions_log = []
     
     try:
-        req_filter = GetOrdersRequest(status=QueryOrderStatus.OPEN, symbols=[ticker])
-        orders = trading_client.get_orders(filter=req_filter)
+        # Fetch ALL orders to ensure we see 'held' legs
+        req_filter = GetOrdersRequest(status=QueryOrderStatus.ALL, symbols=[ticker])
+        all_orders = trading_client.get_orders(filter=req_filter)
         
-        # --- 1. CHECK FOR PENDING PARENT BUY (Pre-Market Scenario) ---
+        # Filter for LIVE orders (Same logic as get_position_details)
+        live_status_strings = ['new', 'partially_filled', 'accepted', 'pending_new', 'pending_replace', 'held']
+        orders = [o for o in all_orders if (o.status.value if hasattr(o.status, 'value') else str(o.status)) in live_status_strings]
+        
+        # --- 1. CHECK FOR PENDING PARENT BUY (Pre-Market/Bracket Scenario) ---
         parent_buy = next((o for o in orders if o.side == OrderSide.BUY), None)
         
         if parent_buy and buy_limit > 0:
             current_limit = float(parent_buy.limit_price)
-            if abs(current_limit - float(buy_limit)) > (float(buy_limit) * 0.005):
+            
+            # CHECK: Only update if diff >= 1 cent
+            if abs(current_limit - float(buy_limit)) >= 0.01:
                 try:
-	   
+                    # ATTEMPT 1: The Polite Way (Replace)
                     trading_client.replace_order_by_id(parent_buy.id, ReplaceOrderRequest(limit_price=float(buy_limit)))
-                    print(f"   ✅ Pending BUY Updated: {current_limit} -> {buy_limit}")
-                    actions_log.append({
-                        "event": "UPDATE_BUY", 
-                        "price": buy_limit, 
-                        "info": f"Old: {current_limit}"
-                    })
+                    
+									 
+                    pct_change = ((float(buy_limit) - current_limit) / current_limit) * 100
+                    delta_msg = f"{'⬆️' if pct_change > 0 else '⬇️'} {pct_change:.2f}%"
+																
+					
+                    print(f"   ✅ Pending BUY Updated: {current_limit} -> {buy_limit} ({delta_msg})")
+										
+											   
+											
+                    actions_log.append({"event": "UPDATE_BUY", "price": buy_limit, "info": f"Old: {current_limit} | Delta: {delta_msg}"})
+                
                 except Exception as e:
-                    print(f"   ❌ Failed to update Pending Buy: {e}")
-                    actions_log.append({"event": "ERROR", "info": f"Buy Update Fail: {e}"})
+                    # ATTEMPT 2: The Nuclear Way (Cancel & Resubmit)
+                    # Catches "422 cannot replace order in accepted status"
+                    if "422" in str(e) or "cannot replace" in str(e).lower():
+                        print(f"   ⚠️ Replace Rejected ({e}). Switching to Cancel & Resubmit...")
+                        
+                        try:
+                            # A. Scrape Existing Data to Preserve Strategy
+                            qty = float(parent_buy.qty)
+                            
+                            # Find existing TP/SL if the Senior Manager passed 0 (No Change)
+                            # We look at the 'held' child legs
+                            existing_tp = next((o.limit_price for o in orders if o.side == OrderSide.SELL and o.type == OrderType.LIMIT), 0)
+                            existing_sl = next((o.stop_price for o in orders if o.side == OrderSide.SELL and o.type in [OrderType.STOP, OrderType.STOP_LIMIT]), 0)
+                            
+                            # Use New Values if provided, else Fallback to Existing
+                            final_tp = float(take_profit) if take_profit > 0 else float(existing_tp)
+                            final_sl = float(stop_loss) if stop_loss > 0 else float(existing_sl)
+                            
+                            if final_tp <= 0 or final_sl <= 0:
+                                raise ValueError(f"Cannot Resubmit. Missing Legs (TP:{final_tp}, SL:{final_sl})")
+
+                            # B. Cancel Old Chain
+                            trading_client.cancel_order_by_id(parent_buy.id)
+                            time.sleep(1) # Safety pause for backend
+
+                            # C. Resubmit New Bracket
+                            new_order = LimitOrderRequest(
+                                symbol=ticker,
+                                qty=int(qty),
+                                side=OrderSide.BUY,
+                                time_in_force=TimeInForce.GTC,
+                                limit_price=float(buy_limit),
+                                order_class=OrderClass.BRACKET,
+                                take_profit=TakeProfitRequest(limit_price=final_tp),
+                                stop_loss=StopLossRequest(stop_price=final_sl)
+                            )
+                            trade = trading_client.submit_order(new_order)
+                            
+                            print(f"   ✅ Resubmit Successful. New ID: {trade.id}")
+                            actions_log.append({
+                                "event": "RESUBMIT_BUY", 
+                                "price": buy_limit, 
+                                "info": "Replaced via Resubmit (422 Fix)",
+                                "order_id": str(trade.id)
+                            })
+                            
+                        except Exception as resubmit_err:
+                             print(f"   ❌ Resubmit Failed: {resubmit_err}")
+                             actions_log.append({"event": "ERROR", "info": f"Resubmit Fail: {resubmit_err}"})
+                    else:
+                        print(f"   ❌ Failed to update Pending Buy: {e}")
+                        actions_log.append({"event": "ERROR", "info": f"Buy Update Fail: {e}"})
             else:
                 print(f"   ✋ Pending Buy aligned ({current_limit}). No change.")
                 return _enforce_contract({"event": "HOLD", "info": "Pending Buy Aligned"})
 
         # --- 2. EXISTING POSITIONS (Standard Update) ---
-																 
+	 
         tp_order = None
         sl_order = None
         
@@ -244,75 +334,90 @@ def execute_update(ticker, take_profit, stop_loss, buy_limit=0):
                 if o.type == OrderType.LIMIT: tp_order = o
                 elif o.type in [OrderType.STOP, OrderType.STOP_LIMIT]: sl_order = o
         
-        # RESCUE MODE
+        # RESCUE MODE (No Bracket Found)
         if not tp_order and not sl_order and not parent_buy:
              qty = get_position(ticker)
              if qty > 0:
                  print(f"   ⚠️ Shares found ({qty}) but NO valid TP/SL. Rescuing...")
-                 
-												   
+				 
+	  
                  if take_profit <= 0 or stop_loss <= 0:
-                     err = f"Missing targets for rescue (TP={take_profit}, SL={stop_loss})."
-                     print(f"   ❌ {err}")
-                     return _enforce_contract({"event": "ERROR", "info": err})
-
+																							
+										   
+                     return _enforce_contract({"event": "ERROR", "info": "Rescue Failed: Missing TP/SL"})
+                 
                  if orders: trading_client.cancel_orders(symbols=[ticker])
                  
-							 
+  
                  oco_data = LimitOrderRequest(
-                    symbol=ticker, 
-                    qty=qty, 
-                    side=OrderSide.SELL, 
-                    time_in_force=TimeInForce.GTC,
-                    limit_price=take_profit,
-                    order_class=OrderClass.OCO,
+								   
+							 
+										 
+                    symbol=ticker, qty=qty, side=OrderSide.SELL, time_in_force=TimeInForce.GTC,
+											
+                    limit_price=take_profit, order_class=OrderClass.OCO,
                     take_profit=TakeProfitRequest(limit_price=take_profit),
                     stop_loss=StopLossRequest(stop_price=stop_loss)
                  )
                  try:
                      trade = trading_client.submit_order(oco_data)
                      print(f"   ✅ Rescue Successful. ID: {trade.id}")
-                     return _enforce_contract({
-                         "event": "RESCUE_OCO", 
-                         "take_profit": take_profit,
-                         "stop_loss": stop_loss,
-                         "info": "Reset TP/SL", 
-                         "order_id": str(trade.id)
-                     })
+                     return _enforce_contract({"event": "RESCUE_OCO", "info": "Reset TP/SL", "order_id": str(trade.id)})
+												
+													
+												
+														   
+												  
+					   
                  except Exception as ex:
                      return _enforce_contract({"event": "ERROR", "info": str(ex)})
              else:
-                 print("   ❌ No position and no orders. Nothing to update.")
-                 return _enforce_contract({"event": "ERROR", "info": "No Position/Orders"})
+                 if not parent_buy: # Only error if we didn't just handle a parent buy
+                    print("   ❌ No position/orders. Nothing to update.")
+                    return _enforce_contract({"event": "ERROR", "info": "No Position/Orders"})
 
-        # STANDARD TP/SL UPDATE
+        # STANDARD TP/SL UPDATE (No changes needed here, existing logic works for Child Legs)
         if tp_order:
             current_limit = float(tp_order.limit_price)
-            if take_profit > 0 and abs(current_limit - float(take_profit)) > (float(take_profit) * 0.005):
+													
+            if take_profit > 0 and abs(current_limit - float(take_profit)) >= 0.01:
                 try:
-	
+ 
                     trading_client.replace_order_by_id(tp_order.id, ReplaceOrderRequest(limit_price=float(take_profit)))
-                    print(f"   ✅ TP Updated: {current_limit} -> {take_profit}")
-                    actions_log.append({
-                        "event": "UPDATE_TP", 
-                        "take_profit": take_profit, 
-                        "info": f"Old: {current_limit}"
-                    })
+                    
+									 
+                    pct_change = ((float(take_profit) - current_limit) / current_limit) * 100
+                    delta_msg = f"{'⬆️' if pct_change > 0 else '⬇️'} {pct_change:.2f}%"
+																
+					
+                    print(f"   ✅ TP Updated: {current_limit} -> {take_profit} ({delta_msg})")
+										
+											  
+													
+                    actions_log.append({"event": "UPDATE_TP", "take_profit": take_profit, "info": f"Old: {current_limit} | Delta: {delta_msg}"})
+					  
                 except Exception as e:
                     actions_log.append({"event": "ERROR", "info": f"TP Fail: {e}"})
 
         if sl_order:
             current_stop = float(sl_order.stop_price) if sl_order.stop_price else float(sl_order.limit_price)
-            if stop_loss > 0 and abs(current_stop - float(stop_loss)) > (float(stop_loss) * 0.005):
+													
+            if stop_loss > 0 and abs(current_stop - float(stop_loss)) >= 0.01:
                 try:
-	
+ 
                     trading_client.replace_order_by_id(sl_order.id, ReplaceOrderRequest(stop_price=float(stop_loss)))
-                    print(f"   ✅ SL Updated: {current_stop} -> {stop_loss}")
-                    actions_log.append({
-                        "event": "UPDATE_SL", 
-                        "stop_loss": stop_loss, 
-                        "info": f"Old: {current_stop}"
-                    })
+                    
+									 
+                    pct_change = ((float(stop_loss) - current_stop) / current_stop) * 100
+                    delta_msg = f"{'⬆️' if pct_change > 0 else '⬇️'} {pct_change:.2f}%"
+																
+					
+                    print(f"   ✅ SL Updated: {current_stop} -> {stop_loss} ({delta_msg})")
+										
+											  
+												
+                    actions_log.append({"event": "UPDATE_SL", "stop_loss": stop_loss, "info": f"Old: {current_stop} | Delta: {delta_msg}"})
+					  
                 except Exception as e:
                     actions_log.append({"event": "ERROR", "info": f"SL Fail: {e}"})
 
