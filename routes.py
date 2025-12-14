@@ -81,19 +81,65 @@ def run_pipeline():
     reports = senior_history.fetch_junior_reports(lookback)
     log_pipeline(f"Fetched {len(reports)} total reports from history (Last {lookback} days).")
     
-    # Filter
-    high_conviction = [r for r in reports if get_safe_score(r) > 85]
-    log_pipeline(f"Identified {len(high_conviction)} HIGH CONVICTION candidates (Score > 85).")
+    # --- LOGIC FIX: PORTFOLIO INJECTION ---
+    # 1. Get Live Holdings (The "Must Manage" List)
+    # We use the Trader client directly to get a list of all tickers we own or have orders for.
+    live_tickers = set()
+    try:
+        # Get Open Positions
+        positions = trader.trading_client.get_all_positions()
+        for p in positions: live_tickers.add(p.symbol)
+        
+        # Get Open Orders (Pending Buys)
+        # FIX: Use GetOrdersRequest accessed via the trader module
+        req_params = trader.GetOrdersRequest(status=trader.QueryOrderStatus.OPEN)
+        orders = trader.trading_client.get_orders(filter=req_params)
+        for o in orders: live_tickers.add(o.symbol)
+
+
+
+        log_pipeline(f"   ℹ️ Portfolio Context: Tracking {len(live_tickers)} active tickers: {list(live_tickers)}")
+    except Exception as e:
+        log_pipeline(f"   ⚠️ Could not fetch live portfolio: {e}")
+
+    # 2. Filter Candidates (The Merge)
+    final_candidates = []
+    seen_tickers = set()
     
-    if not high_conviction:
-        log_pipeline("📉 No high-conviction candidates found. Stopping Senior Phase.")
+    for r in reports:
+        ticker = r.get('ticker')
+        score = get_safe_score(r)
+        is_high_conviction = score >= 85
+        is_held = ticker in live_tickers
+		
+        # CRITICAL: Pass if it's a Gem (>85) OR if we are married to it (Held)
+        if (is_high_conviction or is_held) and ticker not in seen_tickers:
+																		  
+
+            # Tag it so the Senior Manager knows WHY it's here
+            if is_held and not is_high_conviction:
+                r['audit_reason'] = "PORTFOLIO_REVIEW - Low Score, but we have active positions, need to be managed"
+            else:
+                r['audit_reason'] = "HIGH_CONVICTION - High score, it could be new opportunity, or we might have active positions that need to be managed"
+                
+            final_candidates.append(r)
+            seen_tickers.add(ticker)
+																							 
+
+    log_pipeline(f"Senior Agent will review {len(final_candidates)} candidates ({len(live_tickers)} Active + Opportunity Pipeline).")
+    
+    if not final_candidates:
+        log_pipeline("📉 No candidates found. Stopping Senior Phase.")
         return
+													
+
+
 
     # 3. INJECT LIVE CONTEXT (THE UPGRADE)
-    log_pipeline(f"Fetching Live Data & X-Ray Context for {len(high_conviction)} candidates...")
+    log_pipeline(f"Fetching Live Data & X-Ray Context for {len(final_candidates)} candidates...")
     holdings_map = {} 
     
-    for c in high_conviction:
+    for c in final_candidates:
         ticker = c['ticker']
         c['current_price'] = trader.get_current_price(ticker)
         
@@ -123,7 +169,7 @@ def run_pipeline():
     context = senior_history.get_last_strategy()
     
     decision = senior_agent.rank_portfolio(
-        high_conviction, 
+        final_candidates, 
         top_n=getattr(config, 'SENIOR_TOP_PICKS', 5),
         prev_context=context
     )
@@ -184,7 +230,12 @@ def run_pipeline():
         log_pipeline("\n📧 PHASE 4: NOTIFICATION")
         try:
             account_info = trader.trading_client.get_account()
-            notifier.send_executive_brief(decision, account_info, reports)
+            # 2. Fetch Live Portfolio (The Missing Piece)
+            portfolio = trader.trading_client.get_all_positions()
+            
+            # 3. Send Brief with ALL 4 Arguments
+            notifier.send_executive_brief(decision, account_info, reports, portfolio)
+
             log_pipeline("✅ Executive Brief email dispatched.")
         except Exception as e:
             log_pipeline(f"❌ Failed to send email: {e}")
