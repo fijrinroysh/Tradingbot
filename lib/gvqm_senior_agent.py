@@ -27,11 +27,11 @@ def clean_json_text(text):
         return text
     except: return text
 
-# --- NEW VISUALIZATION ENGINE ---								  
+# --- NEW VISUALIZATION ENGINE ---								  											
 def visualize_decision(candidates, decision):
     """
     Prints a human-readable 'Reality vs Decision' matrix.
-    v2.0: Fixed width columns, Pending Buy visibility, Full-width Reason.
+    v2.1: Uses block-level formatting to ensure pipes '|' never zig-zag.
     """
     print("\n" + "="*82)
     print("🔮 SENIOR MANAGER: NEURAL DECISION MATRIX")
@@ -44,8 +44,8 @@ def visualize_decision(candidates, decision):
         ticker = cand.get('ticker')
         order = orders_map.get(ticker)
         
-																		
-																				
+				  
+					
         if not order: continue
 
         # --- PREPARE DATA ---
@@ -55,7 +55,7 @@ def visualize_decision(candidates, decision):
         curr_tp = cand.get('current_active_tp', '-') or '-'
         curr_sl = cand.get('current_active_sl', '-') or '-'
         
-        # PENDING BUY LOGIC
+        # Pending Logic
         pending_buy = cand.get('pending_buy_limit')
         if pending_buy and pending_buy != "MKT" and float(pending_buy) > 0:
             pending_str = f"PENDING BUY @ ${pending_buy}"
@@ -76,44 +76,51 @@ def visualize_decision(candidates, decision):
         new_sl = params.get('stop_loss', '-')
 
         # Color Coding
-													   
+				
         color = "\033[90m" # Grey
         if action == "OPEN_NEW": color = "\033[92m" # Green
         elif action == "UPDATE_EXISTING": color = "\033[96m" # Cyan
         reset = "\033[0m"
 
-        # --- DRAW TABLE (Strict 38-char columns + 3 char separator) ---
+        # --- DRAW TABLE (Block Formatting) ---
+        # The trick: Construct the string FIRST, then pad the WHOLE string to 38 chars.
+        
         print(f"{color}" + "-"*82)
         print(f" {ticker:<6} | {action}")
         print("-" * 82 + f"{reset}")
         
         # Header
+        # Column Width = 38 chars
         print(f" {'INPUT (Context)':<38} | {'OUTPUT (Decision)':<38}")
         print(f" {'-'*38} | {'-'*38}")
-																			
+				   
         
         # Row 1: Price vs Limit
-        print(f" Price:    ${str(price):<28} | Limit:    ${str(new_limit)}")
+        r1_left = f"Price:    ${price}"
+        r1_right = f"Limit:    ${new_limit}"
+        print(f" {r1_left:<38} | {r1_right:<38}")
         
         # Row 2: Held vs Targets
-        p_str = f"{held} shares"
-        # Format targets string carefully
-        t_str = f"TP: ${new_tp} / SL: ${new_sl}"
-        print(f" Held:     {p_str:<28} | Targets:  {t_str}")
+        r2_left = f"Held:     {held} shares"
+										 
+        r2_right = f"Targets:  TP: ${new_tp} / SL: ${new_sl}"
+        print(f" {r2_left:<38} | {r2_right:<38}")
 
-        # Row 3: Active Bracket
-															  
-        b_str = f"TP: ${curr_tp} / SL: ${curr_sl}"
-        print(f" Active:   {b_str:<28} |")
+        # Row 3: Active Bracket vs Empty
+				 
+        r3_left = f"Active:   TP: ${curr_tp} / SL: ${curr_sl}"
+        r3_right = "" 
+        print(f" {r3_left:<38} | {r3_right:<38}")
         
-        # Row 4: Pending Status (NEW)
-        print(f" Status:   {pending_str:<28} |")
+        # Row 4: Pending Status
+        r4_left = f"Status:   {pending_str}"
+        print(f" {r4_left:<38} |")
 
         # Row 5: Junior Intel
-        j_str = f"{status_tag} (Score: {score})"
-        print(f" Junior:   {j_str:<28} |")
+        r5_left = f"Junior:   {status_tag} (Score: {score})"
+        print(f" {r5_left:<38} |")
         
-        # Footer: Reason (Full Width for readability)
+        # Footer: Reason
         print(f" {'-'*80}")
         print(f" Reason:   {reason}")
         print("")
