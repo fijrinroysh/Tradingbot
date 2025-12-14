@@ -27,6 +27,99 @@ def clean_json_text(text):
         return text
     except: return text
 
+# --- NEW VISUALIZATION ENGINE ---								  
+def visualize_decision(candidates, decision):
+    """
+    Prints a human-readable 'Reality vs Decision' matrix.
+    v2.0: Fixed width columns, Pending Buy visibility, Full-width Reason.
+    """
+    print("\n" + "="*82)
+    print("🔮 SENIOR MANAGER: NEURAL DECISION MATRIX")
+    print("="*82)
+
+    # Map orders for O(1) lookup
+    orders_map = {o.get('ticker'): o for o in decision.get('final_execution_orders', [])}
+
+    for cand in candidates:
+        ticker = cand.get('ticker')
+        order = orders_map.get(ticker)
+        
+																		
+																				
+        if not order: continue
+
+        # --- PREPARE DATA ---
+        # Input Side (Reality)
+        price = cand.get('current_price', 0)
+        held = cand.get('shares_held', 0)
+        curr_tp = cand.get('current_active_tp', '-') or '-'
+        curr_sl = cand.get('current_active_sl', '-') or '-'
+        
+        # PENDING BUY LOGIC
+        pending_buy = cand.get('pending_buy_limit')
+        if pending_buy and pending_buy != "MKT" and float(pending_buy) > 0:
+            pending_str = f"PENDING BUY @ ${pending_buy}"
+        elif pending_buy == "MKT":
+             pending_str = "PENDING BUY @ MKT"
+        else:
+            pending_str = "No Pending Orders"
+
+        score = cand.get('conviction_score', 'N/A')
+        status_tag = cand.get('status', 'N/A')
+
+        # Output Side (Decision)
+        action = order.get('action', 'HOLD')
+        reason = order.get('reason', 'No reason provided')
+        params = order.get('confirmed_params', {})
+        new_limit = params.get('buy_limit', '-')
+        new_tp = params.get('take_profit', '-')
+        new_sl = params.get('stop_loss', '-')
+
+        # Color Coding
+													   
+        color = "\033[90m" # Grey
+        if action == "OPEN_NEW": color = "\033[92m" # Green
+        elif action == "UPDATE_EXISTING": color = "\033[96m" # Cyan
+        reset = "\033[0m"
+
+        # --- DRAW TABLE (Strict 38-char columns + 3 char separator) ---
+        print(f"{color}" + "-"*82)
+        print(f" {ticker:<6} | {action}")
+        print("-" * 82 + f"{reset}")
+        
+        # Header
+        print(f" {'INPUT (Context)':<38} | {'OUTPUT (Decision)':<38}")
+        print(f" {'-'*38} | {'-'*38}")
+																			
+        
+        # Row 1: Price vs Limit
+        print(f" Price:    ${str(price):<28} | Limit:    ${str(new_limit)}")
+        
+        # Row 2: Held vs Targets
+        p_str = f"{held} shares"
+        # Format targets string carefully
+        t_str = f"TP: ${new_tp} / SL: ${new_sl}"
+        print(f" Held:     {p_str:<28} | Targets:  {t_str}")
+
+        # Row 3: Active Bracket
+															  
+        b_str = f"TP: ${curr_tp} / SL: ${curr_sl}"
+        print(f" Active:   {b_str:<28} |")
+        
+        # Row 4: Pending Status (NEW)
+        print(f" Status:   {pending_str:<28} |")
+
+        # Row 5: Junior Intel
+        j_str = f"{status_tag} (Score: {score})"
+        print(f" Junior:   {j_str:<28} |")
+        
+        # Footer: Reason (Full Width for readability)
+        print(f" {'-'*80}")
+        print(f" Reason:   {reason}")
+        print("")
+
+    print("="*82 + "\n")
+
 def rank_portfolio(candidates_list, top_n=5, lookback_days=10, prev_context=None):
     log_debug(f"Starting analysis for {len(candidates_list)} candidates using model: {MODEL_NAME}")
     
@@ -43,13 +136,13 @@ def rank_portfolio(candidates_list, top_n=5, lookback_days=10, prev_context=None
             prev_report=prev_context.get('ceo_report', 'None'),
             candidates_data=json.dumps(candidates_list, indent=2)
         )
-         #--- DEBUG: LOG THE FULL PROMPT ---
-        #print("\n" + "="*40)
-        #print("📝 [DEBUG] SENIOR AGENT FULL PROMPT:")
-        #print("="*40)
-        #print(prompt) # PRINT EVERYTHING
-        #print("="*40 + "\n")
-        
+										   
+							
+													   
+					 
+										
+							
+		
     except Exception as e:
         log_debug(f"CRITICAL: Failed to construct prompt. Error: {e}")
         return None
@@ -81,17 +174,19 @@ def rank_portfolio(candidates_list, top_n=5, lookback_days=10, prev_context=None
             if response.status_code == 200:
                 try:
                     text = response.json()['candidates'][0]['content']['parts'][0]['text']
-                    
-                    # Log Raw Response
-                    print("\n" + "="*40)
-                    print("📝 [DEBUG] RAW AI RESPONSE:")
-                    print("="*40)
-                    print(text)
-                    print("="*40 + "\n")
-                    
-                    return json.loads(clean_json_text(text))
+                    cleaned_json = clean_json_text(text)
+                    decision_data = json.loads(cleaned_json)
+
+                    # --- TRIGGER VISUALIZATION ---
+                    visualize_decision(candidates_list, decision_data)
+                    # -----------------------------
+
+					
+                    return decision_data
                 except Exception as e:
                     log_debug(f"❌ Senior Parsing Error: {e}")
+                    # Print raw text if parse fails so we can debug
+                    print(f"RAW TEXT: {text[:200]}...") 
                     return None
             elif response.status_code in [429, 503]:
                 time.sleep((attempt + 1) * 10)
