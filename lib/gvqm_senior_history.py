@@ -220,15 +220,7 @@ def log_trade_event(ticker, event_type, details):
             client = get_client()
             if not client: return
 							
-							  
-  
-				   
-						  
-		  
-			
-		   
-		   
-				   
+						
             
             sh = client.open(SHEET_NAME)
             try: sheet = sh.worksheet("Trade_Log")
@@ -254,24 +246,56 @@ def log_trade_event(ticker, event_type, details):
             print(f"   ⚠️ Trade Log Error (Attempt {attempt+1}/3): {e}")
             time.sleep(2)
 
-# --- 6. MEMORY RECALL ---
+
+# --- 6. MEMORY RECALL (ROBUST SORTING) ---
 def get_last_strategy():
+    """
+    Fetches the most recent executive brief.
+    Fix: Does NOT assume the last row is the latest.
+    explicitly parses 'Date' column and sorts Descending.
+    """
     for attempt in range(3):
         try:
             client = get_client()
             if not client: return None
             
-            sheet = client.open(SHEET_NAME).worksheet("Executive_Briefs")
+            # Open Sheet
+            try:
+                sheet = client.open(SHEET_NAME).worksheet("Executive_Briefs")
+            except:
+                return None # Worksheet doesn't exist yet
+                
             records = sheet.get_all_records()
+            if not records: return None
+
+            # --- HELPER: Parse Timestamp ---
+            def parse_strat_date(row):
+                d_str = str(row.get('Date', ''))
+                # Handle cases where Google Sheets might return different formats
+                try:
+                    # Format used in log_strategy: "2025-12-14 14:30"
+                    return datetime.datetime.strptime(d_str, "%Y-%m-%d %H:%M")
+                except:
+                    try:
+                        # Fallback for date only
+                        return datetime.datetime.strptime(d_str, "%Y-%m-%d")
+                    except:
+                        # Push bad data to the bottom (year 1900)
+                        return datetime.datetime(1900, 1, 1)
+
+            # --- SORT DESCENDING (Newest First) ---
+            # This ensures we get the true latest run, even if sheet rows are jumbled
+            sorted_records = sorted(records, key=parse_strat_date, reverse=True)
             
-            if records:
-                last_row = records[-1]
-                return {
-                    "date": last_row.get("Date", "Unknown"),
-                    "top_tickers": last_row.get("Top_Tickers", "None"),
-                    "ceo_report": last_row.get("CEO_Report") or last_row.get("Report", "None")
-                }
-            return None
+            # Grab the top record
+            last_run = sorted_records[0]
+            
+            return {
+                "date": last_run.get("Date", "Unknown"),
+                "top_tickers": last_run.get("Top_Tickers", "None"),
+                "ceo_report": last_run.get("CEO_Report") or last_run.get("Report", "None")
+            }
+
         except Exception as e:
             if attempt == 2: print(f"   ⚠️ Memory Recall Error: {e}")
             time.sleep(2)
