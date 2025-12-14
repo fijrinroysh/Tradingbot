@@ -1,4 +1,5 @@
 import config
+import datetime
 from alpaca.trading.client import TradingClient
 from alpaca.trading.requests import (
     LimitOrderRequest, 
@@ -16,6 +17,12 @@ import time
 trading_client = TradingClient(config.ALPACA_KEY_ID, config.ALPACA_SECRET_KEY, paper=True)
 data_client = StockHistoricalDataClient(config.ALPACA_KEY_ID, config.ALPACA_SECRET_KEY)
 
+# --- ENHANCED LOGGING ---
+def log_trader(message):
+    """Standardized logger for Trader actions"""
+    timestamp = datetime.datetime.now().strftime("%H:%M:%S")
+    print(f"[{timestamp}] [TRADER] {message}")
+
 # --- UTILS ---
 def _enforce_contract(data, context="UNKNOWN"):
     if hasattr(data, 'id'):
@@ -27,7 +34,25 @@ def _enforce_contract(data, context="UNKNOWN"):
 def normalize_ticker(ticker):
     return ticker.replace('-', '.') if ticker else ticker
 
+def is_market_open():
+    """Checks if the market is currently open."""
+    try:
+        return trading_client.get_clock().is_open
+    except: return False
+
+def get_current_price(ticker):
+    """Fetches the latest trade price for a ticker."""
+    ticker = normalize_ticker(ticker)
+    try:
+        req = StockLatestTradeRequest(symbol_or_symbols=ticker)
+        res = data_client.get_stock_latest_trade(req)
+        return float(res[ticker].price)
+    except Exception as e:
+        log_trader(f"⚠️ Price Error {ticker}: {e}")
+        return None
+
 def get_position(ticker):
+    """Robust position checker with retries."""
     ticker = normalize_ticker(ticker)
     for attempt in range(3):
         try:
@@ -39,6 +64,7 @@ def get_position(ticker):
     return 0.0
 
 def get_position_details(ticker):
+    """Returns detailed context about a specific ticker (Held, Pending, Active Legs)."""
     ticker = normalize_ticker(ticker)
     details = {"shares_held": get_position(ticker), "pending_buy_limit": None, "active_tp": None, "active_sl": None, "status_msg": "NONE"}
     try:
@@ -77,27 +103,36 @@ def _update_legs(orders, take_profit, stop_loss):
     tp_order = next((o for o in orders if o.side == OrderSide.SELL and o.type == OrderType.LIMIT), None)
     sl_order = next((o for o in orders if o.side == OrderSide.SELL and o.type in [OrderType.STOP, OrderType.STOP_LIMIT]), None)
 
+    if not tp_order and not sl_order:
+        log_trader("   ℹ️ No Active Legs found to update.")
+
     # Update TP
     if tp_order and take_profit > 0:
         current = float(tp_order.limit_price)
+        log_trader(f"   🔎 Checking TP: Curr ${current} vs New ${take_profit}")
         if abs(current - float(take_profit)) >= 0.01:
             try:
                 trading_client.replace_order_by_id(tp_order.id, ReplaceOrderRequest(limit_price=float(take_profit)))
                 pct = ((float(take_profit) - current) / current) * 100
-                print(f"   ✅ TP Updated: {current} -> {take_profit}")
+                log_trader(f"   ✅ TP Updated: {current} -> {take_profit} ({pct:.2f}%)")
                 logs.append({"event": "UPDATE_TP", "take_profit": take_profit, "info": f"Delta: {pct:.2f}%"})
-            except Exception as e: logs.append({"event": "ERROR", "info": f"TP Fail: {e}"})
+            except Exception as e: 
+                log_trader(f"   ❌ TP Update Error: {e}")
+                logs.append({"event": "ERROR", "info": f"TP Fail: {e}"})
 
     # Update SL
     if sl_order and stop_loss > 0:
         current = float(sl_order.stop_price) if sl_order.stop_price else float(sl_order.limit_price)
+        log_trader(f"   🔎 Checking SL: Curr ${current} vs New ${stop_loss}")
         if abs(current - float(stop_loss)) >= 0.01:
             try:
                 trading_client.replace_order_by_id(sl_order.id, ReplaceOrderRequest(stop_price=float(stop_loss)))
                 pct = ((float(stop_loss) - current) / current) * 100
-                print(f"   ✅ SL Updated: {current} -> {stop_loss}")
+                log_trader(f"   ✅ SL Updated: {current} -> {stop_loss} ({pct:.2f}%)")
                 logs.append({"event": "UPDATE_SL", "stop_loss": stop_loss, "info": f"Delta: {pct:.2f}%"})
-            except Exception as e: logs.append({"event": "ERROR", "info": f"SL Fail: {e}"})
+            except Exception as e: 
+                log_trader(f"   ❌ SL Update Error: {e}")
+                logs.append({"event": "ERROR", "info": f"SL Fail: {e}"})
 
     return logs
 
@@ -106,12 +141,17 @@ def _handle_pending_update(ticker, parent_buy, buy_limit, take_profit, stop_loss
     logs = []
     current_limit = float(parent_buy.limit_price)
     
+    log_trader(f"   👉 Path A: Pending Order Management (Parent ID: {parent_buy.id})")
+    log_trader(f"      Current Limit: ${current_limit} | Target: ${buy_limit}")
+    
     # 1. Check if Buy Price Changed
     if buy_limit > 0 and abs(current_limit - float(buy_limit)) >= 0.01:
         try:
             # Attempt Polite Replace
+            log_trader(f"      Attempting Polite Replace (Buy Limit)...")
             trading_client.replace_order_by_id(parent_buy.id, ReplaceOrderRequest(limit_price=float(buy_limit)))
-            print(f"   ✅ Pending BUY Updated: {current_limit} -> {buy_limit}")
+            
+            log_trader(f"      ✅ Success: Buy Limit moved {current_limit} -> {buy_limit}")
             logs.append({"event": "UPDATE_BUY", "price": buy_limit, "info": f"Old: {current_limit}"})
             
             # If successful, we still need to update legs
@@ -119,8 +159,9 @@ def _handle_pending_update(ticker, parent_buy, buy_limit, take_profit, stop_loss
             
         except Exception as e:
             # Nuclear Resubmit (Catch 422 Errors)
-            if "422" in str(e) or "cannot replace" in str(e).lower():
-                print(f"   ⚠️ Replace Rejected. Executing Nuclear Resubmit...")
+            err_msg = str(e).lower()
+            if "422" in err_msg or "cannot replace" in err_msg:
+                log_trader(f"      ⚠️ Replace Rejected ({err_msg}). Switching to Nuclear Resubmit...")
                 try:
                     # Scrape Old Values if New ones missing
                     qty = float(parent_buy.qty)
@@ -130,10 +171,14 @@ def _handle_pending_update(ticker, parent_buy, buy_limit, take_profit, stop_loss
                     final_tp = float(take_profit) if take_profit > 0 else float(old_tp)
                     final_sl = float(stop_loss) if stop_loss > 0 else float(old_sl)
                     
-                    if final_tp <= 0 or final_sl <= 0: raise ValueError("Missing TP/SL for Resubmit")
-                    
+																									 
+					
+                    log_trader(f"      ☢️ NUKE: Cancelling Order {parent_buy.id}...")
                     trading_client.cancel_order_by_id(parent_buy.id)
                     time.sleep(1)
+                    
+                    log_trader(f"      🔨 BUILD: Submitting New Bracket @ ${buy_limit} (TP: {final_tp} / SL: {final_sl})")
+                    if final_tp <= 0 or final_sl <= 0: raise ValueError("Missing TP/SL for Resubmit")
                     
                     new_order = LimitOrderRequest(
                         symbol=ticker, qty=int(qty), side=OrderSide.BUY, time_in_force=TimeInForce.GTC,
@@ -142,17 +187,19 @@ def _handle_pending_update(ticker, parent_buy, buy_limit, take_profit, stop_loss
                         stop_loss=StopLossRequest(stop_price=final_sl)
                     )
                     trade = trading_client.submit_order(new_order)
-                    print(f"   ✅ Resubmit Successful. ID: {trade.id}")
+                    log_trader(f"      ✅ Resubmit Successful. New ID: {trade.id}")
                     logs.append({"event": "RESUBMIT_BUY", "price": buy_limit, "order_id": str(trade.id)})
-                    # NOTE: We return here because legs are freshly created
+					 
                     return logs
                 except Exception as ex:
+                    log_trader(f"      ❌ Resubmit Failed: {ex}")
                     logs.append({"event": "ERROR", "info": f"Resubmit Fail: {ex}"})
             else:
+                log_trader(f"      ❌ Unknown Buy Update Error: {e}")
                 logs.append({"event": "ERROR", "info": f"Buy Update Fail: {e}"})
     else:
         # Buy Limit Unchanged -> Just update legs
-        print(f"   ✋ Pending Buy aligned. Checking legs...")
+        log_trader(f"      ✋ Buy Limit Aligned (${current_limit}). Checking Legs only...")
         logs.extend(_update_legs(orders, take_profit, stop_loss))
 
     return logs
@@ -160,6 +207,7 @@ def _handle_pending_update(ticker, parent_buy, buy_limit, take_profit, stop_loss
 def _handle_active_update(ticker, take_profit, stop_loss, orders):
     """Handles Active Positions (Rescue + Leg Updates)."""
     logs = []
+    log_trader(f"   👉 Path B: Active Position Management")
     
     # Check if legs exist
     has_tp = any(o.side == OrderSide.SELL and o.type == OrderType.LIMIT for o in orders)
@@ -169,7 +217,7 @@ def _handle_active_update(ticker, take_profit, stop_loss, orders):
     if not has_tp and not has_sl:
         qty = get_position(ticker)
         if qty > 0:
-            print(f"   ⚠️ Active Position ({qty}) missing bracket. Rescuing...")
+            log_trader(f"   ⚠️ Active Position ({qty}) missing bracket. Rescuing...")
             if take_profit <= 0 or stop_loss <= 0: return [{"event": "ERROR", "info": "Rescue Failed: Missing TP/SL"}]
             
             if orders: trading_client.cancel_orders(symbols=[ticker])
@@ -181,7 +229,7 @@ def _handle_active_update(ticker, take_profit, stop_loss, orders):
                     stop_loss=StopLossRequest(stop_price=stop_loss)
                 )
                 trade = trading_client.submit_order(oco_data)
-                print(f"   ✅ Rescue Successful. ID: {trade.id}")
+                log_trader(f"   ✅ Rescue Successful. ID: {trade.id}")
                 return [{"event": "RESCUE_OCO", "info": "Bracket Created"}]
             except Exception as e: return [{"event": "ERROR", "info": f"Rescue Error: {e}"}]
 
@@ -193,7 +241,7 @@ def _handle_active_update(ticker, take_profit, stop_loss, orders):
 # ==========================================================
 def execute_update(ticker, take_profit, stop_loss, buy_limit=0):
     ticker = normalize_ticker(ticker)
-    print(f"♻️ TRADER: Executing UPDATE_EXISTING for {ticker}...")
+    log_trader(f"🔄 EXECUTE_UPDATE for {ticker} | Limit: {buy_limit} | TP: {take_profit} | SL: {stop_loss}")
     
     try:
         # 1. Fetch & Filter Orders
@@ -202,6 +250,8 @@ def execute_update(ticker, take_profit, stop_loss, buy_limit=0):
         live_statuses = ['new', 'partially_filled', 'accepted', 'pending_new', 'pending_replace', 'held']
         orders = [o for o in all_orders if (o.status.value if hasattr(o.status, 'value') else str(o.status)) in live_statuses]
         
+        log_trader(f"   Found {len(orders)} active orders associated with {ticker}.")
+
         # 2. Identify State
         parent_buy = next((o for o in orders if o.side == OrderSide.BUY), None)
         
@@ -212,7 +262,7 @@ def execute_update(ticker, take_profit, stop_loss, buy_limit=0):
             return _enforce_contract(_handle_active_update(ticker, take_profit, stop_loss, orders))
 
     except Exception as e:
-        print(f"❌ Update Failed: {e}")
+        log_trader(f"❌ Update Failed: {e}")
         return _enforce_contract({"event": "ERROR", "info": str(e)})
 
 # ==========================================================
@@ -220,16 +270,23 @@ def execute_update(ticker, take_profit, stop_loss, buy_limit=0):
 # ==========================================================
 def execute_entry(ticker, investment_amount, buy_limit, take_profit, stop_loss):
     ticker = normalize_ticker(ticker)
-    print(f"⚡ TRADER: Checking OPEN_NEW for {ticker}...")
-    if get_position(ticker) > 0: return _enforce_contract({"event": "HOLD", "info": "Already Owned"})
+    log_trader(f"⚡ EXECUTE_ENTRY for {ticker} | Limit: {buy_limit} | Amt: ${investment_amount}")
+																									 
+    
+    if get_position(ticker) > 0: 
+        log_trader(f"   🛑 Aborting: Already own shares of {ticker}.")
+        return _enforce_contract({"event": "HOLD", "info": "Already Owned"})
     
     # Duplicate Check
     req_filter = GetOrdersRequest(status=QueryOrderStatus.OPEN, symbols=[ticker])
     if any(o.side == OrderSide.BUY for o in trading_client.get_orders(filter=req_filter)):
+         log_trader(f"   🛑 Aborting: Pending Buy already exists.")
          return _enforce_contract({"event": "HOLD", "info": "Pending Buy Exists"})
 
     qty = int(investment_amount / buy_limit)
-    if qty < 1: return _enforce_contract({"event": "ERROR", "info": "Qty < 1"})
+    if qty < 1: 
+        log_trader(f"   ❌ Error: Qty < 1 (Price {buy_limit} > Invest {investment_amount})")
+        return _enforce_contract({"event": "ERROR", "info": "Qty < 1"})
 
     try:
         order_data = LimitOrderRequest(
@@ -239,6 +296,8 @@ def execute_entry(ticker, investment_amount, buy_limit, take_profit, stop_loss):
             stop_loss=StopLossRequest(stop_price=stop_loss)
         )
         trade = trading_client.submit_order(order_data)
-        print(f"   ✅ Buy Order Placed. ID: {trade.id}")
+        log_trader(f"   ✅ Buy Order Placed Successfully. ID: {trade.id}")
         return _enforce_contract({"event": "NEW_ENTRY", "order_id": str(trade.id), "qty": qty})
-    except Exception as e: return _enforce_contract({"event": "ERROR", "info": str(e)})
+    except Exception as e: 
+        log_trader(f"   ❌ Entry Order Failed: {e}")
+        return _enforce_contract({"event": "ERROR", "info": str(e)})
