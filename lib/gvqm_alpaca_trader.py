@@ -3,7 +3,7 @@ import datetime
 import time
 from alpaca.trading.client import TradingClient
 from alpaca.trading.requests import LimitOrderRequest, TakeProfitRequest, StopLossRequest, GetOrdersRequest
-from alpaca.trading.enums import OrderSide, TimeInForce, OrderClass, QueryOrderStatus
+from alpaca.trading.enums import OrderSide, TimeInForce, OrderClass, QueryOrderStatus, OrderType
 from alpaca.data.historical import StockHistoricalDataClient
 from alpaca.data.requests import StockLatestTradeRequest, StockBarsRequest
 from alpaca.data.timeframe import TimeFrame
@@ -49,19 +49,48 @@ def get_position(ticker):
         except: time.sleep(1)
     return 0.0
 
+# ==========================================================
+#  👀 THE CONTEXT FETCHER (UPDATED)
+# ==========================================================
 def get_position_details(ticker):
-    """Context fetcher for the Senior Agent (unchanged)"""
+    """
+    Returns the 'Reality' of a stock for the Senior Manager.
+    UPDATED: Returns 'manual_override=True' if a Market Order is found.
+    """
     ticker = normalize_ticker(ticker)
-    details = {"shares_held": get_position(ticker), "pending_buy_limit": None, "active_tp": None, "active_sl": None, "status_msg": "NONE"}
+    details = {
+        "shares_held": 0.0, 
+        "pending_buy_limit": None, 
+        "active_tp": None, 
+        "active_sl": None, 
+        "status_msg": "NONE",
+        "manual_override": False  # <--- NEW FLAG
+    }
+    
     try:
+        # 1. Check Holdings
+        details["shares_held"] = get_position(ticker)
+
+        # 2. Check Active Orders
         req = GetOrdersRequest(status=QueryOrderStatus.ALL, symbols=[ticker], limit=20)
         orders = [o for o in trading_client.get_orders(filter=req) if o.status in ['new', 'partially_filled', 'accepted', 'pending_new']]
         
+        # --- DETECT MANUAL MARKET ORDERS ---
+        # If we see a Market Order, we flag this stock as "User Managed"
+        market_orders = [o for o in orders if o.type == OrderType.MARKET or o.limit_price is None]
+        if market_orders:
+            details["manual_override"] = True
+            details["status_msg"] = "USER MANAGED (MARKET ORDER)"
+            return details # Return immediately so Bot ignores details
+
+        # Standard Logic
         buy = next((o for o in orders if o.side == OrderSide.BUY), None)
         if buy: details["pending_buy_limit"] = float(buy.limit_price)
         
         return details
-    except: return details
+    except Exception as e: 
+        log_trader(f"⚠️ Detail Fetch Error {ticker}: {e}")
+        return details
 
 # ==========================================================
 #  MAIN ENTRY POINTS (The Router)
@@ -78,9 +107,14 @@ def execute_update(ticker, take_profit, stop_loss, buy_limit=0):
         live_statuses = ['new', 'partially_filled', 'accepted', 'pending_new', 'pending_replace', 'held']
         orders = [o for o in all_orders if (o.status.value if hasattr(o.status, 'value') else str(o.status)) in live_statuses]
         
+        # 2. Safety Check: Ignore User Market Orders
+        if any(o.type == OrderType.MARKET for o in orders):
+            log_trader(f"   🛑 SKIP: Found User Market Order. Ignoring update.")
+            return _enforce_contract({"event": "HOLD", "info": "User Manual Override"})
+        
         parent_buy = next((o for o in orders if o.side == OrderSide.BUY), None)
         
-        # 2. Route to Specialist
+        # 3. Route to Specialist
         if parent_buy:
             log_trader("   👉 Routing to PENDING Orders Manager")
             res = pending_mgr.manage_pending_order(trading_client, ticker, parent_buy, buy_limit, take_profit, stop_loss, orders)
@@ -101,8 +135,8 @@ def execute_update(ticker, take_profit, stop_loss, buy_limit=0):
 
 def execute_entry(ticker, investment_amount, buy_limit, take_profit, stop_loss):
     """
-    Standard Entry Logic with DUPLICATE PROTECTION.
-    Prevents opening new positions if we already own shares OR have a pending buy.
+    Standard Entry Logic with DUPLICATE PROTECTION & MANUAL ORDER PROTECTION.
+    Prevents opening new positions if we already own shares OR have a pending buy/market order.
     """
     ticker = normalize_ticker(ticker)
     log_trader(f"⚡ EXECUTE_ENTRY {ticker}")
@@ -119,6 +153,11 @@ def execute_entry(ticker, investment_amount, buy_limit, take_profit, stop_loss):
         req = GetOrdersRequest(status=QueryOrderStatus.OPEN, symbols=[ticker])
         existing_orders = trading_client.get_orders(filter=req)
         
+        # CRITICAL: If we see a Market Order here, ABORT.
+        if any(o.type == OrderType.MARKET for o in existing_orders):
+            log_trader(f"   🛑 ABORT: User Market Order detected. Bot will not touch this.")
+            return _enforce_contract({"event": "HOLD", "info": "User Manual Override"})
+        
         # Filter strictly for BUY orders (in case we have a stray sell order without position)
         pending_buy = next((o for o in existing_orders if o.side == OrderSide.BUY), None)
         
@@ -128,8 +167,8 @@ def execute_entry(ticker, investment_amount, buy_limit, take_profit, stop_loss):
             
     except Exception as e:
         log_trader(f"   ⚠️ Duplicate Check Error: {e}")
-        # If check fails, we proceed with caution or abort depending on risk tolerance. 
-        # For safety, we abort.
+																						
+							   
         return _enforce_contract({"event": "ERROR", "info": "Duplicate Check Failed"})
 
     # 3. CALCULATE QUANTITY
