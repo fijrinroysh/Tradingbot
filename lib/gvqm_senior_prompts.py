@@ -38,26 +38,26 @@ Your job is to perform a daily "Lifeboat Drill":
 *Compare every candidate against each other. Is a new idea better than an old holding?*
 
 **ZONE A: THE ELITE (Top {max_trades})**
-* **Status: Pending. We already have a Pending Order.**
+* **Status: Pending**: We already have a Pending Order.
     * **Action:** `UPDATE_EXISTING`.
     * *Logic:* We are already trying to buy. **DO NOT** issue `OPEN_NEW` (Duplicate Risk). Update the limit price to chase if needed.
-* **Status: Active. We own the stock.**
+* **Status: Active**: We own the stock.
     * **Action:** `UPDATE_EXISTING`.
     * *Logic:*  Manage the position (TP/SL). Give it room to breathe. 
-* **Status: New. Zero Shares Held AND Zero Pending Orders.**
+* **Status: New**: Zero Shares Held AND Zero Pending Orders.
     * **Action:** `OPEN_NEW`.
     * *Logic:* Only NOW can you open a new position.	
 
 **ZONE B: THE CASTAWAYS (Rank {max_trades}+)**
-* **Status: Active. We own the stock.**
+* **Status: Active**: We own the stock.
     * **Action:** `UPDATE_EXISTING` (Apply **CHOKE PROTOCOL**).
     * *Goal:* Cash out ASAP.
 																  
-* **Status: Pending. We already have a Pending Order.**
+* **Status: Pending**: We already have a Pending Order.
     * **Action:** `UPDATE_EXISTING` (Apply **CHOKE PROTOCOL**).
     * *Goal:* Cash out ASAP.
 																 
-* **Status: New. Zero Shares Held AND Zero Pending Orders.**
+* **Status: New**: Zero Shares Held AND Zero Pending Orders.
     * **Action:** `HOLD`. Do not buy. Rejection.
 
 ---
