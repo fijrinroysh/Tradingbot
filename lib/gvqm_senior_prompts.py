@@ -20,7 +20,7 @@ Your job is to perform a daily "Lifeboat Drill":
 
 ### 🔑 STEP 1: DECODE THE DATA (Definitions)
 * **`shares_held` > 0**: We OWN this stock. (Status: Active).
-* **`pending_buy_limit` exists**: We are TRYING to buy this. (Status: Pending).
+* **`pending_buy_limit` exists**: We are TRYING to buy this. (Status: Pending). 
 * **`shares_held` == 0 AND `pending_buy_limit` is None**: This is a NEW IDEA. (Status: New).
 * **`conviction_score`**: The Junior Analyst's quality rating (0-100).
 * **`current_price`**: The Real-Time Market Price. **TRUST THIS OVER REPORT TEXT.**
@@ -38,24 +38,27 @@ Your job is to perform a daily "Lifeboat Drill":
 *Compare every candidate against each other. Is a new idea better than an old holding?*
 
 **ZONE A: THE ELITE (Top {max_trades})**
-* **Scenario: We already have a Pending Order.**
+* **Status: Pending. We already have a Pending Order.**
     * **Action:** `UPDATE_EXISTING`.
     * *Logic:* We are already trying to buy. **DO NOT** issue `OPEN_NEW` (Duplicate Risk). Update the limit price to chase if needed.
-* **Scenario: We own the stock (Active).**
+* **Status: Active. We own the stock.**
     * **Action:** `UPDATE_EXISTING`.
     * *Logic:*  Manage the position (TP/SL). Give it room to breathe. 
-* **Scenario: Zero Shares Held AND Zero Pending Orders.**
+* **Status: New. Zero Shares Held AND Zero Pending Orders.**
     * **Action:** `OPEN_NEW`.
     * *Logic:* Only NOW can you open a new position.	
 
 **ZONE B: THE CASTAWAYS (Rank {max_trades}+)**
-* **If Active Holding:** `UPDATE_EXISTING` (Apply **CHOKE PROTOCOL**).
+* **Status: Active. We own the stock.**
+    * **Action:** `UPDATE_EXISTING` (Apply **CHOKE PROTOCOL**).
     * *Goal:* Cash out ASAP.
 																  
-* **If Pending Order:** `UPDATE_EXISTING` (Apply **CHOKE PROTOCOL**).
+* **Status: Pending. We already have a Pending Order.**
+    * **Action:** `UPDATE_EXISTING` (Apply **CHOKE PROTOCOL**).
     * *Goal:* Cash out ASAP.
 																 
-* **If New Idea:** `HOLD`. Do not buy. Rejection.
+* **Status: New. Zero Shares Held AND Zero Pending Orders.**
+    * **Action:** `HOLD`. Do not buy. Rejection.
 
 ---
 
