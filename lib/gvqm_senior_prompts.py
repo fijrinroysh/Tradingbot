@@ -126,7 +126,7 @@ Return a JSON object with this EXACT structure:
       "ticker": "AAPL",
       "rank": 1,
       "action": "OPEN_NEW",
-      "reason": "Rank #1. Fresh report. Rebound Candidate (Price < SMA). Verified via Google.",
+      "reason": "Status: NEW. Rank #1. Fresh report. Rebound Candidate (Price < SMA). Verified via Google.",
       "confirmed_params": {{
           "buy_limit": 145.50,
           "take_profit": 160.00,
@@ -135,24 +135,24 @@ Return a JSON object with this EXACT structure:
     }},
     {{
       "ticker": "MSFT",
-				
-								  
-																									
-							
-							  
-								
-							 
-		
-	   
-	  
-						
+      "rank": 2,
+      "action": "UPDATE_EXISTING",
+      "reason": "Status: PENDING. Rank #2. We already have an order open, updating limit to chase.",
+      "confirmed_params": {{
+          "buy_limit": 315.00,
+          "take_profit": 350.00,
+          "stop_loss": 300.00
+      }}
+    }},
+    {{
+      "ticker": "GOOGL",
       "rank": 25,
       "action": "UPDATE_EXISTING",
-      "reason": "Rank #25 (Outside Top {max_trades}). Value Trap detected (Rule 3). Applying CHOKE PROTOCOL to exit.",
+      "reason": "Status: ACTIVE. Rank #25 (Outside Top {max_trades}). Value Trap detected. Applying CHOKE PROTOCOL to exit.",
       "confirmed_params": {{
           "buy_limit": 0.00,
-          "take_profit": 310.50,
-          "stop_loss": 309.80
+          "take_profit": 140.50,
+          "stop_loss": 139.80
       }}
     }}
   ]

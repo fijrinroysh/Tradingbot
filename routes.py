@@ -119,11 +119,6 @@ def run_pipeline():
         # ---------------------------------------------------------
 		
 		
-		
-		
-		
-		
-		
         if is_held:
             r['audit_reason'] = "PORTFOLIO_REVIEW - Low Score, but we have active positions, need to be managed"
             if ticker not in seen_tickers:
