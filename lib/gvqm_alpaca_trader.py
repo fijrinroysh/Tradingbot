@@ -17,50 +17,98 @@ trading_client = TradingClient(config.ALPACA_KEY_ID, config.ALPACA_SECRET_KEY, p
 data_client = StockHistoricalDataClient(config.ALPACA_KEY_ID, config.ALPACA_SECRET_KEY)
 
 # ==========================================================
-#  🎨 THE EXECUTION MATRIX LOGGER
+#  🎨 THE 3-COLUMN EXECUTION MATRIX (NUMERIC VERIFICATION)
 # ==========================================================
-def log_execution_matrix(ticker, command, request_data, result_data):
-    """
-    Prints a beautiful side-by-side Matrix comparing 'Request' vs 'Reality'.
-    """
+def log_execution_matrix(ticker, command, initial_state, request_data, final_state, exec_result):
+	   
+																
+																	 
+	   
     timestamp = datetime.datetime.now().strftime("%H:%M:%S")
     
-    # Format Request Column (What Senior Mgr Wanted)
-    req_str = f"{command}"
-    if "limit" in request_data: req_str += f" | Lmt: {request_data['limit']}"
-    if "tp" in request_data:    req_str += f" | TP: {request_data['tp']}"
-    if "sl" in request_data:    req_str += f" | SL: {request_data['sl']}"
-    
-    # Format Result Column (What Actually Happened)
-    res_str = "UNKNOWN"
-    status_icon = "❓"
-    
-    if isinstance(result_data, list) and len(result_data) > 0:
-        res = result_data[0]
-        evt = res.get("event", "UNKNOWN")
-        info = res.get("info", "")
-        oid = res.get("order_id", "")[-4:] if "order_id" in res else ""
+    # --- HELPER: VALIDATION ICON ---
+    def get_status_icon(target, actual):
+        if target <= 0: return "" # Target wasn't set, no check needed
+        if actual is None: return "❌" # Target set but missing in broker
+        if abs(target - actual) < 0.02: return "✅" # Match (1 cent tolerance)
+        return "⚠️" # Mismatch (Broker has different number)
+
+    # --- 1. COLUMN: CURRENT STATE (Before) ---
+    cur_lines = []
+    if initial_state['shares'] > 0: cur_lines.append(f"Held:   {initial_state['shares']} sh")
+    else: cur_lines.append("Held:   0 sh")
         
-        if evt == "ERROR": 
-            status_icon = "❌"
-            res_str = f"FAILED: {info}"
-        elif evt == "HOLD":
-            status_icon = "🛑"
-            res_str = f"BLOCKED: {info}"
-        elif "NEW_ENTRY" in evt:
-            status_icon = "✅"
-            res_str = f"FILLED: ID..{oid}"
-        elif "UPDATE" in evt:
-            status_icon = "🔄"
-            res_str = f"UPDATED: {info}"
-        elif "REGENERATE" in evt or "RESUBMIT" in evt:
-            status_icon = "☢️"
-            res_str = f"NUCLEAR REBUILD: {info}"
-        else:
-            status_icon = "Hz"
-            res_str = f"{evt}: {info}"
-            
-    print(f"[{timestamp}] [EXECUTION] ║ {ticker:<6} ║ {req_str:<45} ║ {status_icon} {res_str}")
+    if initial_state['pending_buy']: cur_lines.append(f"BuyLmt: ${initial_state['pending_buy']:.2f}")
+    else: cur_lines.append("BuyLmt: None")
+    
+    if initial_state['tp'] > 0: cur_lines.append(f"Act TP: ${initial_state['tp']:.2f}")
+    else: cur_lines.append("Act TP: None")
+		
+ 
+															  
+							
+										 
+									  
+																		  
+        
+    if initial_state['sl'] > 0: cur_lines.append(f"Act SL: ${initial_state['sl']:.2f}")
+    else: cur_lines.append("Act SL: None")
+
+    # --- 2. COLUMN: REQUEST (Senior Mgr) ---
+    req_lines = []
+    if "amt" in request_data: req_lines.append(f"Invest: ${request_data['amt']}")
+    if request_data.get('limit', 0) > 0: req_lines.append(f"Set Buy: ${request_data['limit']:.2f}")
+    else: req_lines.append("Set Buy: (Hold/Mkt)")
+    
+    req_lines.append(f"Set TP:  ${request_data['tp']:.2f}")
+    req_lines.append(f"Set SL:  ${request_data['sl']:.2f}")
+
+    # --- 3. COLUMN: UPDATED STATE (Broker) ---
+    res_lines = []
+    evt = exec_result[0].get("event", "UNKNOWN") if exec_result else "UNKNOWN"
+    
+    if evt in ["ERROR", "HOLD"]:
+        res_lines.append(f"Status: {evt}")
+        res_lines.append(f"Info:   {exec_result[0].get('info', '')[:15]}...")
+    else:
+        # Calculate Icons
+        tp_icon = get_status_icon(request_data['tp'], final_state['tp'])
+        sl_icon = get_status_icon(request_data['sl'], final_state['sl'])
+        buy_icon = ""
+        if request_data.get('limit', 0) > 0:
+             buy_icon = get_status_icon(request_data['limit'], final_state['pending_buy'])
+
+        # Print THE NUMBERS (With Icons)
+        if final_state['shares'] > 0: res_lines.append(f"Held:   {final_state['shares']} sh")
+        else: res_lines.append("Held:   0 sh")
+        
+        if final_state['pending_buy']: res_lines.append(f"BuyLmt: ${final_state['pending_buy']:.2f} {buy_icon}")
+        else: res_lines.append("BuyLmt: None")
+	 
+																					
+
+        if final_state['tp'] > 0: res_lines.append(f"Act TP: ${final_state['tp']:.2f} {tp_icon}")
+        else: res_lines.append("Act TP: None")
+        
+        if final_state['sl'] > 0: res_lines.append(f"Act SL: ${final_state['sl']:.2f} {sl_icon}")
+        else: res_lines.append("Act SL: None")
+    
+    # --- PRINT TABLE ---
+    col_width = 32
+    print(f"\n[{timestamp}] [EXECUTION] ║ {ticker:<6} | {command}")
+    print("=" * 105)
+    print(f"{'CURRENT STATE (Broker)':<{col_width}} | {'REQUEST (Senior Mgr)':<{col_width}} | {'UPDATED STATE (Broker)':<{col_width}}")
+    print("-" * 105)
+    
+							 
+    max_rows = max(len(cur_lines), len(req_lines), len(res_lines))
+    for i in range(max_rows):
+        c1 = cur_lines[i] if i < len(cur_lines) else ""
+        c2 = req_lines[i] if i < len(req_lines) else ""
+        c3 = res_lines[i] if i < len(res_lines) else ""
+        print(f"{c1:<{col_width}} | {c2:<{col_width}} | {c3:<{col_width}}")
+    print("-" * 105)
+    print("\n")
 
 # --- SHARED UTILS ---
 def log_trader(message):
@@ -98,200 +146,231 @@ def get_position(ticker):
 # ==========================================================
 #  👀 THE CONTEXT FETCHER
 # ==========================================================
-def get_position_details(ticker):
-	   
-															
-																		
-																
-	   
-    ticker = normalize_ticker(ticker)
-    details = {
-        "shares_held": 0.0, 
-        "pending_buy_limit": None, 
-        "active_tp": None, 
-        "active_sl": None, 
-        "status_msg": "NONE",
-        "manual_override": False
-    }
-    
-    try:
+def _fetch_snapshot(ticker):
+    state = {"shares": 0.0, "pending_buy": None, "tp": 0.0, "sl": 0.0, "manual": False}
+	  
+	  
+	
+ 
+									 
+			   
+							
+								   
 						   
-        details["shares_held"] = get_position(ticker)
+						   
+							 
+								
+	 
+	
+    try:
+   
+        state["shares"] = get_position(ticker)
 
-												
-						
+   
+   
         req = GetOrdersRequest(status=QueryOrderStatus.ALL, symbols=[ticker], limit=500)
         all_orders = trading_client.get_orders(filter=req)
-        
 		
+  
         live_statuses = ['new', 'partially_filled', 'accepted', 'pending_new', 'pending_replace', 'held']
         orders = [o for o in all_orders if (o.status.value if hasattr(o.status, 'value') else str(o.status)) in live_statuses]
 
-															
-																  
-																	   
+																					 
+	  
+	 
         if any(o.side == OrderSide.BUY and o.type == OrderType.MARKET for o in orders):
-		
-						
-            details["manual_override"] = True
-            details["status_msg"] = "USER MANAGED (MARKET ORDER)"
-            return details 
+  
+   
+            state["manual"] = True
+																 
+            return state
 
-							  
-		
+   
+  
         buy = next((o for o in orders if o.side == OrderSide.BUY), None)
-        if buy: details["pending_buy_limit"] = float(buy.limit_price)
+        if buy: state["pending_buy"] = float(buy.limit_price)
 
-			
+   
         tp = next((o for o in orders if o.side == OrderSide.SELL and o.type == OrderType.LIMIT), None)
-        if tp: details["active_tp"] = float(tp.limit_price)
+        if tp: state["tp"] = float(tp.limit_price)
 
-		 
+   
         sl = next((o for o in orders if o.side == OrderSide.SELL and o.type in [OrderType.STOP, OrderType.STOP_LIMIT]), None)
-        if sl: 
-	   
-            details["active_sl"] = float(sl.stop_price) if sl.stop_price else float(sl.limit_price)
+        if sl: state["sl"] = float(sl.stop_price) if sl.stop_price else float(sl.limit_price)
+        
+        return state
+    except:
+        return state
 
-												
-        if details["shares_held"] > 0:
-            if details["active_tp"] and details["active_sl"]:
-                details["status_msg"] = f"ACTIVE (TP: {details['active_tp']} | SL: {details['active_sl']})"
-            elif details["active_tp"]:
-                 details["status_msg"] = f"ACTIVE (TP: {details['active_tp']} | NO SL)"
-            elif details["active_sl"]:
-                 details["status_msg"] = f"ACTIVE (SL: {details['active_sl']} | NO TP)"
-            else:
-                details["status_msg"] = "ACTIVE (NO BRACKET)"
-        elif details["pending_buy_limit"]:
-            details["status_msg"] = f"PENDING BUY @ {details['pending_buy_limit']}"
-
-        return details
-    except Exception as e: 
-        log_trader(f"⚠️ Detail Fetch Error {ticker}: {e}")
-        return details
+def get_position_details(ticker):
+    ticker = normalize_ticker(ticker)
+    snap = _fetch_snapshot(ticker)
+    details = {
+        "shares_held": snap["shares"], "pending_buy_limit": snap["pending_buy"],
+        "active_tp": snap["tp"] if snap["tp"] > 0 else None,
+        "active_sl": snap["sl"] if snap["sl"] > 0 else None,
+        "status_msg": "NONE", "manual_override": snap["manual"]
+    }
+    
+    if snap["manual"]: details["status_msg"] = "USER MANAGED (MARKET ORDER)"
+    elif snap["shares"] > 0:
+        details["status_msg"] = f"ACTIVE (TP: {snap['tp']} | SL: {snap['sl']})"
+				 
+															 
+    elif snap["pending_buy"]:
+        details["status_msg"] = f"PENDING BUY @ {snap['pending_buy']}"
+        
+					  
+						   
+															  
+    return details
 
 # ==========================================================
-#  MAIN ENTRY POINTS (Updated with Matrix Logging)
+#  MAIN ENTRY POINTS (Verified & Validated)
 # ==========================================================
 
 def execute_update(ticker, take_profit, stop_loss, buy_limit=0):
     ticker = normalize_ticker(ticker)
-    # Log Matrix happens at the END, but we prepare data now
+			   
     req_data = {"limit": buy_limit, "tp": take_profit, "sl": stop_loss}
     
+    # 1. SNAPSHOT BEFORE
+    initial_state = _fetch_snapshot(ticker)
+    if initial_state["manual"]:
+        res = _enforce_contract({"event": "HOLD", "info": "User Manual Override"})
+        log_execution_matrix(ticker, "UPDATE", initial_state, req_data, initial_state, res)
+        return res
+
+    # 2. EXECUTE
     try:
-							  
+   
         req_filter = GetOrdersRequest(status=QueryOrderStatus.ALL, symbols=[ticker], limit=500)
         all_orders = trading_client.get_orders(filter=req_filter)
         live_statuses = ['new', 'partially_filled', 'accepted', 'pending_new', 'pending_replace', 'held']
         orders = [o for o in all_orders if (o.status.value if hasattr(o.status, 'value') else str(o.status)) in live_statuses]
-        
-																	
-																	 
-        if any(o.side == OrderSide.BUY and o.type == OrderType.MARKET for o in orders):
-																				  
-            res = _enforce_contract({"event": "HOLD", "info": "User Manual Override"})
-            log_execution_matrix(ticker, "UPDATE", req_data, res)
-            return res
-        
-        parent_buy = next((o for o in orders if o.side == OrderSide.BUY), None)
-        
-								
-        if parent_buy:
-																   
-            res = pending_mgr.manage_pending_order(trading_client, ticker, parent_buy, buy_limit, take_profit, stop_loss, orders)
-        else:
-																  
-            qty = get_position(ticker)
-            if qty > 0:
-                res = filled_mgr.manage_active_position(trading_client, ticker, qty, take_profit, stop_loss, orders)
-            else:
-																						 
-                res = [{"event": "HOLD", "info": "Nothing to update"}]
 
+														   
+	  
+																					   
+	   
+																					  
+																 
+					  
+		
+        buy = next((o for o in orders if o.side == OrderSide.BUY), None)
+		
+  
+        if buy:
+	   
+            res = pending_mgr.manage_pending_order(trading_client, ticker, buy, buy_limit, take_profit, stop_loss, orders)
+        else:
+            if initial_state["shares"] > 0:
+									  
+					   
+                res = filled_mgr.manage_active_position(trading_client, ticker, initial_state["shares"], take_profit, stop_loss, orders)
+            else:
+		
+                res = [{"event": "HOLD", "info": "Nothing to update"}]
+        
         final_res = _enforce_contract(res)
-        log_execution_matrix(ticker, "UPDATE", req_data, final_res)
-        return final_res
+																   
+						
 
     except Exception as e:
-											
-        err_res = _enforce_contract({"event": "ERROR", "info": str(e)})
-        log_execution_matrix(ticker, "UPDATE", req_data, err_res)
-        return err_res
+	 
+        final_res = _enforce_contract({"event": "ERROR", "info": str(e)})
+
+    # 3. VERIFY
+    if final_res[0].get("event") not in ["ERROR", "HOLD"]:
+        time.sleep(2) 
+    
+    final_state = _fetch_snapshot(ticker)
+    
+    # 4. LOG
+    log_execution_matrix(ticker, "UPDATE", initial_state, req_data, final_state, final_res)
+    return final_res
 
 def execute_entry(ticker, investment_amount, buy_limit, take_profit, stop_loss):
-	   
-																			 
+ 
+	 
   
-	   
+ 
     ticker = normalize_ticker(ticker)
     req_data = {"limit": buy_limit, "tp": take_profit, "sl": stop_loss, "amt": investment_amount}
     
-    # 1. CHECK ACTIVE POSITION
-    qty_held = get_position(ticker)
-    if qty_held > 0: 
-																				
-        res = _enforce_contract({"event": "HOLD", "info": "Already Owned"})
-        log_execution_matrix(ticker, "ENTRY", req_data, res)
+    # 1. SNAPSHOT
+    initial_state = _fetch_snapshot(ticker)
+    if initial_state["shares"] > 0 or initial_state["pending_buy"] or initial_state["manual"]:
+        info = "Already Owned" if initial_state["shares"] > 0 else "Pending Exists"
+        res = _enforce_contract({"event": "HOLD", "info": info})
+        log_execution_matrix(ticker, "ENTRY", initial_state, req_data, initial_state, res)
         return res
 
-    # 2. CHECK PENDING ORDERS
-    try:
+    # 2. CALC & SUBMIT
+		
    
-        req = GetOrdersRequest(status=QueryOrderStatus.OPEN, symbols=[ticker])
-        existing_orders = trading_client.get_orders(filter=req)
-        
-													  
-        if any(o.side == OrderSide.BUY and o.type == OrderType.MARKET for o in existing_orders):
-																							  
-            res = _enforce_contract({"event": "HOLD", "info": "User Manual Override"})
-            log_execution_matrix(ticker, "ENTRY", req_data, res)
-            return res
-        
-	
-        pending_buy = next((o for o in existing_orders if o.side == OrderSide.BUY), None)
-  
-        if pending_buy:
-																								 
-            res = _enforce_contract({"event": "HOLD", "info": "Pending Order Exists"})
-            log_execution_matrix(ticker, "ENTRY", req_data, res)
-            return res
-            
-    except Exception as e:
-														   
- 
- 
-        res = _enforce_contract({"event": "ERROR", "info": "Duplicate Check Failed"})
-        log_execution_matrix(ticker, "ENTRY", req_data, res)
-        return res
-
-    # 3. CALCULATE QUANTITY
-    if buy_limit <= 0:
-        res = _enforce_contract({"event": "ERROR", "info": "Invalid Price"})
-        log_execution_matrix(ticker, "ENTRY", req_data, res)
-        return res
-        
+																			  
+															   
+		
+	  
+																								
+	   
+    if buy_limit <= 0: return _enforce_contract({"event": "ERROR", "info": "Invalid Price"})
     qty = int(investment_amount / buy_limit)
-    if qty < 1: 
-        res = _enforce_contract({"event": "ERROR", "info": "Qty < 1"})
-        log_execution_matrix(ticker, "ENTRY", req_data, res)
-        return res
-    
-    # 4. SUBMIT ORDER
+					  
+		
+ 
+																						 
+  
+					   
+	   
+																					  
+																
+					  
+			
+						  
+	 
+ 
+ 
+    if qty < 1: return _enforce_contract({"event": "ERROR", "info": "Qty < 1"})
+															
+				  
+
+						   
+					  
+																			
+															
+				  
+		
+											
+				
+																	  
+															
+				  
+	
+					 
     try:
         order = LimitOrderRequest(
             symbol=ticker, qty=qty, side=OrderSide.BUY, time_in_force=TimeInForce.GTC,
+																		  
+								   
             limit_price=buy_limit, order_class=OrderClass.BRACKET,
             take_profit=TakeProfitRequest(limit_price=take_profit),
             stop_loss=StopLossRequest(stop_price=stop_loss)
         )
         trade = trading_client.submit_order(order)
-																
-        res = _enforce_contract(trade)
-        log_execution_matrix(ticker, "ENTRY", req_data, res)
-        return res
+	
+        final_res = _enforce_contract(trade)
+															
+				  
     except Exception as e:
-											   
-        res = _enforce_contract({"event": "ERROR", "info": str(e)})
-        log_execution_matrix(ticker, "ENTRY", req_data, res)
-        return res
+	 
+        final_res = _enforce_contract({"event": "ERROR", "info": str(e)})
+
+    # 3. VERIFY
+    if final_res[0].get("event") not in ["ERROR", "HOLD"]:
+        time.sleep(2) 
+        
+    final_state = _fetch_snapshot(ticker)
+    log_execution_matrix(ticker, "ENTRY", initial_state, req_data, final_state, final_res)
+    return final_res
