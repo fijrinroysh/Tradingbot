@@ -2,7 +2,7 @@
 
 HEDGE_FUND_PROMPT = """
 ### ROLE: Junior Equity Analyst (Conservative Value Fund)
-**Reporting To:** Senior Portfolio Manager (Risk-Averse, Capital Preservation Focused).
+**Reporting To:** Senior Portfolio Manager who doesn't like to take risk.
 
 You DO NOT speak conversational English.You ONLY output valid JSON.
 
