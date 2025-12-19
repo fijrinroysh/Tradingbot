@@ -4,18 +4,17 @@ import datetime
 
 def send_executive_brief(decision, account_info, junior_reports, portfolio):
     """
-    Sends the "Mirror Protocol" Dashboard v5.0 (Neon Alpha Edition)
-    Features:
-    1. Trader's Clipboard (Copy-Paste)
-    2. Vibrant 'Neon Alpha' Color Palette for Ranks
-    3. Dynamic Migration View (Old -> New)
-    4. Portfolio Audit with P/L %
+    Sends the "Mirror Protocol" Dashboard v5.1
+    Updates:
+    - Removed "Trader's Clipboard" (Cleaner aesthetic)
+    - Fixed "Three Pillars" text truncation (CSS: white-space: pre-line)
+    - Retained 'Neon Alpha' Color Palette
     """
     if not getattr(config, 'RESEND_API_KEY', None):
         print("⚠️ [NOTIFIER] Resend API Key missing. Skipping Brief.")
         return
 
-    print("📧 [NOTIFIER] Formatting Executive Briefing (Neon Alpha)...")
+    print("📧 [NOTIFIER] Formatting Executive Briefing...")
     resend.api_key = config.RESEND_API_KEY
     
     today = datetime.date.today().strftime("%b %d, %Y")
@@ -32,7 +31,8 @@ def send_executive_brief(decision, account_info, junior_reports, portfolio):
     CARD_HEADER = "padding: 10px 15px; border-bottom: 1px solid #eee;"
     CARD_BODY = "padding: 15px; background-color: #ffffff;"
     
-    PILLAR_BOX = "background-color: #f9f9f9; padding: 10px; border-radius: 4px; margin-bottom: 8px; font-size: 12px; color: #444;"
+    # IMPROVED PILLAR BOX CSS: Added 'white-space: pre-line' and 'line-height' to fix text truncation
+    PILLAR_BOX = "background-color: #f9f9f9; padding: 10px; border-radius: 4px; margin-bottom: 8px; font-size: 12px; color: #444; white-space: pre-line; line-height: 1.4;"
     PILLAR_TITLE = "font-weight: bold; color: #555; font-size: 10px; text-transform: uppercase; display: block; margin-bottom: 4px;"
     
     # --- 🎨 NEON ALPHA PALETTE ---
@@ -44,9 +44,6 @@ def send_executive_brief(decision, account_info, junior_reports, portfolio):
     
     # Rank 6-10: Emerald Green (Standard)
     BADGE_STANDARD = "background: #27ae60; color: #fff; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 10px; border: 1px solid #2ecc71;"
-
-    # CLIPBOARD STYLE
-    CLIPBOARD_BOX = "background-color: #f1f2f6; border: 1px dashed #ccc; padding: 15px; margin-bottom: 25px; border-radius: 6px; font-family: 'Courier New', monospace; font-size: 12px; color: #333;"
 
     # --- HELPER: FORMAT CHANGE (OLD -> NEW) ---
     def format_migration(val_old, val_new, prefix="$"):
@@ -72,30 +69,7 @@ def send_executive_brief(decision, account_info, junior_reports, portfolio):
         <br>
     """
 
-    # --- 📋 TRADER'S CLIPBOARD SECTION ---
-    if trades:
-        html_content += f"""
-        <div style="{CLIPBOARD_BOX}">
-            <div style="font-weight: bold; border-bottom: 1px solid #ccc; padding-bottom: 5px; margin-bottom: 10px; color: #555;">📋 TRADER'S CLIPBOARD (Copy Below)</div>
-        """
-        
-        for order in trades:
-            action_raw = order.get('action', 'HOLD').replace('_EXISTING', '').replace('_NEW', '')
-            ticker = order.get('ticker')
-            p = order.get('confirmed_params', {})
-            
-            # Format: BUY AAPL | Qty: 10 | Lmt: 150.00 | TP: 160 | SL: 140
-            line = f"<b>{action_raw} {ticker}</b> &nbsp;|&nbsp; "
-            line += f"Qty: {order.get('qty', 0)} &nbsp;|&nbsp; "
-            line += f"Lmt: {p.get('buy_limit', 'MKT')} &nbsp;|&nbsp; "
-            line += f"TP: {p.get('take_profit', '-')} &nbsp;|&nbsp; "
-            line += f"SL: {p.get('stop_loss', '-')}"
-            
-            html_content += f"<div style='margin-bottom: 6px; border-bottom: 1px solid #e0e0e0; padding-bottom: 4px;'>{line}</div>"
-            
-        html_content += "</div>"
-
-    # --- INTELLIGENCE CARDS ---
+    # --- INTELLIGENCE CARDS (Clipboard Removed) ---
     html_content += """
         <h3 style="margin-bottom: 10px; color: #2c3e50; border-bottom: 2px solid #2c3e50; padding-bottom: 5px;">
             🚨 Intelligence Briefing
@@ -155,9 +129,10 @@ def send_executive_brief(decision, account_info, junior_reports, portfolio):
             disp_tp = format_migration(old_p.get('take_profit'), new_p.get('take_profit', '-'))
             disp_sl = format_migration(old_p.get('stop_loss'), new_p.get('stop_loss', '-'))
             
-            safe_txt = order.get('justification_safe', 'N/A')
-            bargain_txt = order.get('justification_bargain', 'N/A')
-            rebound_txt = order.get('justification_rebound', 'N/A')
+            # FALLBACK: If individual pillar keys are missing, try to display generic 'three_pillars' if available
+            safe_txt = order.get('justification_safe') or order.get('three_pillars', {}).get('safe') or 'N/A'
+            bargain_txt = order.get('justification_bargain') or order.get('three_pillars', {}).get('bargain') or 'N/A'
+            rebound_txt = order.get('justification_rebound') or order.get('three_pillars', {}).get('rebound') or 'N/A'
 
             # 5. BUILD CARD HTML
             html_content += f"""
@@ -177,7 +152,7 @@ def send_executive_brief(decision, account_info, junior_reports, portfolio):
                         </div>
                     </div>
                     
-                    <div style="margin-top: 8px; padding-top: 6px; border-top: 1px solid rgba(0,0,0,0.05); font-style: italic; font-size: 12px; color: #555;">
+                    <div style="margin-top: 8px; padding-top: 6px; border-top: 1px solid rgba(0,0,0,0.05); font-style: italic; font-size: 12px; color: #555; white-space: pre-line;">
                         <b style="color: #333;">💡 Thesis:</b> {reason}
                     </div>
                 </div>
@@ -264,7 +239,7 @@ def send_executive_brief(decision, account_info, junior_reports, portfolio):
             </p>
         </div>
         <p style="font-size: 10px; color: #999; text-align: center; margin-top: 20px;">
-            GVQM Protocol v5.0 | {datetime.datetime.now().strftime("%H:%M EST")}
+            GVQM Protocol v5.1 | {datetime.datetime.now().strftime("%H:%M EST")}
         </p>
     </body>
     </html>

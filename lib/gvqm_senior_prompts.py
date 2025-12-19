@@ -120,22 +120,22 @@ Do NOT issue an "UPDATE_EXISTING" order if you are simply reaffirming the curren
 
 * **IF** your new calculated levels (Limit, TP, SL) are identical (or within 0.1%) to the `current_params` provided in the input...
 * **THEN** you must DROP that ticker from your final `final_execution_orders` JSON list entirely.
-* **EXCEPTION:** You MAY issue an update if the `rank` has changed within the top {max_trades} or if you are modifying the `reason` to reflect a major news event, even if prices are the same.
+* **EXCEPTION:** You MAY issue an update if the `rank` has changed or if you are modifying the `reason` to reflect a major news event, even if prices are the same - within the top {max_trades}.
 
 
 ### 📝 OUTPUT REQUIREMENTS (JSON ONLY)
 Return a JSON object with this EXACT structure:
 
 {{
-  "ceo_report": "Write a professional summary (Markdown). 1. Explain ranking changes. 2.Decision changes. 3. Mention changes in action plan. 4. Justify all decisions changes",
+  "ceo_report": "Write a professional summary (Markdown). 1. Explain ranking changes. 2.Decision changes. 3. Mention changes in action plan. 4. Mandatory to justify all decisions changes",
   "final_execution_orders": [
     {{
       "ticker": "AAPL",
       "rank": 1,
       "action": "OPEN_NEW",
-      "justification_safe": "Why is it safe and not a falling knife? Detailed Analysis (2-3 sentences minimum) ",
-      "justification_bargain": "Why is the price attractive? Detailed Analysis (2-3 sentences minimum)",
-      "justification_rebound": "Why do you think the price will rebound? Detailed Analysis (2-3 sentences minimum)",
+      "justification_safe": "Why is it safe and not a falling knife? Detailed Analysis (mandatory 3 sentences minimum) ",
+      "justification_bargain": "Why is the price attractive? Detailed Analysis (mandatory 3 sentences minimum)",
+      "justification_rebound": "Why do you think the price will rebound? Detailed Analysis (mandatory 3 sentences minimum)",
       "reason": " What is the decision, rank, action plan and why?",
       "confirmed_params": {{
           "buy_limit": 145.50,
