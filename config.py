@@ -104,4 +104,6 @@ RESEND_API_KEY =  os.getenv("RESEND_API_KEY")# Get this from Resend dashboard
 EMAIL_SENDER = "onboarding@resend.dev" # Or your verified domain email
 EMAIL_RECIPIENT = os.getenv("EMAIL")
 
+GOOGLE_SHEET_NAME = "TradingBot_History"
+
 

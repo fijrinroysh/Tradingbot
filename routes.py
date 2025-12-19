@@ -110,9 +110,10 @@ def run_pipeline():
     
     log_pipeline(f"Applying filters: Score > 85 AND Price < 250 SMA (Unless Held)...")
 
-    for r in reports:
-        ticker = r.get('ticker')
-        score = get_safe_score(r)
+																		   
+    for raw_report in reports:
+        ticker = raw_report.get('ticker')
+        score = get_safe_score(raw_report)
 		  
         is_held = ticker in live_tickers
         
@@ -148,7 +149,7 @@ def run_pipeline():
 		# ---------------------------------------------------------
         # CRITERIA 2: HIGH CONVICTION SCORE (>85)
         # ---------------------------------------------------------														   											 													   
-																				  
+		# NOTE: We use 'score' for FILTERING, but we do NOT pass it to the Senior.																		  
         if score <= 85:
             continue # Reject immediately
             
