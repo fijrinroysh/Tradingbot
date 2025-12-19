@@ -8,13 +8,17 @@ import time
 
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
 
-# 1. PARAMETERIZED SHEET NAME
+# 1. PARAMETERIZED SHEET NAMES
 SHEET_NAME = getattr(config, 'GOOGLE_SHEET_NAME', "TradingBot_History")
+
+STRATEGY_TAB_NAME = getattr(config, 'GOOGLE_SHEET_STRATEGY_TAB')
+
+
 
 def get_client():
     creds_json = os.getenv("GOOGLE_SHEETS_CREDENTIALS")
     if not creds_json:
-	  
+   
         if os.path.exists("google_credentials.json"):
             try:
                 creds_json = open("google_credentials.json").read()
@@ -24,7 +28,7 @@ def get_client():
     
     try:
         creds_dict = json.loads(creds_json)
-	
+ 
         creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
         return gspread.authorize(creds)
     except Exception as e:
@@ -81,21 +85,21 @@ def fetch_junior_reports(lookback_days=10):
                 if ticker in seen_tickers:
                     continue
 
-		   
+	 
                 raw_score = row.get('Score', 0)
                 score = clean_score(raw_score)
-				 
-	
-			  
+                
+ 
+	 
                 date_str = str(row.get('Date', ''))
-	  
+   
 
                 if not ticker or score == 0: continue
 
                 try:
                     # Parse the full format directly for validation
                     if date_str:
-			  
+	 
                         report_dt = datetime.datetime.strptime(date_str, "%Y-%m-%d %H:%M")
                         if report_dt.date() < limit_date: continue 
                 except: continue 
@@ -136,22 +140,26 @@ def fetch_junior_reports(lookback_days=10):
 
 # --- 3. STRATEGY LOGGING (YYYY-MM-DD HH:MM) ---
 def log_strategy(decision):
-	 
+    """
+    Logs the high-level strategy summary to the configured Strategy Brief tab.
+    """
     for attempt in range(3):
         try:
             client = get_client()
             if not client: return
             
             sh = client.open(SHEET_NAME)
-            try: sheet = sh.worksheet("Executive_Briefs")
+            try: 
+                sheet = sh.worksheet(STRATEGY_TAB_NAME)
             except: 
-                sheet = sh.add_worksheet(title="Executive_Briefs", rows=1000, cols=10)
+                # Create the tab if it doesn't exist
+                sheet = sh.add_worksheet(title=STRATEGY_TAB_NAME, rows=1000, cols=10)
                 sheet.append_row(["Date", "Total", "Top_Count", "Top_Tickers", "CEO_Report"])
                 
             trades = decision.get('final_execution_orders', [])
             trades_summary = ", ".join([f"{t.get('action')} {t.get('ticker')}" for t in trades])
             
-		   
+	 
             timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
             
             row = [
@@ -161,7 +169,7 @@ def log_strategy(decision):
                 decision.get('ceo_report', 'N/A')
             ]
             sheet.append_row(row)
-            print("   ✅ [SENIOR] Strategy Brief Logged.")
+            print(f"   ✅ [SENIOR] Strategy Brief Logged to '{STRATEGY_TAB_NAME}'.")
             return
         except Exception as e:
             print(f"   ⚠️ Strategy Log Error (Attempt {attempt+1}/3): {e}")
@@ -192,7 +200,7 @@ def log_detailed_decisions(decision_data, holdings_map=None):
             
             orders = decision_data.get('final_execution_orders', [])
    
-		   
+	 
             timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
             
             for order in orders:
@@ -236,8 +244,8 @@ def log_trade_event(ticker, event_type, details):
         try:
             client = get_client()
             if not client: return
-	   
-	  
+	
+   
             
             sh = client.open(SHEET_NAME)
             try: sheet = sh.worksheet("Trade_Log")
@@ -245,7 +253,7 @@ def log_trade_event(ticker, event_type, details):
                 sheet = sh.add_worksheet(title="Trade_Log", rows=1000, cols=10)
                 sheet.append_row(["Timestamp", "Ticker", "Event", "Qty", "Price", "Stop_Loss", "Take_Profit", "Details"])
             
-		   
+	 
             now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
             
             price = details.get('price') or details.get('buy_limit') or details.get('limit_price') or '-'
@@ -267,7 +275,7 @@ def log_trade_event(ticker, event_type, details):
 # --- 6. MEMORY RECALL (ROBUST SORTING) ---
 def get_last_strategy():
     """
-    Fetches the most recent executive brief.
+    Fetches the most recent executive brief from the configured tab.
     Fix: Does NOT assume the last row is the latest.
     explicitly parses 'Date' column and sorts Descending.
     """
@@ -276,9 +284,9 @@ def get_last_strategy():
             client = get_client()
             if not client: return None
             
-            # Open Sheet
+            # Open Sheet using the configured Tab Name
             try:
-                sheet = client.open(SHEET_NAME).worksheet("Executive_Briefs")
+                sheet = client.open(SHEET_NAME).worksheet(STRATEGY_TAB_NAME)
             except:
                 return None # Worksheet doesn't exist yet
                 

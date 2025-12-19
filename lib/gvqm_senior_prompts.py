@@ -113,6 +113,16 @@ You verify stocks based on three pillars:
 ### 📋 CANDIDATE LIST (Live Data):
 {candidates_data}
 
+
+
+### 4. THE "DELTA" RULE (CRITICAL)
+Do NOT issue an "UPDATE_EXISTING" order if you are simply reaffirming the current numbers.
+
+* **IF** your new calculated levels (Limit, TP, SL) are identical (or within 0.1%) to the `current_params` provided in the input...
+* **THEN** you must DROP that ticker from your final `final_execution_orders` JSON list entirely.
+* **EXCEPTION:** You MAY issue an update if the `rank` has changed within the top {max_trades} or if you are modifying the `reason` to reflect a major news event, even if prices are the same.
+
+
 ### 📝 OUTPUT REQUIREMENTS (JSON ONLY)
 Return a JSON object with this EXACT structure:
 

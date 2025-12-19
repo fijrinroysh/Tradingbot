@@ -4,17 +4,18 @@ import datetime
 
 def send_executive_brief(decision, account_info, junior_reports, portfolio):
     """
-    Sends the "Mirror Protocol" Dashboard with:
-    1. Intelligence Header (Rank + Reason)
-    2. Dynamic Updates (Migration View for Limit/TP/SL)
-    3. 3-Pillar Justification
-    4. Portfolio Audit with % P/L
+    Sends the "Mirror Protocol" Dashboard v5.0 (Neon Alpha Edition)
+    Features:
+    1. Trader's Clipboard (Copy-Paste)
+    2. Vibrant 'Neon Alpha' Color Palette for Ranks
+    3. Dynamic Migration View (Old -> New)
+    4. Portfolio Audit with P/L %
     """
     if not getattr(config, 'RESEND_API_KEY', None):
         print("⚠️ [NOTIFIER] Resend API Key missing. Skipping Brief.")
         return
 
-    print("📧 [NOTIFIER] Formatting Executive Briefing...")
+    print("📧 [NOTIFIER] Formatting Executive Briefing (Neon Alpha)...")
     resend.api_key = config.RESEND_API_KEY
     
     today = datetime.date.today().strftime("%b %d, %Y")
@@ -34,14 +35,21 @@ def send_executive_brief(decision, account_info, junior_reports, portfolio):
     PILLAR_BOX = "background-color: #f9f9f9; padding: 10px; border-radius: 4px; margin-bottom: 8px; font-size: 12px; color: #444;"
     PILLAR_TITLE = "font-weight: bold; color: #555; font-size: 10px; text-transform: uppercase; display: block; margin-bottom: 4px;"
     
-    # RANK BADGE STYLES (1-10 Scale, 1 is Best)
-    BADGE_GOLD = "background: #f1c40f; color: #fff; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 10px;"
-    BADGE_SILVER = "background: #bdc3c7; color: #fff; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 10px;"
-    BADGE_GRAY = "background: #ecf0f1; color: #7f8c8d; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 10px;"
+    # --- 🎨 NEON ALPHA PALETTE ---
+    # Rank 1-2: Electric Purple (Elite/Alpha)
+    BADGE_ELITE = "background: #8e44ad; color: #fff; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 10px; border: 1px solid #9b59b6; box-shadow: 0 1px 3px rgba(0,0,0,0.2);"
+    
+    # Rank 3-5: Dodger Blue (Strong)
+    BADGE_STRONG = "background: #2980b9; color: #fff; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 10px; border: 1px solid #3498db;"
+    
+    # Rank 6-10: Emerald Green (Standard)
+    BADGE_STANDARD = "background: #27ae60; color: #fff; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 10px; border: 1px solid #2ecc71;"
+
+    # CLIPBOARD STYLE
+    CLIPBOARD_BOX = "background-color: #f1f2f6; border: 1px dashed #ccc; padding: 15px; margin-bottom: 25px; border-radius: 6px; font-family: 'Courier New', monospace; font-size: 12px; color: #333;"
 
     # --- HELPER: FORMAT CHANGE (OLD -> NEW) ---
     def format_migration(val_old, val_new, prefix="$"):
-        """Returns 'Old -> New' string if different and old exists, else just 'New'"""
         if val_old is None or val_old == val_new or val_old == 'N/A':
             return f"<b>{prefix}{val_new}</b>"
         return f"<span style='color:#999; text-decoration:line-through; font-size:10px;'>{prefix}{val_old}</span> &rarr; <b>{prefix}{val_new}</b>"
@@ -62,9 +70,35 @@ def send_executive_brief(decision, account_info, junior_reports, portfolio):
             <span>🚀 BP: <b>${float(account_info.buying_power):,.2f}</b></span>
         </div>
         <br>
+    """
 
-        <h3 style="margin-bottom: 10px; color: #e67e22; border-bottom: 2px solid #e67e22; padding-bottom: 5px;">
-            🚨 Action Signals ({len(trades)})
+    # --- 📋 TRADER'S CLIPBOARD SECTION ---
+    if trades:
+        html_content += f"""
+        <div style="{CLIPBOARD_BOX}">
+            <div style="font-weight: bold; border-bottom: 1px solid #ccc; padding-bottom: 5px; margin-bottom: 10px; color: #555;">📋 TRADER'S CLIPBOARD (Copy Below)</div>
+        """
+        
+        for order in trades:
+            action_raw = order.get('action', 'HOLD').replace('_EXISTING', '').replace('_NEW', '')
+            ticker = order.get('ticker')
+            p = order.get('confirmed_params', {})
+            
+            # Format: BUY AAPL | Qty: 10 | Lmt: 150.00 | TP: 160 | SL: 140
+            line = f"<b>{action_raw} {ticker}</b> &nbsp;|&nbsp; "
+            line += f"Qty: {order.get('qty', 0)} &nbsp;|&nbsp; "
+            line += f"Lmt: {p.get('buy_limit', 'MKT')} &nbsp;|&nbsp; "
+            line += f"TP: {p.get('take_profit', '-')} &nbsp;|&nbsp; "
+            line += f"SL: {p.get('stop_loss', '-')}"
+            
+            html_content += f"<div style='margin-bottom: 6px; border-bottom: 1px solid #e0e0e0; padding-bottom: 4px;'>{line}</div>"
+            
+        html_content += "</div>"
+
+    # --- INTELLIGENCE CARDS ---
+    html_content += """
+        <h3 style="margin-bottom: 10px; color: #2c3e50; border-bottom: 2px solid #2c3e50; padding-bottom: 5px;">
+            🚨 Intelligence Briefing
         </h3>
     """
     
@@ -74,22 +108,29 @@ def send_executive_brief(decision, account_info, junior_reports, portfolio):
         for order in trades:
             # 1. PARSE DATA
             new_p = order.get('confirmed_params', {})
-            old_p = order.get('current_params', {}) # Assuming 'current_params' holds old values for updates
+            old_p = order.get('current_params', {})
             
             action = order.get('action', 'HOLD')
             ticker = order.get('ticker')
-            rank = order.get('rank', 10) # Default to 10 if missing
+            rank = order.get('rank', 10)
             reason = order.get('reason', 'Automated Technical Structure')
             
-            # 2. DETERMINE BADGE COLOR (Golf Logic: 1 is Best)
+            # 2. DETERMINE BADGE COLOR (Neon Alpha Logic)
             try:
                 rank_val = int(rank)
-                if rank_val <= 2: rank_style = BADGE_GOLD
-                elif rank_val <= 5: rank_style = BADGE_SILVER
-                else: rank_style = BADGE_GRAY
+                if rank_val <= 2: 
+                    rank_style = BADGE_ELITE
+                    rank_label = f"🟣 RANK {rank_val}"
+                elif rank_val <= 5: 
+                    rank_style = BADGE_STRONG
+                    rank_label = f"🔵 RANK {rank_val}"
+                else: 
+                    rank_style = BADGE_STANDARD
+                    rank_label = f"🟢 RANK {rank_val}"
             except:
                 rank_val = "?"
-                rank_style = BADGE_GRAY
+                rank_style = BADGE_STANDARD
+                rank_label = "RANK ?"
 
             # 3. ACTION STYLING
             if action == "OPEN_NEW":
@@ -109,15 +150,11 @@ def send_executive_brief(decision, account_info, junior_reports, portfolio):
                 action_color = "#7f8c8d"
                 action_txt = "🛑 HOLD"
 
-            # 4. PREPARE DISPLAY VALUES (Migration Logic)
-            # Limit Price (Handle Chasing)
+            # 4. PREPARE DISPLAY VALUES
             disp_limit = format_migration(old_p.get('buy_limit'), new_p.get('buy_limit', '-'))
-            
-            # TP / SL
             disp_tp = format_migration(old_p.get('take_profit'), new_p.get('take_profit', '-'))
             disp_sl = format_migration(old_p.get('stop_loss'), new_p.get('stop_loss', '-'))
             
-            # Justifications
             safe_txt = order.get('justification_safe', 'N/A')
             bargain_txt = order.get('justification_bargain', 'N/A')
             rebound_txt = order.get('justification_rebound', 'N/A')
@@ -129,7 +166,7 @@ def send_executive_brief(decision, account_info, junior_reports, portfolio):
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                         <div>
                             <span style="font-size: 18px; font-weight: bold; color: #333;">{ticker}</span>
-                            <span style="{rank_style} margin-left: 6px;">RANK {rank_val}</span>
+                            <span style="{rank_style} margin-left: 6px;">{rank_label}</span>
                             <span style="font-size: 10px; font-weight: bold; color: {action_color}; border: 1px solid {action_color}; padding: 1px 4px; border-radius: 3px; margin-left: 6px;">
                                 {action_txt}
                             </span>
@@ -155,12 +192,10 @@ def send_executive_brief(decision, account_info, junior_reports, portfolio):
                         <span style="{PILLAR_TITLE}">🛡️ Safety Check</span>
                         {safe_txt}
                     </div>
-
                     <div style="{PILLAR_BOX} border-left: 3px solid #f1c40f;">
                         <span style="{PILLAR_TITLE}">💰 Valuation</span>
                         {bargain_txt}
                     </div>
-
                     <div style="{PILLAR_BOX} border-left: 3px solid #e67e22;">
                         <span style="{PILLAR_TITLE}">📈 Catalyst</span>
                         {rebound_txt}
@@ -175,7 +210,6 @@ def send_executive_brief(decision, account_info, junior_reports, portfolio):
         <h3 style="margin-bottom: 10px; color: #2c3e50; border-bottom: 2px solid #2c3e50; padding-bottom: 5px;">
             📂 Portfolio Audit
         </h3>
-        
         <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 11px;">
             <thead>
                 <tr style="background-color: #f8f9fa;">
@@ -200,7 +234,6 @@ def send_executive_brief(decision, account_info, junior_reports, portfolio):
             current_price = float(pos.current_price)
             unrealized_pl = float(pos.unrealized_pl)
             
-            # Calculate % P/L
             try:
                 pl_percent = (unrealized_pl / (avg_entry * float(qty))) * 100
             except (ZeroDivisionError, ValueError):
@@ -224,22 +257,19 @@ def send_executive_brief(decision, account_info, junior_reports, portfolio):
             </tbody>
         </table>
         <br>
-
         <div style="background-color: #f8f9fa; border: 1px solid #eee; padding: 15px; border-radius: 6px;">
             <h4 style="margin-top: 0; color: #34495e; font-size: 12px; text-transform: uppercase;">🗣️ CEO Note</h4>
             <p style="font-size: 12px; line-height: 1.5; color: #555; font-style: italic; margin: 0;">
                 "{decision.get('ceo_report', 'No report available.')}"
             </p>
         </div>
-
         <p style="font-size: 10px; color: #999; text-align: center; margin-top: 20px;">
-            GVQM Protocol v4.1 | {datetime.datetime.now().strftime("%H:%M EST")}
+            GVQM Protocol v5.0 | {datetime.datetime.now().strftime("%H:%M EST")}
         </p>
     </body>
     </html>
     """
     
-    # --- SENDING ---
     try:
         r = resend.Emails.send({
             "from": config.EMAIL_SENDER,
