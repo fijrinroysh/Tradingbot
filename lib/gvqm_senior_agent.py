@@ -27,35 +27,32 @@ def clean_json_text(text):
         return text
     except: return text
 
-# --- NEW VISUALIZATION ENGINE ---								  											
+# --- NEW VISUALIZATION ENGINE ---                                                                            
 def visualize_decision(candidates, decision):
     """
     Prints a human-readable 'Reality vs Decision' matrix.
-    v2.1: Uses block-level formatting to ensure pipes '|' never zig-zag.
+    v3.0: Now includes 3-Pillar Justifications.
     """
     print("\n" + "="*82)
     print("🔮 SENIOR MANAGER: NEURAL DECISION MATRIX")
     print("="*82)
 
-    # Map orders for O(1) lookup
     orders_map = {o.get('ticker'): o for o in decision.get('final_execution_orders', [])}
 
     for cand in candidates:
         ticker = cand.get('ticker')
         order = orders_map.get(ticker)
         
-				  
-					
         if not order: continue
 
         # --- PREPARE DATA ---
-        # Input Side (Reality)
         price = cand.get('current_price', 0)
         held = cand.get('shares_held', 0)
+        avg_entry = cand.get('avg_entry_price', 0) 
+        
         curr_tp = cand.get('current_active_tp', '-') or '-'
         curr_sl = cand.get('current_active_sl', '-') or '-'
         
-        # Pending Logic
         pending_buy = cand.get('pending_buy_limit')
         if pending_buy and pending_buy != "MKT" and float(pending_buy) > 0:
             pending_str = f"PENDING BUY @ ${pending_buy}"
@@ -67,62 +64,62 @@ def visualize_decision(candidates, decision):
         score = cand.get('conviction_score', 'N/A')
         status_tag = cand.get('status', 'N/A')
 
-        # Output Side (Decision)
         action = order.get('action', 'HOLD')
-        reason = order.get('reason', 'No reason provided')
+        
+        # --- NEW PILLARS ---
+        why_safe = order.get('justification_safe', 'N/A')
+        why_bargain = order.get('justification_bargain', 'N/A')
+        why_rebound = order.get('justification_rebound', 'N/A')
+        
         params = order.get('confirmed_params', {})
         new_limit = params.get('buy_limit', '-')
         new_tp = params.get('take_profit', '-')
         new_sl = params.get('stop_loss', '-')
 
-        # Color Coding
-				
-        color = "\033[90m" # Grey
-        if action == "OPEN_NEW": color = "\033[92m" # Green
-        elif action == "UPDATE_EXISTING": color = "\033[96m" # Cyan
+        color = "\033[90m" 
+        if action == "OPEN_NEW": color = "\033[92m" 
+        elif action == "UPDATE_EXISTING": color = "\033[96m" 
         reset = "\033[0m"
 
-        # --- DRAW TABLE (Block Formatting) ---
-        # The trick: Construct the string FIRST, then pad the WHOLE string to 38 chars.
-        
+        # --- DRAW TABLE ---
         print(f"{color}" + "-"*82)
         print(f" {ticker:<6} | {action}")
         print("-" * 82 + f"{reset}")
         
-        # Header
-        # Column Width = 38 chars
         print(f" {'INPUT (Context)':<38} | {'OUTPUT (Decision)':<38}")
         print(f" {'-'*38} | {'-'*38}")
-				   
         
-        # Row 1: Price vs Limit
+        # Row 1: Price
         r1_left = f"Price:    ${price}"
         r1_right = f"Limit:    ${new_limit}"
         print(f" {r1_left:<38} | {r1_right:<38}")
         
-        # Row 2: Held vs Targets
-        r2_left = f"Held:     {held} shares"
-										 
+        # Row 2: Held
+        if held > 0:
+            r2_left = f"Held:     {held} @ ${avg_entry:.2f}"
+        else:
+            r2_left = f"Held:     0 shares"
+            
         r2_right = f"Targets:  TP: ${new_tp} / SL: ${new_sl}"
         print(f" {r2_left:<38} | {r2_right:<38}")
 
-        # Row 3: Active Bracket vs Empty
-				 
+        # Row 3: Active Bracket
         r3_left = f"Active:   TP: ${curr_tp} / SL: ${curr_sl}"
         r3_right = "" 
         print(f" {r3_left:<38} | {r3_right:<38}")
         
-        # Row 4: Pending Status
+        # Row 4: Pending
         r4_left = f"Status:   {pending_str}"
         print(f" {r4_left:<38} |")
 
-        # Row 5: Junior Intel
+        # Row 5: Junior
         r5_left = f"Junior:   {status_tag} (Score: {score})"
         print(f" {r5_left:<38} |")
         
-        # Footer: Reason
         print(f" {'-'*80}")
-        print(f" Reason:   {reason}")
+        print(f" 🛡️ Safe:    {why_safe[:70]}")
+        print(f" 💰 Bargain: {why_bargain[:70]}")
+        print(f" 📈 Rebound: {why_rebound[:70]}")
         print("")
 
     print("="*82 + "\n")
@@ -132,7 +129,6 @@ def rank_portfolio(candidates_list, top_n=5, lookback_days=10, prev_context=None
     
     if not prev_context: prev_context = {"date": "None", "top_tickers": "None"}
     
-    # Construct Prompt
     try:
         prompt = prompts.SENIOR_MANAGER_PROMPT.format(
             count=len(candidates_list),
@@ -143,13 +139,6 @@ def rank_portfolio(candidates_list, top_n=5, lookback_days=10, prev_context=None
             prev_report=prev_context.get('ceo_report', 'None'),
             candidates_data=json.dumps(candidates_list, indent=2)
         )
-										   
-							
-													   
-					 
-										
-							
-		
     except Exception as e:
         log_debug(f"CRITICAL: Failed to construct prompt. Error: {e}")
         return None
@@ -184,15 +173,10 @@ def rank_portfolio(candidates_list, top_n=5, lookback_days=10, prev_context=None
                     cleaned_json = clean_json_text(text)
                     decision_data = json.loads(cleaned_json)
 
-                    # --- TRIGGER VISUALIZATION ---
                     visualize_decision(candidates_list, decision_data)
-                    # -----------------------------
-
-					
                     return decision_data
                 except Exception as e:
                     log_debug(f"❌ Senior Parsing Error: {e}")
-                    # Print raw text if parse fails so we can debug
                     print(f"RAW TEXT: {text[:200]}...") 
                     return None
             elif response.status_code in [429, 503]:

@@ -14,17 +14,17 @@ SHEET_NAME = getattr(config, 'GOOGLE_SHEET_NAME', "TradingBot_History")
 def get_client():
     creds_json = os.getenv("GOOGLE_SHEETS_CREDENTIALS")
     if not creds_json:
-						
-        if os.path.exists("google_credentials.json"):
- 
-            creds_json = open("google_credentials.json").read()
 	  
+        if os.path.exists("google_credentials.json"):
+            try:
+                creds_json = open("google_credentials.json").read()
+            except: return None
    
         else: return None
     
     try:
         creds_dict = json.loads(creds_json)
-		  
+	
         creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
         return gspread.authorize(creds)
     except Exception as e:
@@ -81,21 +81,21 @@ def fetch_junior_reports(lookback_days=10):
                 if ticker in seen_tickers:
                     continue
 
-								   
+		   
                 raw_score = row.get('Score', 0)
                 score = clean_score(raw_score)
-															  
-				
-											   
+				 
+	
+			  
                 date_str = str(row.get('Date', ''))
-				  
+	  
 
                 if not ticker or score == 0: continue
 
                 try:
                     # Parse the full format directly for validation
                     if date_str:
-														
+			  
                         report_dt = datetime.datetime.strptime(date_str, "%Y-%m-%d %H:%M")
                         if report_dt.date() < limit_date: continue 
                 except: continue 
@@ -136,7 +136,7 @@ def fetch_junior_reports(lookback_days=10):
 
 # --- 3. STRATEGY LOGGING (YYYY-MM-DD HH:MM) ---
 def log_strategy(decision):
-			  
+	 
     for attempt in range(3):
         try:
             client = get_client()
@@ -151,7 +151,7 @@ def log_strategy(decision):
             trades = decision.get('final_execution_orders', [])
             trades_summary = ", ".join([f"{t.get('action')} {t.get('ticker')}" for t in trades])
             
-											
+		   
             timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
             
             row = [
@@ -167,7 +167,7 @@ def log_strategy(decision):
             print(f"   ⚠️ Strategy Log Error (Attempt {attempt+1}/3): {e}")
             time.sleep(2)
 
-# --- 4. DETAILED LOGGING (YYYY-MM-DD HH:MM) ---
+# --- 4. DETAILED LOGGING (UPDATED: 3-PILLAR SUPPORT) ---
 def log_detailed_decisions(decision_data, holdings_map=None):
     if holdings_map is None: holdings_map = {}
     
@@ -177,20 +177,33 @@ def log_detailed_decisions(decision_data, holdings_map=None):
             if not client: return
             sh = client.open(SHEET_NAME)
             
+            # --- NEW HEADERS ---
+            headers = [
+                "Date", "Ticker", "Rank", "Action", "Reason", 
+                "Buy_Limit", "Take_Profit", "Stop_Loss", "Shares_Held",
+                "Justification_Safe", "Justification_Bargain", "Justification_Rebound"
+            ]
+
             try: sheet = sh.worksheet("Senior_Decisions")
             except: 
-                sheet = sh.add_worksheet(title="Senior_Decisions", rows=2000, cols=10)
-                sheet.append_row(["Date", "Ticker", "Rank", "Action", "Reason", "Buy_Limit", "Take_Profit", "Stop_Loss", "Shares_Held"])
+                # Create with 15 cols to be safe
+                sheet = sh.add_worksheet(title="Senior_Decisions", rows=2000, cols=15)
+                sheet.append_row(headers)
             
             orders = decision_data.get('final_execution_orders', [])
-			
-											
+   
+		   
             timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
             
             for order in orders:
                 ticker = order.get('ticker')
                 params = order.get('confirmed_params', {})
                 
+                # --- EXTRACT 3 PILLARS ---
+                j_safe = order.get('justification_safe', '-')
+                j_bargain = order.get('justification_bargain', '-')
+                j_rebound = order.get('justification_rebound', '-')
+
                 row = [
                     timestamp,
                     ticker,
@@ -200,7 +213,11 @@ def log_detailed_decisions(decision_data, holdings_map=None):
                     params.get('buy_limit', 0),
                     params.get('take_profit', 0),
                     params.get('stop_loss', 0),
-                    holdings_map.get(ticker, 0)
+                    holdings_map.get(ticker, 0),
+                    # --- NEW COLUMNS ---
+                    j_safe,
+                    j_bargain,
+                    j_rebound
                 ]
                 sheet.append_row(row)
                 
@@ -214,13 +231,13 @@ def log_detailed_decisions(decision_data, holdings_map=None):
 # --- 5. TRADE LOGGING (YYYY-MM-DD HH:MM) ---
 def log_trade_event(ticker, event_type, details):
     for attempt in range(3):
-		
-		
+  
+  
         try:
             client = get_client()
             if not client: return
-							
-						
+	   
+	  
             
             sh = client.open(SHEET_NAME)
             try: sheet = sh.worksheet("Trade_Log")
@@ -228,7 +245,7 @@ def log_trade_event(ticker, event_type, details):
                 sheet = sh.add_worksheet(title="Trade_Log", rows=1000, cols=10)
                 sheet.append_row(["Timestamp", "Ticker", "Event", "Qty", "Price", "Stop_Loss", "Take_Profit", "Details"])
             
-											
+		   
             now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
             
             price = details.get('price') or details.get('buy_limit') or details.get('limit_price') or '-'

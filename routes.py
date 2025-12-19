@@ -4,6 +4,8 @@ import time
 import config
 import sys, os
 import datetime
+import copy
+			
 
 # Setup Paths
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -44,7 +46,7 @@ def run_pipeline():
     # if not trader.is_market_open():
     #    log_pipeline("💤 Market Closed. Aborting.")
     #    return
-
+				
     # --- JUNIOR PHASE ---
     log_pipeline("🕵️ PHASE 1: JUNIOR ANALYST RESEARCH")
     
@@ -81,17 +83,17 @@ def run_pipeline():
     reports = senior_history.fetch_junior_reports(lookback)
     log_pipeline(f"Fetched {len(reports)} total reports from history (Last {lookback} days).")
     
-    # --- LOGIC FIX: PORTFOLIO INJECTION ---
-    # 1. Get Live Holdings (The "Must Manage" List)
-																							   
+	    # --- LOGIC FIX: PORTFOLIO INJECTION ---
+    # 1. Get Live Holdings (The "Must Manage" List)										
+												   		  
     live_tickers = set()
     try:
         # Get Open Positions
         positions = trader.trading_client.get_all_positions()
         for p in positions: live_tickers.add(p.symbol)
         
-        # Get Open Orders (Pending Buys)
-        # FIX: Use GetOrdersRequest accessed via the trader module
+        # Get Open Orders
+																  
         req_params = trader.GetOrdersRequest(status=trader.QueryOrderStatus.OPEN)
         orders = trader.trading_client.get_orders(filter=req_params)
         for o in orders: live_tickers.add(o.symbol)
@@ -102,70 +104,89 @@ def run_pipeline():
     except Exception as e:
         log_pipeline(f"   ⚠️ Could not fetch live portfolio: {e}")
 
-    # 2. FILTER CANDIDATES (The Gatekeeper)
+    # 2. FILTER CANDIDATES
     final_candidates = []
     seen_tickers = set()
     
-    log_pipeline(f"Applying filters: Score >= 85 AND Price < 250 SMA (Unless Held)...")
+    log_pipeline(f"Applying filters: Score > 85 AND Price < 250 SMA (Unless Held)...")
 
     for r in reports:
         ticker = r.get('ticker')
         score = get_safe_score(r)
-										
+		  
         is_held = ticker in live_tickers
         
-        # ---------------------------------------------------------
+        # --- BIAS REMOVAL: CLEAN SLATE PROTOCOL ---
+        # We strip EVERYTHING subjective. The Senior must verify facts himself.
+        r = copy.deepcopy(raw_report)
+        keys_to_remove = [
+            'action', 'execution',          # Junior's Opinion
+            'conviction_score',             # Arbitrary Number (Bias)
+            'intel',                        # Stale News
+            'status_rationale',             # Subjective
+            'valuation_rationale',          # Subjective
+            'rebound_rationale'             # Subjective
+        ]
+        for k in keys_to_remove:
+            if k in r: del r[k]
+        # -----------------------------------------		
+																			   
+					   
+
+	    # ---------------------------------------------------------
         # CRITERIA 1: ACTIVE HOLDINGS (The "Must Manage" Override)
-        # ---------------------------------------------------------
-		
-		
+        # ---------------------------------------------------------															   
+																  
+
         if is_held:
-            r['audit_reason'] = "PORTFOLIO_REVIEW - Low Score, but we have active positions, need to be managed"
+            r['audit_reason'] = "PORTFOLIO_REVIEW"
             if ticker not in seen_tickers:
                 final_candidates.append(r)
                 seen_tickers.add(ticker)
             continue # Skip further checks, we MUST manage this.
 
-        # ---------------------------------------------------------
+		# ---------------------------------------------------------
         # CRITERIA 2: HIGH CONVICTION SCORE (>85)
-        # ---------------------------------------------------------
+        # ---------------------------------------------------------														   											 													   
+																				  
         if score <= 85:
             continue # Reject immediately
             
-        # ---------------------------------------------------------
+																   
+		# ---------------------------------------------------------
         # CRITERIA 3: PRICE BELOW 250-DAY MOVING AVERAGE
         # ---------------------------------------------------------
-        # We only spend API calls checking MA if the score is good
+        # We only spend API calls checking MA if the score is good																							  
         current_price = trader.get_current_price(ticker)
         sma_250 = trader.get_simple_moving_average(ticker, window=250)
         
         if current_price and sma_250:
             if current_price < sma_250:
-                # PASSED ALL CHECKS
+								   
                 r['audit_reason'] = f"OPPORTUNITY (Score {score} | Price ${current_price} < SMA ${sma_250:.2f})"
                 if ticker not in seen_tickers:
                     final_candidates.append(r)
                     seen_tickers.add(ticker)
             else:
-                # REJECT: Recovered Stock
+										 
                 log_pipeline(f"   📉 Rejecting {ticker}: Price ${current_price} is ABOVE 250 SMA (${sma_250:.2f}).")
         else:
             log_pipeline(f"   ⚠️ Skipping {ticker}: Could not verify SMA compliance.")
-						
+	  
 
-	
  
  
  
  
  
  
-    log_pipeline(f"Senior Agent will review {len(final_candidates)} candidates ({len(live_tickers)} Active + Opportunity Pipeline).")
+ 
+    log_pipeline(f"Senior Agent will review {len(final_candidates)} candidates.")
     
     if not final_candidates:
         log_pipeline("📉 No candidates found. Stopping Senior Phase.")
         return
-			 
+	
 
 
 
@@ -183,18 +204,19 @@ def run_pipeline():
             
             # Inject raw numbers for the Senior Agent
             c['shares_held'] = details['shares_held']
+            c['avg_entry_price'] = details['avg_entry_price'] # <--- PASSED HERE
             c['current_active_tp'] = details['active_tp']
             c['current_active_sl'] = details['active_sl']
             c['pending_buy_limit'] = details['pending_buy_limit']
             
-            # Map for logging
+							 
             holdings_map[ticker] = details['shares_held']
             
-            # Log Status
+						
             if details['status_msg'] != "NONE":
                 log_pipeline(f"   ℹ️ [CONTEXT] {ticker}: {details['status_msg']}")
         else:
-            # Fallback
+					  
             c['shares_held'] = trader.get_position(ticker)
             holdings_map[ticker] = c['shares_held']
 
@@ -238,7 +260,7 @@ def run_pipeline():
                         p.get('buy_limit', 0), p.get('take_profit', 0), p.get('stop_loss', 0)
                     )
                 elif action == "UPDATE_EXISTING":
-                    # Handles both standard updates AND "The Choke" (Close Logic)
+																				 
                     trade_events = trader.execute_update(
                         ticker, p.get('take_profit', 0), p.get('stop_loss', 0), buy_limit=p.get('buy_limit', 0)
                     )
@@ -250,7 +272,7 @@ def run_pipeline():
             except Exception as e:
                 log_pipeline(f"      ❌ Execution Exception for {ticker}: {e}")
 
-            # Logging Events
+							
             if isinstance(trade_events, dict): trade_events = [trade_events]
             for event in trade_events:
                 if isinstance(event, dict):
@@ -264,13 +286,13 @@ def run_pipeline():
         # 6. SEND EMAIL
         log_pipeline("\n📧 PHASE 4: NOTIFICATION")
         try:
-            # 1. Fetch Account Info
+			# 1. Fetch Account Info					   
             account_info = trader.trading_client.get_account()
-            
-            # 2. Fetch Live Portfolio (Mirror Protocol)
+			
+			# 2. Fetch Live Portfolio (Mirror Protocol)										   
             portfolio = trader.trading_client.get_all_positions()
-            
-            # 3. Send Brief
+			
+			# 3. Send Brief			   
             notifier.send_executive_brief(decision, account_info, reports, portfolio)
 
             log_pipeline("✅ Executive Brief email dispatched.")

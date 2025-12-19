@@ -4,11 +4,12 @@ import datetime
 
 def send_executive_brief(decision, account_info, junior_reports, portfolio):
     """
-    Sends the "Mirror Protocol" Dashboard:
-    1. Financial Snapshot (Header)
+    Sends the "Mirror Protocol" Dashboard with 3-Pillar Justification.
+	1. Financial Snapshot (Header)
     2. Action Signals (Trades to Copy Today)
     3. Portfolio Sync (Current Holdings to Match)
-    4. Intelligence (Context)
+    4. Intelligence (Context)					  								 
+							 
     """
     if not getattr(config, 'RESEND_API_KEY', None):
         print("⚠️ Resend API Key missing. Skipping Brief.")
@@ -25,11 +26,12 @@ def send_executive_brief(decision, account_info, junior_reports, portfolio):
 
     # --- STYLES ---
     TH_STYLE = "background-color: #f4f4f4; color: #555; font-size: 10px; text-transform: uppercase; padding: 6px; border: 1px solid #ddd;"
-    TD_STYLE = "padding: 6px; border: 1px solid #ddd; font-size: 12px;"
+    TD_STYLE = "padding: 6px; border: 1px solid #ddd; font-size: 11px;"
+    PILLAR_STYLE = "padding: 6px; border: 1px solid #ddd; font-size: 10px; color: #555; font-style: italic;"
     
     html_content = f"""
     <html>
-    <body style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #333; max-width: 800px; margin: auto;">
+    <body style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #333; max-width: 900px; margin: auto;">
         
         <div style="background-color: #2c3e50; color: white; padding: 15px; border-radius: 6px 6px 0 0;">
             <table style="width: 100%; border-collapse: collapse; color: white;">
@@ -54,40 +56,47 @@ def send_executive_brief(decision, account_info, junior_reports, portfolio):
         </table>
         <br>
 
-        <h3 style="margin-bottom: 5px; color: #e67e22; border-bottom: 2px solid #e67e22;">🚨 1. Action Signals (Copy These)</h3>
-        <p style="margin: 0 0 10px 0; font-size: 11px; color: #777;"><i>Execute these orders in your real account to mirror the strategy.</i></p>
+        <h3 style="margin-bottom: 5px; color: #e67e22; border-bottom: 2px solid #e67e22;">🚨 1. Action Signals & Rationale</h3>
+        <p style="margin: 0 0 10px 0; font-size: 11px; color: #777;"><i>Review the 3-Pillar Justification before executing.</i></p>
         
         <table style="width: 100%; border-collapse: collapse; text-align: left;">
             <thead>
                 <tr style="background-color: #f8f9fa;">
-                    <th style="{TH_STYLE}">Action</th>
-                    <th style="{TH_STYLE}">Ticker</th>
-                    <th style="{TH_STYLE}">Limit Price</th>
-                    <th style="{TH_STYLE}">TP / SL</th>
-                    <th style="{TH_STYLE} width: 40%;">Rationale & Justification</th>
+                    <th style="{TH_STYLE} width: 5%;">Act</th>
+                    <th style="{TH_STYLE} width: 8%;">Ticker</th>
+                    <th style="{TH_STYLE} width: 10%;">Limit</th>
+                    <th style="{TH_STYLE} width: 12%;">TP / SL</th>
+                    <th style="{TH_STYLE} width: 20%;">🛡️ Safe?</th>
+                    <th style="{TH_STYLE} width: 20%;">💰 Bargain?</th>
+                    <th style="{TH_STYLE} width: 25%;">📈 Rebound?</th>
                 </tr>
             </thead>
             <tbody>
     """
     
     if not trades:
-        html_content += f"<tr><td colspan='5' style='{TD_STYLE} text-align: center; color: #999;'>No actions required today. Hold positions.</td></tr>"
+        html_content += f"<tr><td colspan='7' style='{TD_STYLE} text-align: center; color: #999;'>No actions required today. Hold positions.</td></tr>"
     else:
         for order in trades:
             p = order.get('confirmed_params', {})
             action = order.get('action', 'HOLD')
             ticker = order.get('ticker')
-            reason = order.get('reason', 'N/A')
+											   
+            
+            # Retrieve the 3 Pillars
+            safe_txt = order.get('justification_safe', '-')
+            bargain_txt = order.get('justification_bargain', '-')
+            rebound_txt = order.get('justification_rebound', '-')
             
             # Color Coding
             if action == "OPEN_NEW":
                 badge = "<span style='color: #27ae60; font-weight: bold;'>🟢 OPEN</span>"
                 bg = "#eafaf1"
             elif action == "UPDATE_EXISTING":
-                badge = "<span style='color: #2980b9; font-weight: bold;'>♻️ UPDATE</span>"
+                badge = "<span style='color: #2980b9; font-weight: bold;'>♻️ UPDT</span>"
                 bg = "#ebf5fb"
             elif action == "CANCEL":
-                badge = "<span style='color: #c0392b; font-weight: bold;'>🚫 CANCEL</span>"
+                badge = "<span style='color: #c0392b; font-weight: bold;'>🚫 CNCL</span>"
                 bg = "#fdedec"
             else:
                 badge = "<span style='color: #7f8c8d; font-weight: bold;'>🛑 HOLD</span>"
@@ -99,10 +108,12 @@ def send_executive_brief(decision, account_info, junior_reports, portfolio):
                     <td style="{TD_STYLE}"><b>{ticker}</b></td>
                     <td style="{TD_STYLE}">${p.get('buy_limit', '-')}</td>
                     <td style="{TD_STYLE}">
-                        <span style="color: #27ae60;">${p.get('take_profit', '-')}</span> / 
+                        <span style="color: #27ae60;">${p.get('take_profit', '-')}</span><br>
                         <span style="color: #c0392b;">${p.get('stop_loss', '-')}</span>
                     </td>
-                    <td style="{TD_STYLE} font-style: italic;">{reason}</td>
+                    <td style="{PILLAR_STYLE}">{safe_txt}</td>
+                    <td style="{PILLAR_STYLE}">{bargain_txt}</td>
+                    <td style="{PILLAR_STYLE}">{rebound_txt}</td>
                 </tr>
             """
 
@@ -112,7 +123,7 @@ def send_executive_brief(decision, account_info, junior_reports, portfolio):
         <br>
 
         <h3 style="margin-bottom: 5px; color: #2c3e50; border-bottom: 2px solid #2c3e50;">📂 2. Portfolio Sync (Audit)</h3>
-        <p style="margin: 0 0 10px 0; font-size: 11px; color: #777;"><i>Current bot holdings. Ensure your real portfolio matches this list.</i></p>
+																																				   
         
         <table style="width: 100%; border-collapse: collapse; text-align: left;">
             <thead>
@@ -132,7 +143,7 @@ def send_executive_brief(decision, account_info, junior_reports, portfolio):
         html_content += f"<tr><td colspan='6' style='{TD_STYLE} text-align: center; color: #999;'>Portfolio is currently 100% Cash.</td></tr>"
     else:
         for pos in portfolio:
-            # Parse Data
+						
             symbol = pos.symbol
             qty = pos.qty
             avg_entry = float(pos.avg_entry_price)
@@ -140,7 +151,7 @@ def send_executive_brief(decision, account_info, junior_reports, portfolio):
             unrealized_pl = float(pos.unrealized_pl)
             unrealized_plpc = float(pos.unrealized_plpc) * 100
             
-            # P/L Styling
+						 
             pl_color = "#27ae60" if unrealized_pl >= 0 else "#c0392b"
             pl_icon = "▲" if unrealized_pl >= 0 else "▼"
 
@@ -175,7 +186,7 @@ def send_executive_brief(decision, account_info, junior_reports, portfolio):
     </html>
     """
     
-    # --- SEND ---
+				  
     try:
         r = resend.Emails.send({
             "from": config.EMAIL_SENDER,
