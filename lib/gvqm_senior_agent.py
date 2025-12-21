@@ -27,7 +27,7 @@ def clean_json_text(text):
         return text
     except: return text
 
-# --- NEW VISUALIZATION ENGINE ---                                                                            
+# --- VISUALIZATION ENGINE ---                                                                            
 def visualize_decision(candidates, decision):
     """
     Prints a human-readable 'Reality vs Decision' matrix.
@@ -135,10 +135,20 @@ def rank_portfolio(candidates_list, top_n=5, lookback_days=10, prev_context=None
             max_trades=top_n,
             lookback=lookback_days,
             prev_date=prev_context.get('date'),
-            prev_picks=prev_context.get('top_tickers'),
+            #prev_picks=prev_context.get('top_tickers'),
             prev_report=prev_context.get('ceo_report', 'None'),
             candidates_data=json.dumps(candidates_list, indent=2)
         )
+
+        # ==============================================================================
+        # 🧠 [SENIOR] PROMPT AUDIT LOGGING
+        # ==============================================================================
+        print("\n" + "="*60)
+        print(f"🧠 [SENIOR] DEBUG: FINAL PROMPT TRANSMITTED AT {datetime.datetime.now()}")
+        print("="*60)
+        print(prompt)
+        print("="*60 + "\n")
+        # ==============================================================================
     except Exception as e:
         log_debug(f"CRITICAL: Failed to construct prompt. Error: {e}")
         return None
@@ -174,6 +184,10 @@ def rank_portfolio(candidates_list, top_n=5, lookback_days=10, prev_context=None
                     decision_data = json.loads(cleaned_json)
 
                     visualize_decision(candidates_list, decision_data)
+
+                    # [REMOVED] Redundant sheet logging. 
+                    # Handled by routes.py -> senior_history.log_detailed_decisions
+
                     return decision_data
                 except Exception as e:
                     log_debug(f"❌ Senior Parsing Error: {e}")

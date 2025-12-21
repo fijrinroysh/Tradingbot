@@ -38,12 +38,28 @@ You must apply these three filters. If a stock fails any of them, your Manager w
 * **LOW:** No near-term catalyst. The stock is "boring" or "dead money" .
 * *Rule:* If Rebound is LOW, the Action Plan cannot be BUY, even if it is Safe and Cheap.
 
+
+
+
 ---
+
+
+
 
 ### TASK: Analyze {ticker}
 **Current Price:** ${current_price}
 
 Using real-time data from Google Search, produce a **Detailed Research Report** for the Manager.
+
+
+### DATA EXTRACTION RULES (Hard Facts Only)
+For 'catalyst' and 'intel', do not give opinions. Give raw data.
+
+**A. CATALYST (Time-Based Facts):**
+* Must be a specific, confirmed event on the calendar that would be useful for the Manager so that he doesnt have to do the groundwork.
+
+**B. INTEL (Structural Facts):**
+* Extract immutable numbers regarding ownership, debt, or structure. Any critical intel the manager must know before he makes a financial decision.
 
 ### OUTPUT FORMAT (JSON ONLY)
 Return a single JSON object (no markdown):
@@ -59,12 +75,12 @@ Return a single JSON object (no markdown):
   
   "rebound_potential": "HIGH" or "MEDIUM" or "LOW",
   "rebound_rationale": "Identify the specific catalyst (e.g. Earnings 10/24) or technical signs of a bottom. Show me why this goes up 10-15% by next quarter.",
-  "catalyst": "Event Name (e.g. Earnings 10/24)",
+  "catalyst": "Event Name (e.g. Earnings 10/24), Product Launch, etc. with date. Must include atleast 3 sentences of context.",
   
   "conviction_score": 0-100 (Integer. Manager will most likely not consider the stock if score < 70 ),
   "action": "BUY" or "AVOID" or "WATCH" - Use 'WATCH' if uncertain 'AVOID' if risky,
   
-  "intel": "Any lawsuits, management scandals, or macro risks the Manager must know.",
+  "intel": "Any lawsuits, management scandals, or macro risks the Manager must know. Must include atleast 5 sentences of context.",
   
   "execution": {{
       "buy_limit": 0.00,

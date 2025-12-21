@@ -93,6 +93,7 @@ SENIOR_LOOKBACK_DAYS = int(os.getenv("COOLDOWN_DAYS", 10))
 "Executive_Briefs_Test"
 
 GOOGLE_SHEET_STRATEGY_TAB = os.getenv("GOOGLE_SHEET_STRATEGY_TAB","Executive_Briefs") 
+GOOGLE_SHEET_SENIOR_DECISIONS_TAB = os.getenv("GOOGLE_SHEET_SENIOR_DECISIONS_TAB","Senior_Decisions") 
 
 # 2. Alpaca Paper Trading Keys
 ALPACA_KEY_ID = os.getenv("ALPACA_KEY_ID") 

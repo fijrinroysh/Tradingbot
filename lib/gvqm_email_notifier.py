@@ -4,11 +4,10 @@ import datetime
 
 def send_executive_brief(decision, account_info, junior_reports, portfolio):
     """
-    Sends the "Mirror Protocol" Dashboard v5.1
+    Sends the "Mirror Protocol" Dashboard v5.2
     Updates:
-    - Removed "Trader's Clipboard" (Cleaner aesthetic)
-    - Fixed "Three Pillars" text truncation (CSS: white-space: pre-line)
-    - Retained 'Neon Alpha' Color Palette
+    - Added "Senior Decision Matrix" Table (High-density view)
+    - Retained Intelligence Cards (Detailed view)
     """
     if not getattr(config, 'RESEND_API_KEY', None):
         print("⚠️ [NOTIFIER] Resend API Key missing. Skipping Brief.")
@@ -31,21 +30,15 @@ def send_executive_brief(decision, account_info, junior_reports, portfolio):
     CARD_HEADER = "padding: 10px 15px; border-bottom: 1px solid #eee;"
     CARD_BODY = "padding: 15px; background-color: #ffffff;"
     
-    # IMPROVED PILLAR BOX CSS: Added 'white-space: pre-line' and 'line-height' to fix text truncation
+    # IMPROVED PILLAR BOX CSS
     PILLAR_BOX = "background-color: #f9f9f9; padding: 10px; border-radius: 4px; margin-bottom: 8px; font-size: 12px; color: #444; white-space: pre-line; line-height: 1.4;"
     PILLAR_TITLE = "font-weight: bold; color: #555; font-size: 10px; text-transform: uppercase; display: block; margin-bottom: 4px;"
     
-    # --- 🎨 NEON ALPHA PALETTE ---
-    # Rank 1-2: Electric Purple (Elite/Alpha)
-    BADGE_ELITE = "background: #8e44ad; color: #fff; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 10px; border: 1px solid #9b59b6; box-shadow: 0 1px 3px rgba(0,0,0,0.2);"
-    
-    # Rank 3-5: Dodger Blue (Strong)
+    # --- BADGE HELPERS ---
+    BADGE_ELITE = "background: #8e44ad; color: #fff; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 10px; border: 1px solid #9b59b6;"
     BADGE_STRONG = "background: #2980b9; color: #fff; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 10px; border: 1px solid #3498db;"
-    
-    # Rank 6-10: Emerald Green (Standard)
     BADGE_STANDARD = "background: #27ae60; color: #fff; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 10px; border: 1px solid #2ecc71;"
 
-    # --- HELPER: FORMAT CHANGE (OLD -> NEW) ---
     def format_migration(val_old, val_new, prefix="$"):
         if val_old is None or val_old == val_new or val_old == 'N/A':
             return f"<b>{prefix}{val_new}</b>"
@@ -69,7 +62,7 @@ def send_executive_brief(decision, account_info, junior_reports, portfolio):
         <br>
     """
 
-    # --- INTELLIGENCE CARDS (Clipboard Removed) ---
+    # --- 1. INTELLIGENCE CARDS (Detailed Thesis) ---
     html_content += """
         <h3 style="margin-bottom: 10px; color: #2c3e50; border-bottom: 2px solid #2c3e50; padding-bottom: 5px;">
             🚨 Intelligence Briefing
@@ -89,7 +82,7 @@ def send_executive_brief(decision, account_info, junior_reports, portfolio):
             rank = order.get('rank', 10)
             reason = order.get('reason', 'Automated Technical Structure')
             
-            # 2. DETERMINE BADGE COLOR (Neon Alpha Logic)
+            # Badge Logic
             try:
                 rank_val = int(rank)
                 if rank_val <= 2: 
@@ -102,11 +95,10 @@ def send_executive_brief(decision, account_info, junior_reports, portfolio):
                     rank_style = BADGE_STANDARD
                     rank_label = f"🟢 RANK {rank_val}"
             except:
-                rank_val = "?"
                 rank_style = BADGE_STANDARD
                 rank_label = "RANK ?"
 
-            # 3. ACTION STYLING
+            # Action Styling
             if action == "OPEN_NEW":
                 header_bg = "#eafaf1"
                 action_color = "#27ae60"
@@ -115,26 +107,24 @@ def send_executive_brief(decision, account_info, junior_reports, portfolio):
                 header_bg = "#ebf5fb"
                 action_color = "#2980b9"
                 action_txt = "♻️ UPDATE"
-            elif action == "CANCEL":
-                header_bg = "#fdedec"
-                action_color = "#c0392b"
-                action_txt = "🚫 CANCEL"
-            else:
+            elif action == "HOLD":
                 header_bg = "#f4f4f4"
                 action_color = "#7f8c8d"
                 action_txt = "🛑 HOLD"
+            else:
+                header_bg = "#fdedec"
+                action_color = "#c0392b"
+                action_txt = action
 
-            # 4. PREPARE DISPLAY VALUES
             disp_limit = format_migration(old_p.get('buy_limit'), new_p.get('buy_limit', '-'))
             disp_tp = format_migration(old_p.get('take_profit'), new_p.get('take_profit', '-'))
             disp_sl = format_migration(old_p.get('stop_loss'), new_p.get('stop_loss', '-'))
             
-            # FALLBACK: If individual pillar keys are missing, try to display generic 'three_pillars' if available
-            safe_txt = order.get('justification_safe') or order.get('three_pillars', {}).get('safe') or 'N/A'
-            bargain_txt = order.get('justification_bargain') or order.get('three_pillars', {}).get('bargain') or 'N/A'
-            rebound_txt = order.get('justification_rebound') or order.get('three_pillars', {}).get('rebound') or 'N/A'
+            safe_txt = order.get('justification_safe') or 'N/A'
+            bargain_txt = order.get('justification_bargain') or 'N/A'
+            rebound_txt = order.get('justification_rebound') or 'N/A'
 
-            # 5. BUILD CARD HTML
+            # Build Card
             html_content += f"""
             <div style="{CARD_CONTAINER}">
                 <div style="{CARD_HEADER} background-color: {header_bg};">
@@ -179,7 +169,62 @@ def send_executive_brief(decision, account_info, junior_reports, portfolio):
             </div>
             """
 
-    # --- PORTFOLIO AUDIT SECTION ---
+    # --- 2. SENIOR DECISION MATRIX (NEW TABLE) ---
+    html_content += """
+        <br>
+        <h3 style="margin-bottom: 10px; color: #2c3e50; border-bottom: 2px solid #2c3e50; padding-bottom: 5px;">
+            📋 Senior Decision Matrix
+        </h3>
+        <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 11px;">
+            <thead>
+                <tr style="background-color: #f8f9fa;">
+                    <th style="{TH_STYLE}">Rank</th>
+                    <th style="{TH_STYLE}">Ticker</th>
+                    <th style="{TH_STYLE}">Action</th>
+                    <th style="{TH_STYLE}">Limit</th>
+                    <th style="{TH_STYLE}">Target</th>
+                    <th style="{TH_STYLE}">Stop</th>
+                </tr>
+            </thead>
+            <tbody>
+    """
+    
+    if not trades:
+        html_content += f"<tr><td colspan='6' style='{TD_STYLE} text-align: center; color: #999;'>No active decisions generated.</td></tr>"
+    else:
+        for order in trades:
+            ticker = order.get('ticker')
+            rank = order.get('rank', 99)
+            action = order.get('action', 'HOLD')
+            
+            p = order.get('confirmed_params', {})
+            limit = p.get('buy_limit', 0)
+            tp = p.get('take_profit', 0)
+            sl = p.get('stop_loss', 0)
+            
+            # Action Color logic for Table
+            act_color = "#333"
+            if action == "OPEN_NEW": act_color = "#27ae60"
+            elif action == "UPDATE_EXISTING": act_color = "#2980b9"
+            elif action == "HOLD": act_color = "#95a5a6"
+
+            html_content += f"""
+            <tr>
+                <td style="{TD_STYLE}"><b>{rank}</b></td>
+                <td style="{TD_STYLE} font-weight:bold;">{ticker}</td>
+                <td style="{TD_STYLE} color:{act_color}; font-weight:bold;">{action}</td>
+                <td style="{TD_STYLE}">${limit}</td>
+                <td style="{TD_STYLE}">${tp}</td>
+                <td style="{TD_STYLE}">${sl}</td>
+            </tr>
+            """
+            
+    html_content += """
+            </tbody>
+        </table>
+    """
+
+    # --- 3. PORTFOLIO AUDIT SECTION ---
     html_content += """
         <br>
         <h3 style="margin-bottom: 10px; color: #2c3e50; border-bottom: 2px solid #2c3e50; padding-bottom: 5px;">
@@ -239,7 +284,7 @@ def send_executive_brief(decision, account_info, junior_reports, portfolio):
             </p>
         </div>
         <p style="font-size: 10px; color: #999; text-align: center; margin-top: 20px;">
-            GVQM Protocol v5.1 | {datetime.datetime.now().strftime("%H:%M EST")}
+            GVQM Protocol v5.2 | {datetime.datetime.now().strftime("%H:%M EST")}
         </p>
     </body>
     </html>
