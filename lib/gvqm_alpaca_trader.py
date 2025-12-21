@@ -20,10 +20,6 @@ data_client = StockHistoricalDataClient(config.ALPACA_KEY_ID, config.ALPACA_SECR
 #  🎨 THE 3-COLUMN EXECUTION MATRIX (NUMERIC VERIFICATION)
 # ==========================================================
 def log_execution_matrix(ticker, command, initial_state, request_data, final_state, exec_result):
-	
-				
-				  
-	
     timestamp = datetime.datetime.now().strftime("%H:%M:%S")
     
     # --- HELPER: VALIDATION ICON ---
@@ -45,13 +41,6 @@ def log_execution_matrix(ticker, command, initial_state, request_data, final_sta
     
     if initial_state['tp'] > 0: cur_lines.append(f"Act TP: ${initial_state['tp']:.2f}")
     else: cur_lines.append("Act TP: None")
-  
- 
-				 
-	   
-		   
-		   
-					
         
     if initial_state['sl'] > 0: cur_lines.append(f"Act SL: ${initial_state['sl']:.2f}")
     else: cur_lines.append("Act SL: None")
@@ -86,8 +75,6 @@ def log_execution_matrix(ticker, command, initial_state, request_data, final_sta
         
         if final_state['pending_buy']: res_lines.append(f"BuyLmt: ${final_state['pending_buy']:.2f} {buy_icon}")
         else: res_lines.append("BuyLmt: None")
-  
-					 
 
         if final_state['tp'] > 0: res_lines.append(f"Act TP: ${final_state['tp']:.2f} {tp_icon}")
         else: res_lines.append("Act TP: None")
@@ -102,7 +89,6 @@ def log_execution_matrix(ticker, command, initial_state, request_data, final_sta
     print(f"{'CURRENT STATE (Broker)':<{col_width}} | {'REQUEST (Senior Mgr)':<{col_width}} | {'UPDATED STATE (Broker)':<{col_width}}")
     print("-" * 105)
     
-		
     max_rows = max(len(cur_lines), len(req_lines), len(res_lines))
     for i in range(max_rows):
         c1 = cur_lines[i] if i < len(cur_lines) else ""
@@ -121,6 +107,15 @@ def _enforce_contract(data):
     if hasattr(data, 'id'): return [{"event": "NEW_ENTRY", "order_id": str(data.id)}]
     if isinstance(data, list): return data if data else []
     return [{"event": "ERROR", "info": str(data)}]
+
+# [FIX] Common injector to restore logging
+def _inject_log_params(result_list, qty, buy, tp, sl):
+    """Common helper to inject trade parameters into result objects for logging."""
+    for item in result_list:
+        item['qty'] = qty
+        item['buy_limit'] = buy
+        item['take_profit'] = tp
+        item['stop_loss'] = sl
 
 def normalize_ticker(ticker): return ticker.replace('-', '.') if ticker else ticker
 
@@ -146,27 +141,20 @@ def get_position(ticker):
     return 0.0
 
 # ==========================================================
-#  👀 THE CONTEXT FETCHER (UPDATED: Gets Entry Price)
+#  👀 THE CONTEXT FETCHER
 # ==========================================================
 def _fetch_snapshot(ticker):
     state = {
         "shares": 0.0, 
-        "avg_entry": 0.0, # <--- NEW FIELD
+        "avg_entry": 0.0, 
         "pending_buy": None, 
         "tp": 0.0, 
         "sl": 0.0, 
         "manual": False
     }
     
-		 
-		 
-		
-		
-  
- 
     try:
         # 1. Shares & Entry Price
-        # We need the full object, not just qty
         try:
             pos = trading_client.get_open_position(normalize_ticker(ticker))
             state["shares"] = float(pos.qty)
@@ -176,34 +164,22 @@ def _fetch_snapshot(ticker):
             state["avg_entry"] = 0.0
 
         # 2. Orders
-   
         req = GetOrdersRequest(status=QueryOrderStatus.ALL, symbols=[ticker], limit=500)
         all_orders = trading_client.get_orders(filter=req)
-  
   
         live_statuses = ['new', 'partially_filled', 'accepted', 'pending_new', 'pending_replace', 'held']
         orders = [o for o in all_orders if (o.status.value if hasattr(o.status, 'value') else str(o.status)) in live_statuses]
 
-					  
-   
-  
         if any(o.side == OrderSide.BUY and o.type == OrderType.MARKET for o in orders):
-  
-   
             state["manual"] = True
-				 
             return state
 
-   
-  
         buy = next((o for o in orders if o.side == OrderSide.BUY), None)
         if buy: state["pending_buy"] = float(buy.limit_price)
 
-   
         tp = next((o for o in orders if o.side == OrderSide.SELL and o.type == OrderType.LIMIT), None)
         if tp: state["tp"] = float(tp.limit_price)
 
-   
         sl = next((o for o in orders if o.side == OrderSide.SELL and o.type in [OrderType.STOP, OrderType.STOP_LIMIT]), None)
         if sl: state["sl"] = float(sl.stop_price) if sl.stop_price else float(sl.limit_price)
         
@@ -217,7 +193,7 @@ def get_position_details(ticker):
     
     details = {
         "shares_held": snap["shares"], 
-        "avg_entry_price": snap["avg_entry"], # <--- EXPOSE THIS
+        "avg_entry_price": snap["avg_entry"], 
         "pending_buy_limit": snap["pending_buy"],
         "active_tp": snap["tp"] if snap["tp"] > 0 else None,
         "active_sl": snap["sl"] if snap["sl"] > 0 else None,
@@ -227,14 +203,9 @@ def get_position_details(ticker):
     if snap["manual"]: details["status_msg"] = "USER MANAGED (MARKET ORDER)"
     elif snap["shares"] > 0:
         details["status_msg"] = f"ACTIVE (TP: {snap['tp']} | SL: {snap['sl']})"
-	 
-				
     elif snap["pending_buy"]:
         details["status_msg"] = f"PENDING BUY @ {snap['pending_buy']}"
         
-	   
-		 
-				 
     return details
 
 # ==========================================================
@@ -243,7 +214,6 @@ def get_position_details(ticker):
 
 def execute_update(ticker, take_profit, stop_loss, buy_limit=0):
     ticker = normalize_ticker(ticker)
-	  
     req_data = {"limit": buy_limit, "tp": take_profit, "sl": stop_loss}
     
     # 1. SNAPSHOT BEFORE
@@ -255,41 +225,45 @@ def execute_update(ticker, take_profit, stop_loss, buy_limit=0):
 
     # 2. EXECUTE
     try:
-   
         req_filter = GetOrdersRequest(status=QueryOrderStatus.ALL, symbols=[ticker], limit=500)
         all_orders = trading_client.get_orders(filter=req_filter)
         live_statuses = ['new', 'partially_filled', 'accepted', 'pending_new', 'pending_replace', 'held']
         orders = [o for o in all_orders if (o.status.value if hasattr(o.status, 'value') else str(o.status)) in live_statuses]
 
-				 
-   
-						
-	
-					   
-				 
-	   
-  
         buy = next((o for o in orders if o.side == OrderSide.BUY), None)
   
-  
         if buy:
-	
             res = pending_mgr.manage_pending_order(trading_client, ticker, buy, buy_limit, take_profit, stop_loss, orders)
         else:
             if initial_state["shares"] > 0:
-		   
-		
                 res = filled_mgr.manage_active_position(trading_client, ticker, initial_state["shares"], take_profit, stop_loss, orders)
             else:
-  
                 res = [{"event": "HOLD", "info": "Nothing to update"}]
         
         final_res = _enforce_contract(res)
-				   
-	  
+
+        # [FIX] Resolve Qty and Inject Data
+        log_qty = initial_state['shares']
+        if log_qty == 0 and buy and hasattr(buy, 'qty'):
+            log_qty = float(buy.qty)
+            
+        _inject_log_params(final_res, log_qty, buy_limit, take_profit, stop_loss)
+
+        # [FIX] Calculate Deltas for "Nice Details"
+        for item in final_res:
+            if item.get('event') not in ['ERROR', 'HOLD']:
+                deltas = []
+                if initial_state['tp'] > 0 and abs(initial_state['tp'] - take_profit) > 0.01:
+                    deltas.append(f"TP: {initial_state['tp']}->{take_profit}")
+                if initial_state['sl'] > 0 and abs(initial_state['sl'] - stop_loss) > 0.01:
+                    deltas.append(f"SL: {initial_state['sl']}->{stop_loss}")
+                if initial_state['pending_buy'] and buy_limit > 0 and abs(initial_state['pending_buy'] - buy_limit) > 0.01:
+                    deltas.append(f"Limit: {initial_state['pending_buy']}->{buy_limit}")
+                
+                if deltas:
+                    item['info'] = f"{item.get('info','')} | {', '.join(deltas)}"
 
     except Exception as e:
-  
         final_res = _enforce_contract({"event": "ERROR", "info": str(e)})
 
     # 3. VERIFY
@@ -303,10 +277,6 @@ def execute_update(ticker, take_profit, stop_loss, buy_limit=0):
     return final_res
 
 def execute_entry(ticker, investment_amount, buy_limit, take_profit, stop_loss):
- 
-  
-  
- 
     ticker = normalize_ticker(ticker)
     req_data = {"limit": buy_limit, "tp": take_profit, "sl": stop_loss, "amt": investment_amount}
     
@@ -319,53 +289,14 @@ def execute_entry(ticker, investment_amount, buy_limit, take_profit, stop_loss):
         return res
 
     # 2. CALC & SUBMIT
-  
-   
-					 
-				  
-  
-   
-						
-	
     if buy_limit <= 0: return _enforce_contract({"event": "ERROR", "info": "Invalid Price"})
     qty = int(investment_amount / buy_limit)
-	   
-  
- 
-					   
-  
-		
-	
-					   
-				
-	   
-   
-		
-  
- 
  
     if qty < 1: return _enforce_contract({"event": "ERROR", "info": "Qty < 1"})
-			   
-	  
-
-		 
-	   
-				   
-			   
-	  
-  
-		   
-	
-				   
-			   
-	  
- 
-	  
+      
     try:
         order = LimitOrderRequest(
             symbol=ticker, qty=qty, side=OrderSide.BUY, time_in_force=TimeInForce.GTC,
-					
-		   
             limit_price=buy_limit, order_class=OrderClass.BRACKET,
             take_profit=TakeProfitRequest(limit_price=take_profit),
             stop_loss=StopLossRequest(stop_price=stop_loss)
@@ -373,10 +304,14 @@ def execute_entry(ticker, investment_amount, buy_limit, take_profit, stop_loss):
         trade = trading_client.submit_order(order)
  
         final_res = _enforce_contract(trade)
-			   
-	  
+        
+        # [FIX] Use Shared Injector
+        _inject_log_params(final_res, qty, buy_limit, take_profit, stop_loss)
+        
+        for item in final_res:
+            item['info'] = f"New Entry | Limit: {buy_limit}"
+
     except Exception as e:
-  
         final_res = _enforce_contract({"event": "ERROR", "info": str(e)})
 
     # 3. VERIFY

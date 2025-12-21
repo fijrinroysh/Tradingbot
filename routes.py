@@ -139,9 +139,9 @@ def run_pipeline():
                 continue 
 
             # ---------------------------------------------------------
-            # CRITERIA 2: HIGH CONVICTION SCORE (>88)
+            # CRITERIA 2: HIGH CONVICTION SCORE (>85)
             # ---------------------------------------------------------                                                                                                                                                                          
-            if score <= 88:
+            if score <= 85:
                 continue 
                 
             # ---------------------------------------------------------
