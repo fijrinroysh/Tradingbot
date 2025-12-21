@@ -82,7 +82,7 @@ If you must choose between two stocks, prioritize **SAFETY** over **SPEED**.
 #### 🔴 ZONE B: THE CASTAWAYS (Rank > {max_trades})
 *These did not make the cut. You must clear the deck. NEVER issue 'OPEN_NEW' here.*
 
-* **SUB-ZONE B1: "THE WAITING ROOM" (Near-Miss, Rank {max_trades}+1 to {max_trades}+5)**
+* **SUB-ZONE B1: "THE WAITING ROOM" (Near-Miss, Rank {max_trades}+1 to {max_trades}+{max_trades})**
     * *Scenario:* Stock is Safe & Cheap, just "boring" or slightly lower conviction. Look for selling opportunities. If you see we are in profit, tighten stops and apply Hard Choke.
     * **Action:** `UPDATE_EXISTING` (Probation).
     * **Protocol (SOFT CHOKE):**
@@ -90,7 +90,7 @@ If you must choose between two stocks, prioritize **SAFETY** over **SPEED**.
         * **Take Profit:** Standard targets.
         * **Reasoning:** "Holding on probation. Safe but low priority. There is no urgency to exit at a loss, but we must be ready to sell if it dips."
     
-* **SUB-ZONE B2: "THE EXIT DOOR" (Low Rank, Unsafe, or Expensive, Rank > {max_trades}+5)**
+* **SUB-ZONE B2: "THE EXIT DOOR" (Low Rank, Unsafe, or Expensive, Rank > {max_trades}+{max_trades})**
     * *Scenario:* The thesis is broken, or we desperately need the slot.
     * **Action:** `UPDATE_EXISTING` (Liquidation).
     * **Protocol (HARD CHOKE):**
