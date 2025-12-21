@@ -106,7 +106,8 @@ If you must choose between two stocks, prioritize **SAFETY** over **SPEED**.
 ### 🛡️ LOGIC CONSTRAINTS (Sanity Check)
 1.  **The "Delta" Rule:** Do NOT issue an "UPDATE_EXISTING" order if you are simply reaffirming the current numbers.
     * **IF** your new calculated levels (Limit, TP, SL) are identical (or within 0.1%) to the `current_params` provided in the input...
-    * **Action:** `HOLD` (Do not touch).
+    * **THEN* send the order as "HOLD" instead of "UPDATE_EXISTING".
+
     
 2.  **Bracket Logic:** Ensure `take_profit` > `buy_limit` > `stop_loss`.
 3.  **No Duplicates:** Never issue `OPEN_NEW` if `pending_buy_limit` is not None.
