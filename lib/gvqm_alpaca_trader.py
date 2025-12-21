@@ -100,8 +100,9 @@ def log_execution_matrix(ticker, command, initial_state, request_data, final_sta
 
 # --- SHARED UTILS ---
 def log_trader(message):
-    timestamp = datetime.datetime.now().strftime("%H:%M:%S")
-    print(f"[{timestamp}] [TRADER_MAIN] {message}")
+    if getattr(config, 'DEBUG_MODE', False):
+        timestamp = datetime.datetime.now().strftime("%H:%M:%S")
+        print(f"[{timestamp}] [TRADER_MAIN] {message}")
 
 def _enforce_contract(data):
     if hasattr(data, 'id'): return [{"event": "NEW_ENTRY", "order_id": str(data.id)}]

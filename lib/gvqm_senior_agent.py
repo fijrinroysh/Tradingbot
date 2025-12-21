@@ -140,15 +140,16 @@ def rank_portfolio(candidates_list, top_n=5, lookback_days=10, prev_context=None
             candidates_data=json.dumps(candidates_list, indent=2)
         )
 
-        # ==============================================================================
-        # 🧠 [SENIOR] PROMPT AUDIT LOGGING
-        # ==============================================================================
-        print("\n" + "="*60)
-        print(f"🧠 [SENIOR] DEBUG: FINAL PROMPT TRANSMITTED AT {datetime.datetime.now()}")
-        print("="*60)
-        print(prompt)
-        print("="*60 + "\n")
-        # ==============================================================================
+        if getattr(config, 'DEBUG_MODE', False):
+            # ==============================================================================
+            # 🧠 [SENIOR] PROMPT AUDIT LOGGING
+            # ==============================================================================
+            print("\n" + "="*60)
+            print(f"🧠 [SENIOR] DEBUG: FINAL PROMPT TRANSMITTED AT {datetime.datetime.now()}")
+            print("="*60)
+            print(prompt)
+            print("="*60 + "\n")
+            # ==============================================================================
     except Exception as e:
         log_debug(f"CRITICAL: Failed to construct prompt. Error: {e}")
         return None
