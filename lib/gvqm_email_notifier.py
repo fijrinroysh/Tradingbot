@@ -4,10 +4,11 @@ import datetime
 
 def send_executive_brief(decision, account_info, junior_reports, portfolio):
     """
-    Sends the "Mirror Protocol" Dashboard v5.3
+    Sends the "Mirror Protocol" Dashboard v5.4
     Updates:
-    - Intelligence Cards now EXCLUDE 'HOLD' actions (Active Only).
-    - Senior Decision Matrix retains ALL actions (for audit).
+    - Subject Line: Counts ONLY active actions (Excludes HOLDs).
+    - Senior Decision Matrix: Sorted by Rank (Ascending).
+    - Intelligence Cards: Active actions only.
     """
     if not getattr(config, 'RESEND_API_KEY', None):
         print("⚠️ [NOTIFIER] Resend API Key missing. Skipping Brief.")
@@ -19,7 +20,9 @@ def send_executive_brief(decision, account_info, junior_reports, portfolio):
     today = datetime.date.today().strftime("%b %d, %Y")
     trades = decision.get('final_execution_orders', [])
     
-    subject = f"🔔 GVQM Signal: {len(trades)} Actions | {today}"
+    # [FIX] Filter Active Actions for Subject Line Count
+    active_moves = [t for t in trades if t.get('action') != 'HOLD']
+    subject = f"🔔 GVQM Signal: {len(active_moves)} Actions | {today}"
 
     # --- STYLES ---
     TH_STYLE = "background-color: #f4f4f4; color: #555; font-size: 10px; text-transform: uppercase; padding: 6px; border: 1px solid #ddd;"
@@ -63,19 +66,17 @@ def send_executive_brief(decision, account_info, junior_reports, portfolio):
     """
 
     # --- 1. INTELLIGENCE CARDS (Detailed Thesis - ACTIVE ONLY) ---
-    # [FIX] Filter out HOLDs for this section
-    active_cards = [t for t in trades if t.get('action') != 'HOLD']
-
+    # Using the pre-calculated active_moves list
     html_content += """
         <h3 style="margin-bottom: 10px; color: #2c3e50; border-bottom: 2px solid #2c3e50; padding-bottom: 5px;">
             🚨 Intelligence Briefing
         </h3>
     """
     
-    if not active_cards:
+    if not active_moves:
         html_content += f"<p style='text-align: center; color: #999; padding: 20px;'>No active changes required today. Positions held.</p>"
     else:
-        for order in active_cards:
+        for order in active_moves:
             # 1. PARSE DATA
             new_p = order.get('confirmed_params', {})
             old_p = order.get('current_params', {})
@@ -168,7 +169,7 @@ def send_executive_brief(decision, account_info, junior_reports, portfolio):
             </div>
             """
 
-    # --- 2. SENIOR DECISION MATRIX (NEW TABLE - INCLUDES HOLDS) ---
+    # --- 2. SENIOR DECISION MATRIX (SORTED BY RANK) ---
     html_content += """
         <br>
         <h3 style="margin-bottom: 10px; color: #2c3e50; border-bottom: 2px solid #2c3e50; padding-bottom: 5px;">
@@ -191,7 +192,10 @@ def send_executive_brief(decision, account_info, junior_reports, portfolio):
     if not trades:
         html_content += f"<tr><td colspan='6' style='{TD_STYLE} text-align: center; color: #999;'>No active decisions generated.</td></tr>"
     else:
-        for order in trades:
+        # [FIX] Sort by Rank (Ascending) for the table view
+        sorted_trades = sorted(trades, key=lambda x: int(x.get('rank', 99)))
+        
+        for order in sorted_trades:
             ticker = order.get('ticker')
             rank = order.get('rank', 99)
             action = order.get('action', 'HOLD')
