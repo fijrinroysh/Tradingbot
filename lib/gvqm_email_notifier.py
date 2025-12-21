@@ -4,10 +4,10 @@ import datetime
 
 def send_executive_brief(decision, account_info, junior_reports, portfolio):
     """
-    Sends the "Mirror Protocol" Dashboard v5.2
+    Sends the "Mirror Protocol" Dashboard v5.3
     Updates:
-    - Added "Senior Decision Matrix" Table (High-density view)
-    - Retained Intelligence Cards (Detailed view)
+    - Intelligence Cards now EXCLUDE 'HOLD' actions (Active Only).
+    - Senior Decision Matrix retains ALL actions (for audit).
     """
     if not getattr(config, 'RESEND_API_KEY', None):
         print("⚠️ [NOTIFIER] Resend API Key missing. Skipping Brief.")
@@ -62,17 +62,20 @@ def send_executive_brief(decision, account_info, junior_reports, portfolio):
         <br>
     """
 
-    # --- 1. INTELLIGENCE CARDS (Detailed Thesis) ---
+    # --- 1. INTELLIGENCE CARDS (Detailed Thesis - ACTIVE ONLY) ---
+    # [FIX] Filter out HOLDs for this section
+    active_cards = [t for t in trades if t.get('action') != 'HOLD']
+
     html_content += """
         <h3 style="margin-bottom: 10px; color: #2c3e50; border-bottom: 2px solid #2c3e50; padding-bottom: 5px;">
             🚨 Intelligence Briefing
         </h3>
     """
     
-    if not trades:
-        html_content += f"<p style='text-align: center; color: #999; padding: 20px;'>No actions required today. Hold positions.</p>"
+    if not active_cards:
+        html_content += f"<p style='text-align: center; color: #999; padding: 20px;'>No active changes required today. Positions held.</p>"
     else:
-        for order in trades:
+        for order in active_cards:
             # 1. PARSE DATA
             new_p = order.get('confirmed_params', {})
             old_p = order.get('current_params', {})
@@ -107,10 +110,6 @@ def send_executive_brief(decision, account_info, junior_reports, portfolio):
                 header_bg = "#ebf5fb"
                 action_color = "#2980b9"
                 action_txt = "♻️ UPDATE"
-            elif action == "HOLD":
-                header_bg = "#f4f4f4"
-                action_color = "#7f8c8d"
-                action_txt = "🛑 HOLD"
             else:
                 header_bg = "#fdedec"
                 action_color = "#c0392b"
@@ -169,7 +168,7 @@ def send_executive_brief(decision, account_info, junior_reports, portfolio):
             </div>
             """
 
-    # --- 2. SENIOR DECISION MATRIX (NEW TABLE) ---
+    # --- 2. SENIOR DECISION MATRIX (NEW TABLE - INCLUDES HOLDS) ---
     html_content += """
         <br>
         <h3 style="margin-bottom: 10px; color: #2c3e50; border-bottom: 2px solid #2c3e50; padding-bottom: 5px;">
