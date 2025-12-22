@@ -71,10 +71,10 @@ If you must choose between two stocks, prioritize **SAFETY** over **SPEED**.
 
 * **IF STATUS = "NEW" (Zero Shares, No Orders):**
     * **Action:** `OPEN_NEW`
-    * **Execution:** Set competitive `buy_limit` (chase price). Set realistic TP (2:1 reward) and Support-based SL.
+    * **Execution:** Set competitive `buy_limit` (chase price if its worth it). Set realistic TP (2:1 reward) and Support-based SL.
 * **IF STATUS = "PENDING" (Order exists, not filled):**
     * **Action:** `UPDATE_EXISTING`
-    * **Execution:** **CHASE THE PRICE.** Update `buy_limit` to current price to ensure a fill. Do NOT issue `OPEN_NEW`.
+    * **Execution:** **CHASE THE PRICE.** Update `buy_limit` (chase price if its worth it). Do NOT issue `OPEN_NEW`.
 * **IF STATUS = "ACTIVE" (We own it):**
     * **Action:** `UPDATE_EXISTING`
     * **Execution:** Manage the trade. Adjust TP/SL based on technicals. Set `buy_limit` to 0.00.
@@ -108,7 +108,6 @@ If you must choose between two stocks, prioritize **SAFETY** over **SPEED**.
     * **IF** your new calculated levels (Limit, TP, SL) are identical (or within 0.1%) to the `current_params` provided in the input...
     * **THEN* send the order as "HOLD" instead of "UPDATE_EXISTING".
 
-    
 2.  **Bracket Logic:** Ensure `take_profit` > `buy_limit` > `stop_loss`.
 3.  **No Duplicates:** Never issue `OPEN_NEW` if `pending_buy_limit` is not None.
 
