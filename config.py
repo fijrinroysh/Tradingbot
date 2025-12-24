@@ -113,3 +113,19 @@ GOOGLE_SHEET_NAME = "TradingBot_History"
 DEBUG_MODE = False
 
 
+# ==========================================
+# 🧠 SENIOR MANAGER PSYCHOLOGY (RISK DIAL)
+# ==========================================
+# This variable controls the "Aggression" of the portfolio allocation.
+# It acts as a multiplier for your capacity constraints (Zone A Cutoff).
+#
+# VALUES:
+#   1.0  = NEUTRAL (Standard). Strict adherence to max_trades.
+#   >1.0 = AGGRESSIVE (Expand). Example: 1.2 allows "Good" stocks (B1) to be bought.
+#   <1.0 = CONSERVATIVE (Contract). Example: 0.8 restricts buys to "Perfect" (A1) only.
+#
+# USAGE: 
+#   If max_trades = 5 and RISK_FACTOR = 1.2 -> Effective Capacity ~6 stocks.
+#   If max_trades = 5 and RISK_FACTOR = 0.8 -> Effective Capacity ~4 stocks.
+
+RISK_FACTOR = 1.0

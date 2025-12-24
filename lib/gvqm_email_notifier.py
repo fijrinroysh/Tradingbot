@@ -1,14 +1,15 @@
 import resend
 import config
 import datetime
+import re
 
 def send_executive_brief(decision, account_info, junior_reports, portfolio):
     """
-    Sends the "Mirror Protocol" Dashboard v5.4
+    Sends the "Mirror Protocol" Dashboard v6.0
     Updates:
-    - Subject Line: Counts ONLY active actions (Excludes HOLDs).
-    - Senior Decision Matrix: Sorted by Rank (Ascending).
-    - Intelligence Cards: Active actions only.
+    - Support for Alphanumeric Ranks (A1, B1).
+    - Risk Factor Display.
+    - Zone-based Badging.
     """
     if not getattr(config, 'RESEND_API_KEY', None):
         print("⚠️ [NOTIFIER] Resend API Key missing. Skipping Brief.")
@@ -19,6 +20,9 @@ def send_executive_brief(decision, account_info, junior_reports, portfolio):
     
     today = datetime.date.today().strftime("%b %d, %Y")
     trades = decision.get('final_execution_orders', [])
+    
+    # Get Config Context
+    risk_factor = getattr(config, 'RISK_FACTOR', 1.0)
     
     # [FIX] Filter Active Actions for Subject Line Count
     active_moves = [t for t in trades if t.get('action') != 'HOLD']
@@ -38,9 +42,10 @@ def send_executive_brief(decision, account_info, junior_reports, portfolio):
     PILLAR_TITLE = "font-weight: bold; color: #555; font-size: 10px; text-transform: uppercase; display: block; margin-bottom: 4px;"
     
     # --- BADGE HELPERS ---
-    BADGE_ELITE = "background: #8e44ad; color: #fff; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 10px; border: 1px solid #9b59b6;"
-    BADGE_STRONG = "background: #2980b9; color: #fff; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 10px; border: 1px solid #3498db;"
-    BADGE_STANDARD = "background: #27ae60; color: #fff; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 10px; border: 1px solid #2ecc71;"
+    BADGE_ZONE_A = "background: #8e44ad; color: #fff; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 10px; border: 1px solid #9b59b6;" # Purple
+    BADGE_ZONE_B = "background: #2980b9; color: #fff; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 10px; border: 1px solid #3498db;" # Blue
+    BADGE_ZONE_C = "background: #c0392b; color: #fff; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 10px; border: 1px solid #e74c3c;" # Red
+    BADGE_DEFAULT = "background: #7f8c8d; color: #fff; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 10px;"
 
     def format_migration(val_old, val_new, prefix="$"):
         if val_old is None or val_old == val_new or val_old == 'N/A':
@@ -55,7 +60,7 @@ def send_executive_brief(decision, account_info, junior_reports, portfolio):
             <h2 style="margin:0; font-size: 20px;">GVQM Strategy Brief</h2>
             <p style="margin:5px 0 0 0; font-size: 12px; opacity: 0.8;">{today}</p>
             <h1 style="margin: 10px 0 0 0; font-size: 32px;">${float(account_info.equity):,.2f}</h1>
-            <span style="font-size: 10px; text-transform: uppercase; letter-spacing: 1px;">Total Equity</span>
+            <span style="font-size: 10px; text-transform: uppercase; letter-spacing: 1px;">Risk Factor: {risk_factor}</span>
         </div>
 
         <div style="background-color: #ecf0f1; padding: 10px; text-align: center; font-size: 12px; border-bottom: 1px solid #bdc3c7;">
@@ -66,7 +71,7 @@ def send_executive_brief(decision, account_info, junior_reports, portfolio):
     """
 
     # --- 1. INTELLIGENCE CARDS (Detailed Thesis - ACTIVE ONLY) ---
-    # Using the pre-calculated active_moves list
+												
     html_content += """
         <h3 style="margin-bottom: 10px; color: #2c3e50; border-bottom: 2px solid #2c3e50; padding-bottom: 5px;">
             🚨 Intelligence Briefing
@@ -83,24 +88,25 @@ def send_executive_brief(decision, account_info, junior_reports, portfolio):
             
             action = order.get('action', 'HOLD')
             ticker = order.get('ticker')
-            rank = order.get('rank', 10)
+            rank = str(order.get('rank', 'N/A')).upper()
             reason = order.get('reason', 'Automated Technical Structure')
             
-            # Badge Logic
-            try:
-                rank_val = int(rank)
-                if rank_val <= 2: 
-                    rank_style = BADGE_ELITE
-                    rank_label = f"🟣 RANK {rank_val}"
-                elif rank_val <= 5: 
-                    rank_style = BADGE_STRONG
-                    rank_label = f"🔵 RANK {rank_val}"
-                else: 
-                    rank_style = BADGE_STANDARD
-                    rank_label = f"🟢 RANK {rank_val}"
-            except:
-                rank_style = BADGE_STANDARD
-                rank_label = "RANK ?"
+            # Badge Logic (Zone Detection)
+            if rank.startswith('A'):
+									
+								  
+                rank_style = BADGE_ZONE_A
+            elif rank.startswith('B'):
+									
+                rank_style = BADGE_ZONE_B
+            elif rank.startswith('C'):
+					  
+                rank_style = BADGE_ZONE_C
+            else:
+				   
+                rank_style = BADGE_DEFAULT
+            
+            rank_label = f"RANK {rank}"
 
             # Action Styling
             if action == "OPEN_NEW":
@@ -192,12 +198,20 @@ def send_executive_brief(decision, account_info, junior_reports, portfolio):
     if not trades:
         html_content += f"<tr><td colspan='6' style='{TD_STYLE} text-align: center; color: #999;'>No active decisions generated.</td></tr>"
     else:
-        # [FIX] Sort by Rank (Ascending) for the table view
-        sorted_trades = sorted(trades, key=lambda x: int(x.get('rank', 99)))
+        # [FIXED] Alphanumeric Sorting Logic (A1 < A2 < B1 < C1)
+        def rank_key(order):
+            r = str(order.get('rank', 'Z99')).upper()
+            # Extract Zone letter and Rank number (A1 -> 'A', 1)
+            match = re.match(r"([A-Z])(\d+)", r)
+            if match:
+                return (match.group(1), int(match.group(2)))
+            return ('Z', 99) # Fallback for unknown formats
+
+        sorted_trades = sorted(trades, key=rank_key)
         
         for order in sorted_trades:
             ticker = order.get('ticker')
-            rank = order.get('rank', 99)
+            rank = order.get('rank', 'N/A')
             action = order.get('action', 'HOLD')
             
             p = order.get('confirmed_params', {})
@@ -287,7 +301,7 @@ def send_executive_brief(decision, account_info, junior_reports, portfolio):
             </p>
         </div>
         <p style="font-size: 10px; color: #999; text-align: center; margin-top: 20px;">
-            GVQM Protocol v5.2 | {datetime.datetime.now().strftime("%H:%M EST")}
+            GVQM Protocol v6.0 | {datetime.datetime.now().strftime("%H:%M EST")}
         </p>
     </body>
     </html>

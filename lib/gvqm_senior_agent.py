@@ -27,14 +27,20 @@ def clean_json_text(text):
         return text
     except: return text
 
-# --- VISUALIZATION ENGINE ---                                                                            
+# --- VISUALIZATION ENGINE (UPDATED FOR A1/B1 RANKING) ---                                                                            
 def visualize_decision(candidates, decision):
     """
     Prints a human-readable 'Reality vs Decision' matrix.
-    v3.0: Now includes 3-Pillar Justifications.
+    v4.0: Updated for Alphanumeric Ranks (A1, B1) & Risk Dial.
     """
+    # [NEW] Get Risk Context for Header
+    risk_factor = getattr(config, 'RISK_FACTOR', 1.0)
+    mode = "NEUTRAL"
+    if risk_factor > 1.0: mode = "AGGRESSIVE"
+    elif risk_factor < 1.0: mode = "CONSERVATIVE"
+
     print("\n" + "="*82)
-    print("🔮 SENIOR MANAGER: NEURAL DECISION MATRIX")
+    print(f"🔮 SENIOR MANAGER: NEURAL DECISION MATRIX | RISK: {risk_factor} ({mode})")
     print("="*82)
 
     orders_map = {o.get('ticker'): o for o in decision.get('final_execution_orders', [])}
@@ -61,12 +67,14 @@ def visualize_decision(candidates, decision):
         else:
             pending_str = "No Pending Orders"
 
-        score = cand.get('conviction_score', 'N/A')
-        status_tag = cand.get('status', 'N/A')
-
+        # --- NEW: RANK DATA ---
+        # Now expects "A1", "A2", "B1" etc.
+        rank = order.get('rank', 'N/A') 
+        prev_rank = order.get('previous_rank', 'N/A')
+        
         action = order.get('action', 'HOLD')
         
-        # --- NEW PILLARS ---
+        # --- PILLARS ---
         why_safe = order.get('justification_safe', 'N/A')
         why_bargain = order.get('justification_bargain', 'N/A')
         why_rebound = order.get('justification_rebound', 'N/A')
@@ -76,14 +84,15 @@ def visualize_decision(candidates, decision):
         new_tp = params.get('take_profit', '-')
         new_sl = params.get('stop_loss', '-')
 
-        color = "\033[90m" 
-        if action == "OPEN_NEW": color = "\033[92m" 
-        elif action == "UPDATE_EXISTING": color = "\033[96m" 
+        color = "\033[90m" # Grey (Hold)
+        if action == "OPEN_NEW": color = "\033[92m" # Green
+        elif action == "UPDATE_EXISTING": color = "\033[96m" # Cyan
         reset = "\033[0m"
 
         # --- DRAW TABLE ---
         print(f"{color}" + "-"*82)
-        print(f" {ticker:<6} | {action}")
+        # Display Rank cleanly: "Rank: A1"
+        print(f" {ticker:<6} | {action:<15} | RANK: {rank}")
         print("-" * 82 + f"{reset}")
         
         print(f" {'INPUT (Context)':<38} | {'OUTPUT (Decision)':<38}")
@@ -105,16 +114,16 @@ def visualize_decision(candidates, decision):
 
         # Row 3: Active Bracket
         r3_left = f"Active:   TP: ${curr_tp} / SL: ${curr_sl}"
-        r3_right = "" 
+        r3_right = f"Prev Rank: {prev_rank}" 
         print(f" {r3_left:<38} | {r3_right:<38}")
         
         # Row 4: Pending
         r4_left = f"Status:   {pending_str}"
         print(f" {r4_left:<38} |")
 
-        # Row 5: Junior
-        r5_left = f"Junior:   {status_tag} (Score: {score})"
-        print(f" {r5_left:<38} |")
+					   
+															
+								  
         
         print(f" {'-'*80}")
         print(f" 🛡️ Safe:    {why_safe[:70]}")
@@ -129,27 +138,32 @@ def rank_portfolio(candidates_list, top_n=5, lookback_days=10, prev_context=None
     
     if not prev_context: prev_context = {"date": "None", "top_tickers": "None"}
     
+    # [NEW] Retrieve Risk Factor
+    risk_factor = getattr(config, 'RISK_FACTOR', 1.0)
+
     try:
+        # [UPDATED] Pass risk_factor and map top_n to max_trades
         prompt = prompts.SENIOR_MANAGER_PROMPT.format(
             count=len(candidates_list),
-            max_trades=top_n,
+            max_trades=top_n, # Maps to {max_trades}
+            risk_factor=risk_factor, # Maps to {risk_factor}
             lookback=lookback_days,
             prev_date=prev_context.get('date'),
-            #prev_picks=prev_context.get('top_tickers'),
+														
             prev_report=prev_context.get('ceo_report', 'None'),
             candidates_data=json.dumps(candidates_list, indent=2)
         )
 
         if getattr(config, 'DEBUG_MODE', False):
-            # ==============================================================================
-            # 🧠 [SENIOR] PROMPT AUDIT LOGGING
-            # ==============================================================================
+																							
+												
+																							
             print("\n" + "="*60)
-            print(f"🧠 [SENIOR] DEBUG: FINAL PROMPT TRANSMITTED AT {datetime.datetime.now()}")
+            print(f"🧠 [SENIOR] DEBUG: PROMPT GENERATED | Risk: {risk_factor} | Max: {top_n}")
             print("="*60)
-            print(prompt)
+            # print(prompt) # Uncomment to view full text
             print("="*60 + "\n")
-            # ==============================================================================
+
     except Exception as e:
         log_debug(f"CRITICAL: Failed to construct prompt. Error: {e}")
         return None
@@ -186,8 +200,8 @@ def rank_portfolio(candidates_list, top_n=5, lookback_days=10, prev_context=None
 
                     visualize_decision(candidates_list, decision_data)
 
-                    # [REMOVED] Redundant sheet logging. 
-                    # Handled by routes.py -> senior_history.log_detailed_decisions
+														 
+																				   
 
                     return decision_data
                 except Exception as e:
