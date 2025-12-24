@@ -65,8 +65,15 @@ Perform a daily "Lifeboat Drill" on the portfolio:
     * **Conservative (Risk < 1.0):** Cutoff < Rank {max_trades}. (Demote bottom of Zone A into Zone B).
 * **Criteria:** Safe + Bargain + High/Medium Rebound.
 * **Actions:**
-    * **New/Pending:** `OPEN_NEW` / `UPDATE_EXISTING` (Chase the price).
-    * **Active:** Manage actively.
+* **IF STATUS = "NEW" (Zero Shares, No Orders):**
+    * **Action:** `OPEN_NEW`
+    * **Execution:** Set competitive `buy_limit` (chase price if its worth it). Set realistic TP and Support-based SL.
+* **IF STATUS = "PENDING" (Order exists, not filled):**
+    * **Action:** `UPDATE_EXISTING`
+    * **Execution:** **CHASE THE PRICE.** Update `buy_limit` (chase price if its worth it). Do NOT issue `OPEN_NEW`.
+* **IF STATUS = "ACTIVE" (We own it):**
+    * **Action:** `UPDATE_EXISTING`
+    * **Execution:** Manage the trade. Adjust TP/SL based on technicals. Set `buy_limit` to 0.00.
     
 
 #### 🟡 ZONE B: THE WAITING ROOM (Ranks below the Cutoff)
@@ -75,9 +82,10 @@ Perform a daily "Lifeboat Drill" on the portfolio:
 * **Goal:** **Exit with dignity.** We do NOT want to sell at a loss because they are safe. We wait for a small profit or scratch.
 * **Action:** `UPDATE_EXISTING` (Soft Choke).
 * **Protocol:**
-    * **Stop Loss:** Set at **Major Support** (Give it breathing room). Don't strangle it.
-    * **Take Profit:** Set at **Avg Entry Price + 1%** (Get out at break-even/small profit).
+    * **Stop Loss:**  Set tight stop loss above **Avg Entry Price** to exit if it is at profit. Else set at **Major Support** (Give it breathing room). Don't strangle it. 
+    * **Take Profit:** Set at just above **Avg Entry Price** (Get out at break-even/small profit).
     * **Reasoning:** "Boring. Waiting for a dignified exit. No urgency to sell at a loss."
+
 
 #### 🔴 ZONE C: THE TOXIC WASTE (Unranked / Rank 99)
 * **Description:** Stocks that are no longer Safe. Falling Knives. Broken Fundamentals.
@@ -85,7 +93,7 @@ Perform a daily "Lifeboat Drill" on the portfolio:
 * **Goal:** **ESCAPE.** Liquidity over price.
 * **Action:** `UPDATE_EXISTING` (Hard Choke).
 * **Protocol:**
-    * **Stop Loss:** **TIGHT.** Set just below `current_price` (0.5% gap). If it sneezes, we exit.
+    * **Stop Loss:** **TIGHT.** Set just below `current_price`. If it sneezes, we exit.
     * **Take Profit:** Slightly above `current_price` (Exit on any micro-bounce).
     * **Reasoning:** "Safety violation. Immediate exit required."
 
