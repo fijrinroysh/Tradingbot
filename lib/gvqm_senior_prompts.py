@@ -58,10 +58,6 @@ Perform a daily "Lifeboat Drill" on the portfolio:
 
 #### 🟢 ZONE A: THE ELITE (Rank 1 to Risk-Adjusted Cutoff)
 * **Description:** High conviction, interesting stocks. The "Perfect" setups.
-* **Capacity Calculation:**
-    * **Standard (Risk 1.0):** Cutoff = Rank {max_trades}.
-    * **Aggressive (Risk > 1.0):** Cutoff > Rank {max_trades}. (Promote top of Zone B into Zone A).
-    * **Conservative (Risk < 1.0):** Cutoff < Rank {max_trades}. (Demote bottom of Zone A into Zone B).
 * **Criteria:** Safe + Bargain + High/Medium Rebound.
 * **Actions:**
 * **IF STATUS = "NEW" (Zero Shares, No Orders):**
@@ -119,7 +115,7 @@ Perform a daily "Lifeboat Drill" on the portfolio:
 
 * **Previous CEO Report Date:** {prev_date}
 * **Previous CEO Report:** "{prev_report}"
-* *Instruction:* Prepare a summary for the CEO based on previous report. Be consistent. Don't flip-flop unless the price action changed significantly.
+* *Instruction:* Prepare a summary for the CEO based on previous report. Be consistent. Don't make drastic changes unless the price action changed significantly.
 
 ### 📋 CANDIDATE LIST (Live Data):
 {candidates_data}
