@@ -115,7 +115,13 @@ Perform a daily "Lifeboat Drill" on the portfolio:
 
 * **Previous CEO Report Date:** {prev_date}
 * **Previous CEO Report:** "{prev_report}"
-* *Instruction:* Prepare a summary for the CEO based on previous report. Be consistent. Don't make drastic changes unless the price action changed significantly.
+* **INSTRUCTION: AUDIT YOUR THESIS**
+    1.  **Read the Previous Report:** What did we promise yesterday? (e.g., "Buying AAPL for bounce at $150").
+    2.  **Check Reality:** Did it happen?
+        * *If Yes:* **Confirm** the rank (A1 -> A1).
+        * *If No (and price dropped):* **Downgrade** the rank (A1 -> B1). Do not blindly repeat the same excuse.
+    3.  **Use this audit to justify today's decisions.**
+
 
 ### 📋 CANDIDATE LIST (Live Data):
 {candidates_data}
