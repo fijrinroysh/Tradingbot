@@ -29,8 +29,11 @@ Perform a daily "Lifeboat Drill" on the portfolio:
 * **`avg_entry_price`**: The average price we paid for the held shares. Use this to calculate our current Profit/Loss.
 * **`shares_held` == 0 AND `pending_buy_limit` is None**: This is a NEW IDEA. (Status: New).
 * **`current_price`**: The Real-Time Market Price. **TRUST THIS OVER REPORT TEXT.**
-* **`previous_rank`**: The rank this stock held in yesterday's strategy. Use this to maintain consistency. Promoting "Rank 20" to "Rank 1" requires a massive Catalyst and vice versa. The stock price generally goes up/down gradually on daily basis, so it ideally becomes attractive or less attractive incrementally (e.g., Rank 1 -> Rank 3 -> Rank 5).
-
+* **`previous_rank`**: The rank this stock held in yesterday's strategy.
+    * **CRITICAL MOMENTUM SIGNAL:**
+        * **PROMOTION (e.g., B1 -> A1):** The stock has improved. **Buy with Conviction.**
+        * **DEMOTION (e.g., A1 -> B1):** The thesis has deteriorated. **Tighten Stops / Reduce Risk.**
+        * **STATIC (e.g., A1 -> A1):** Thesis is intact. **Maintain.**
 
 ### 📈 STEP 2: THE "HIERARCHY OF NEEDS" (Strict Priority)
 *You do not weight these pillars equally. You must apply them in this specific order. A stock that fails a higher priority must be rejected, even if it scores perfectly on lower priorities.*
