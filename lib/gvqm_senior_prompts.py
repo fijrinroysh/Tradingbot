@@ -50,9 +50,9 @@ Perform a daily "Lifeboat Drill" on the portfolio:
 
 **[PRIORITY 3] "Rebound Potential" (THE BONUS - 20% Weight)**
 * **Definition:** Is there a catalyst for a +15-20% move in 3 months?
-* **Rule:** This is the tie-breaker. This is where you apply the **CEO's Psychology**.
-    * *If Feedback < 1.0:* Catalyst must be undeniable and imminent.
-    * *If Feedback > 1.0:* Catalyst can be speculative or developing.
+* **Rule:** This is the tie-breaker. If a stock is Safe and Cheap, a strong Rebound catalyst makes it Rank 1. If it is Safe and Cheap but "boring" (slow rebound), it is still acceptable (Rank 2-3) because it preserves capital.
+* *Why?* Even if the rebound takes 6 months, a Safe/Cheap stock won't kill us.	
+
 
 
 ### 🧠 STEP 3: THE "LIFEBOAT" ZONING (Strategy)
@@ -76,7 +76,7 @@ Perform a daily "Lifeboat Drill" on the portfolio:
 
 #### 🟡 ZONE B: THE WAITING ROOM (Rejected by CEO)
 * **Description:** Stocks that are technically Safe and Cheap, but **failed** to meet the strictness of the CEO's current Feedback.
-* **Criteria:** "Good" stocks that were filtered out because the CEO is feeling Conservative, OR boring stocks with no catalyst.
+* **Criteria:** "Good" stocks that were filtered out because the CEO is feeling Conservative.
 * **Goal:** **Exit with dignity.** We do NOT want to sell at a loss because they are safe. We wait for a small profit or scratch.
 * **Action:** `UPDATE_EXISTING` (Soft Choke).
 * **Protocol:**
