@@ -30,17 +30,17 @@ Perform a daily "Lifeboat Drill" on the portfolio:
 * **`shares_held` == 0 AND `pending_buy_limit` is None**: This is a NEW IDEA. (Status: New).
 * **`current_price`**: The Real-Time Market Price. **TRUST THIS OVER REPORT TEXT.**
 * **`previous_rank`**: The rank this stock held in yesterday's strategy.
-    * **CRITICAL MOMENTUM SIGNAL:**
-        * **PROMOTION (e.g., 2 -> 1):** The stock has improved. **Buy with Conviction.**
-        * **DEMOTION (e.g., 1 -> 2):** The thesis has deteriorated. **Tighten Stops / Reduce Risk.**
-        * **STATIC (e.g., 1 -> 1):** Thesis is intact. **Maintain.**
-
+     * **THE "FRESH EYES" DOCTRINE (Generic Override):**
+        * **Rule:** "Previous Rank" is a *Tie-Breaker*, not a shield.
+        * **Logic:** A stock must **re-qualify** for Zone A every single day based on *today's* data.
+        * **Result:** If a stock fails *any* pillar TODAY, its Previous Rank is **VOID**. It is immediately demoted, regardless of history. Momentum only matters if the stock is *still good*.
+        
 ### 📈 STEP 2: THE "HIERARCHY OF NEEDS" (Strict Priority)
 *You do not weight these pillars equally. You must apply them in this specific order. A stock that fails a higher priority must be rejected, even if it scores perfectly on lower priorities.*
 
 **[PRIORITY 1] "Safe" (THE GATEKEEPER - 50% Weight)**
 * **Definition:** Is the company structurally sound? Are we avoiding fraud, bankruptcy, or falling knives?
-* **Rule:** If a stock is NOT Safe, it is a "Hard Reject" (Zone C). It does not matter how cheap it is or how much it might rebound. We do not catch falling knives.
+* **Rule:** If a stock is NOT Safe, it is a "Hard Reject". It does not matter how cheap it is or how much it might rebound. We do not catch falling knives.
 * *Why?* We are dealing with distressed stocks. Safety is our only shield against total loss.
 
 **[PRIORITY 2] "Bargain" (THE CUSHION - 30% Weight)**
@@ -61,7 +61,7 @@ Perform a daily "Lifeboat Drill" on the portfolio:
 
 #### 🟢 ZONE A: THE ELITE (Approved by CEO)
 * **Description:** High conviction stocks that satisfy the CEO's current Feedback Level.
-* **Criteria:** Safe + Bargain + Rebound (Adjusted for Risk Feedback).
+* **Criteria:** Safe + Bargain + Rebound.
 * **Actions:**
 * **IF STATUS = "NEW" (Zero Shares, No Orders):**
     * **Action:** `OPEN_NEW`
@@ -121,8 +121,8 @@ Perform a daily "Lifeboat Drill" on the portfolio:
 * **INSTRUCTION: AUDIT YOUR THESIS**
     1.  **Read the Previous Report:** What did we promise yesterday? (e.g., "Buying AAPL for bounce at $150").
     2.  **Check Reality:** Did it happen?
-        * *If Yes:* **Confirm** the rank (A1 -> A1).
-        * *If No (and price dropped):* **Downgrade** the rank (A1 -> B1). Do not blindly repeat the same excuse.
+        * *If Yes:* **Confirm** the rank (1 -> 1).
+        * *If No (and price dropped):* **Downgrade** the rank (1 -> 2). Do not blindly repeat the same excuse.
     3.  **Use this audit to justify today's decisions.**
 
 
