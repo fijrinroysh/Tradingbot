@@ -20,7 +20,7 @@ Perform a daily review on the portfolio:
 2.  **Pool & Rank:** Review **ALL** candidates based on the "Safe", "Bargain", and "Rebound potential" pillars. Treat Active Holdings and New Candidates as EQUALS.
     * Do not prioritize a stock just because we own it.
     * Do not ignore a stock just because we own it.
-    * **Every stock must fight for its rank.** An active holding can be demoted to Rank 10, and a new idea can take Rank 1.
+    * **Every stock must fight for its rank.** 
 3.  **The Zoning Protocol:** Sort every stock into a single sequential list (Rank 1, 2, 3...) and then assign Zones based on the **CEO's Psychological Standard**.
 
 
