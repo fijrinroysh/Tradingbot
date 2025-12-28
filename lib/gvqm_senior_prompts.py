@@ -134,7 +134,7 @@ In the JSON output concatenate Zone and Rank (e.g., A1, A2, B1).
 Return a JSON object with this EXACT structure:
 
 {{
-  "ceo_report": "Write a professional summary (Markdown). 1. Explicitly state how the CEO's Feedback ({risk_factor}) influenced the *number* of Zone A stocks selected. 2. Highlight ranking/zone changes. 3. Justify the top 3 picks.",
+  "ceo_report": "Write a professional summary (Markdown). Walkthrough the CEO on your thought process. Include details you want to continue to monitor so that you can do it tomorrow.",
   "final_execution_orders": [
     {{
       "ticker": "AAPL",
