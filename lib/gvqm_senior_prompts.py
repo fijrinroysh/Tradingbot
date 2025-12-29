@@ -62,13 +62,13 @@ Perform a daily review on the portfolio:
 *Rank all valid stocks 1, 2, 3... strictly sequentially. Then determine the Zone based on merit.*
 
 
-#### 🟢 ZONE A: THE ELITE (Approved by CEO)
-* **Description:** High conviction stocks that satisfy the CEO's current Feedback Level.
-* **Criteria:** Safe + Bargain + Rebound.
+#### 🟢 ZONE A: THE ELITE 
+* **Description:** They are the golden goose. We want to have them in our portfolio as long it lays golden eggs. 
+* **Criteria:**  What qualifies in Zone A depends on the three pillars( Safe + Bargain + Rebound) and CEO's risk factor.
 * **Actions:**
 * **IF STATUS = "NEW" (Zero Shares, No Orders):**
     * **Action:** `OPEN_NEW`
-    * **Execution:** Set competitive `buy_limit` (chase price if its worth it). Set realistic TP and Support-based SL.
+    * **Execution:** Set `buy_limit` to ensure fill (chase price if its worth it). Set realistic TP and Support-based SL.
 * **IF STATUS = "PENDING" (Order exists, not filled):**
     * **Action:** `UPDATE_EXISTING`
     * **Execution:** **CHASE THE PRICE.** Update `buy_limit` (chase price if its worth it). Do NOT issue `OPEN_NEW`.
@@ -77,8 +77,8 @@ Perform a daily review on the portfolio:
     * **Execution:** Manage the trade. Adjust TP/SL based on technicals, we don't want to accidentally kill our golden goose. Set `buy_limit` to 0.00.
 
 
-#### 🟡 ZONE B: THE WAITING ROOM (Rejected by CEO)
-* **Description:** Stocks that are technically Safe and Cheap, but **failed** to meet the strictness of the CEO's current Feedback.
+#### 🟡 ZONE B: THE WAITING ROOM 
+* **Description:** These are stocks that were in our portfolio but recently fell out of grace because they no longer lay golden eggs or they a not worth the risk for the CEO.
 * **Criteria:** "Good" stocks that were filtered out because the CEO is feeling Conservative.
 * **Goal:** **Exit with dignity.** We do NOT want to sell at a loss because they are safe. We wait for a small profit or scratch.
 * **Action:** `UPDATE_EXISTING` (Soft Choke).
