@@ -53,8 +53,13 @@ Perform a daily review on the portfolio:
 
 **[PRIORITY 3] "Rebound Potential" (THE BONUS - 20% Weight)**
 * **Definition:** Is there a catalyst for a +15-20% move in 3 months?
+<<<<<<< HEAD
 * **Rule:** This is the tie-breaker. If a stock is ranked based on how strong the rebound catalyst is, a strong Rebound catalyst makes it higher in Rank compared to others. 
 * *Why?* The stronger the rebound catalyst, the better the returns and it is guaranted money.	
+=======
+* **Rule:** This is the tie-breaker. If a stock is Safe and Cheap, a strong Rebound catalyst makes it Rank 1. If it is Safe and Cheap but "boring" (slow rebound), it is still acceptable (Rank 2-3) because it preserves capital.
+* *Why?* Even if the rebound takes 6 months, a Safe/Cheap stock won't kill us.	
+>>>>>>> 30afbf72b926ba1d481db87df1d44387e6cac111
 
 
 
@@ -64,7 +69,11 @@ Perform a daily review on the portfolio:
 
 #### 🟢 ZONE A: THE ELITE 
 * **Description:** They are the golden goose. We want to have them in our portfolio as long it lays golden eggs. 
+<<<<<<< HEAD
 * **Criteria:**  What qualifies them in Zone A depends on the three pillars( Safe + Bargain + Rebound) and CEO's risk factor.
+=======
+* **Criteria:**  What qualifies in Zone A depends on the three pillars( Safe + Bargain + Rebound) and CEO's risk factor.
+>>>>>>> 30afbf72b926ba1d481db87df1d44387e6cac111
 * **Actions:**
 * **IF STATUS = "NEW" (Zero Shares, No Orders):**
     * **Action:** `OPEN_NEW`
@@ -78,9 +87,15 @@ Perform a daily review on the portfolio:
 
 
 #### 🟡 ZONE B: THE WAITING ROOM 
+<<<<<<< HEAD
 * **Description:** These are stocks that were in our portfolio but recently fell out of grace because they started laying silver eggs instead of golden eggs and are not worth the risk for the CEO.
 * **Criteria:** "Good" stocks that were filtered out because the CEO is feeling Conservative.
 * **Goal:** **Exit with dignity.** We do NOT want to sell at a loss because they still lay silver eggs. We sell for a small profit or scratch.
+=======
+* **Description:** These are stocks that were in our portfolio but recently fell out of grace because they no longer lay golden eggs or they a not worth the risk for the CEO.
+* **Criteria:** "Good" stocks that were filtered out because the CEO is feeling Conservative.
+* **Goal:** **Exit with dignity.** We do NOT want to sell at a loss because they are safe. We wait for a small profit or scratch.
+>>>>>>> 30afbf72b926ba1d481db87df1d44387e6cac111
 * **Action:** `UPDATE_EXISTING` (Soft Choke).
 * **Protocol:**
     * **Stop Loss:**
@@ -91,7 +106,11 @@ Perform a daily review on the portfolio:
 
 
 #### 🔴 ZONE C: THE TOXIC WASTE (Hard Reject)
+<<<<<<< HEAD
 * **Description:** Stocks that are no longer Safe. Falling Knives. Broken Fundamentals. We just found out this golden goose cannot lay eggs at all.
+=======
+* **Description:** Stocks that are no longer Safe. Falling Knives. Broken Fundamentals.
+>>>>>>> 30afbf72b926ba1d481db87df1d44387e6cac111
 * **Criteria:** Unsafe OR Expensive.
 * **Goal:** **ESCAPE.** Liquidity over price.
 * **Action:** `UPDATE_EXISTING` (Hard Choke).
@@ -122,10 +141,17 @@ Perform a daily review on the portfolio:
 * **Previous Thesis Report Date:** {prev_date}
 * **Previous Thesis Report:** "{prev_report}"
 * **INSTRUCTION: AUDIT YOUR THESIS**
+<<<<<<< HEAD
     1.  **Read the Previous Report:** What is the expectation? (e.g., "The golden goose will lay a golden egg").
     2.  **Check Reality:** Did it happen?
         * *If Yes:* **Confirm** the rank (1 -> 1).
         * *If No :* **Downgrade** the rank (1 -> 2). Do not blindly repeat the same excuse.
+=======
+    1.  **Read the Previous Report:** What did we promise yesterday? (e.g., "Buying AAPL for bounce at $150").
+    2.  **Check Reality:** Did it happen?
+        * *If Yes:* **Confirm** the rank (1 -> 1).
+        * *If No (and price dropped):* **Downgrade** the rank (1 -> 2). Do not blindly repeat the same excuse.
+>>>>>>> 30afbf72b926ba1d481db87df1d44387e6cac111
     3.  **Use this audit to justify today's decisions.**
 
 
@@ -137,7 +163,11 @@ In the JSON output concatenate Zone and Rank (e.g., A1, A2, B1).
 Return a JSON object with this EXACT structure:
 
 {{
+<<<<<<< HEAD
   "ceo_report": "Note down all the thesis that you would like to audit in future. For eg: we buy a golden goose with expectation that it will lay a golden egg in future, it is important to follow-up to make sure your thesis holds true. ",
+=======
+  "ceo_report": "Add the thesis that you would like to audit in future. You might have made some decisions based on what you expect in future, it is important to follow-up to make sure your thesis holds true. ",
+>>>>>>> 30afbf72b926ba1d481db87df1d44387e6cac111
   "final_execution_orders": [
     {{
       "ticker": "AAPL",

@@ -129,3 +129,4 @@ DEBUG_MODE = False
 #   If max_trades = 5 and RISK_FACTOR = 0.8 -> Effective Capacity ~4 stocks.
 
 RISK_FACTOR = 0.9  # Default: 1.0 (Neutral)
+
