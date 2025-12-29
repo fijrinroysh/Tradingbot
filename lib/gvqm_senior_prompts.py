@@ -119,8 +119,8 @@ Perform a daily review on the portfolio:
 
 ### 🔄 CONTEXT FROM YESTERDAY
 
-* **Previous CEO Report Date:** {prev_date}
-* **Previous CEO Report:** "{prev_report}"
+* **Previous Thesis Report Date:** {prev_date}
+* **Previous Thesis Report:** "{prev_report}"
 * **INSTRUCTION: AUDIT YOUR THESIS**
     1.  **Read the Previous Report:** What did we promise yesterday? (e.g., "Buying AAPL for bounce at $150").
     2.  **Check Reality:** Did it happen?
@@ -137,7 +137,7 @@ In the JSON output concatenate Zone and Rank (e.g., A1, A2, B1).
 Return a JSON object with this EXACT structure:
 
 {{
-  "ceo_report": "Write a professional summary (Markdown). Walkthrough the CEO on your thought process. Include details you want to continue to monitor so that you can follow-up tomorrow.",
+  "ceo_report": "Add the thesis that you would like to audit in future. You might have made some decisions based on what you expect in future, it is important to follow-up to make sure your thesis holds true. ",
   "final_execution_orders": [
     {{
       "ticker": "AAPL",
