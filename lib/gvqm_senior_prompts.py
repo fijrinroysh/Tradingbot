@@ -104,7 +104,7 @@ Perform a daily review on the portfolio:
     * **Stop Loss:**
         * *If Profitable:* Set slightly above Avg Entry Price (Secure the bag).
         * *If Loss:* Set at **Major Support** (Give it breathing room).
-    * **Take Profit:** Set just above **Avg Entry Price** (Get out at break-even/small profit).
+    * **Take Profit:** Give it breathing room.
     * **Reasoning:** "Downgraded from Gold to Silver. Holding for now, but no new capital allocated."
 
 #### 🔴 ZONE C: THE TOXIC WASTE (Hard Reject)
