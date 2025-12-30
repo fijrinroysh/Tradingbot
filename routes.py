@@ -55,6 +55,7 @@ def run_pipeline():
         log_pipeline(f"Scanner found {len(candidates)} raw candidates.")
         
         limit = getattr(config, 'DAILY_SCAN_LIMIT', 20)
+        score_threshold = getattr(config, 'JUNIOR_SCORE_THRESHOLD', 88)
         fresh_candidates = junior_history.filter_candidates(candidates, limit=limit)
         log_pipeline(f"Filtered to {len(fresh_candidates)} fresh candidates (Limit: {limit}).")
         
@@ -104,7 +105,7 @@ def run_pipeline():
         final_candidates = []
         seen_tickers = set()
         
-        log_pipeline(f"Applying filters: Score > 85 AND Price < 250 SMA (Unless Held)...")
+        log_pipeline(f"Applying filters: Score > {score_threshold} AND Price < 250 SMA (Unless Held)...")
 
         for raw_report in reports:
             ticker = raw_report.get('ticker')
@@ -139,9 +140,9 @@ def run_pipeline():
                 continue 
 
             # ---------------------------------------------------------
-            # CRITERIA 2: HIGH CONVICTION SCORE (>85)
+            # CRITERIA 2:  HIGH CONVICTION SCORE 
             # ---------------------------------------------------------                                                                                                                                                                          
-            if score <= 85:
+            if score <= score_threshold:
                 continue 
                 
             # ---------------------------------------------------------
