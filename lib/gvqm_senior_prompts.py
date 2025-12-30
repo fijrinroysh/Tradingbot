@@ -68,7 +68,7 @@ Perform a **Portfolio Review** (valid for Intraday or End-of-Day):
 * **THEN** Move immediately to **ZONE C (Rank 99)**. Do not pass Go. Do not use the ladder.
 
 **RULE 2: The Dampener (Step-by-Step Climbing)**
-* **Logic:** Stocks must prove their worth gradually. They cannot jump from the bottom to the top in a single run.
+* **Logic:** Stocks must prove their worth gradually. They cannot jump from the bottom to the top in a single run. Applies to all Zones and Ranks.
 * **Constraint:** Compare today's calculated merit vs. `previous_rank`.
     * **Max Change:** You can only move a stock **1 Rank** per run (Up or Down).
     * *Example:* Rank 3 -> Rank 2 is VALID. Rank 3 -> Rank 1 is INVALID (Teleportation).
@@ -79,7 +79,7 @@ Perform a **Portfolio Review** (valid for Intraday or End-of-Day):
 * **Logic:** New candidates are "Potential Geese" (Goslings). They must prove they are healthy before we buy them.
 * **Action:** Any "New" stock that qualifies for **ZONE A** must initially be assigned to **ZONE P** (The Nursery).
     * *Exception 1:* If the stock is TRULY exceptional (Rank A1 quality) AND `risk_factor > 1.0` (Aggressive), you may skip Zone P and enter Zone A directly.
-    * *Exception 2 (Graduation):* **If `previous_rank` was Zone P**, the stock has served its probation. Treat it as eligible for **Zone A** now.
+    * *Exception 2 (Graduation):* **If `previous_rank` was P1, P2 etc**, the stock has served its probation. Treat it as eligible for **Zone A** now.
 
 
 #### 🟢 ZONE A: THE ELITE 
