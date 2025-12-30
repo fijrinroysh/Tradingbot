@@ -24,6 +24,7 @@ Perform a daily review on the portfolio:
     * Do not ignore a stock just because we own it.
     * **Every stock must fight for its rank.** 
 3.  **The Zoning Protocol:** Sort every stock into a single sequential list (Rank 1, 2, 3...) and then assign Zones based on the **CEO's Psychological Standard**.
+																																								  
 
 
 ---
@@ -35,10 +36,7 @@ Perform a daily review on the portfolio:
 * **`shares_held` == 0 AND `pending_buy_limit` is None**: This is a NEW IDEA. (Status: New).
 * **`current_price`**: The Real-Time Market Price. **TRUST THIS OVER REPORT TEXT.**
 * **`previous_rank`**: The rank this stock held in yesterday's strategy.
-    * **THE "LAW OF CONTINUITY":**
-        * **Logic:** Stocks evolve gradually. The goose that *currently* lays golden eggs is better than a "New Goose" that is yet to prove its worth.
-        * **Burden of Proof:** A New Candidate might have potential, but it needs to **prove its worth** before it can be ranked higher than a proven producer. Do not swap a proven winner for a shiny new toy unless the winner stops laying (Fundamentals break) or the new one is undeniably superior.
-        * **Biology:** A healthy goose does not turn into a pile of bones overnight. Even if it produces a smaller egg today, it is still a goose. It might slide down the pecking order, but it does not vanish from the farm (Unranked) without a "Fox Attack" (Massive Bad News).
+
 
 ### 📈 STEP 2: THE "HIERARCHY OF NEEDS" (Strict Priority)
 *You do not weight these pillars equally. You must apply them in this specific order. A stock that fails a higher priority must be rejected, even if it scores perfectly on lower priorities.*
@@ -59,35 +57,55 @@ Perform a daily review on the portfolio:
 * *Why?* The stronger the rebound catalyst, the better the returns, and it is guaranteed money.	
 
 
-### 🧠 STEP 3: THE ZONING (Strategy)
-*Rank all valid stocks 1, 2, 3... strictly sequentially. Then determine the Zone based on merit.*
+### 🧠 STEP 3: THE ZONING 
+*After ranking each stock on the three pillars, you must assign it to a Zone based on the CEO's `risk_factor`. This determines our action plan.*
+
+*We prioritize STABILITY. Stocks must climb the ladder. They cannot teleport to the top.*
+
+**RULE 1: The Safety Trapdoor (Overrules Everything)**
+* **IF** a stock fails the "Safe" pillar (Priority 1)...
+* **THEN** Move immediately to **ZONE C (Rank 99)**. Do not pass Go. Do not use the ladder.
+
+**RULE 2: The Dampener (Active Holdings)**
+* **Logic:** A Golden Goose does not become worthless overnight, nor does it double in value overnight.
+* **Constraint:** Compare today's calculated merit vs. `previous_rank`.
+    * **Max Upgrade:** You can only move a stock **UP 1 Rank** (e.g., Rank 3 -> Rank 2).
+    * **Max Downgrade:** You can only move a stock **DOWN 1 Rank** (e.g., Rank 1 -> Rank 2).
+    * *Exception:* Unless Rule 1 (Safety) is triggered.
+
+**RULE 3: The Queue (New Candidates)**
+* **Logic:** New Geese must start at the bottom of the pecking order.
+* **Action:** Any "New" stock qualifying for **ZONE A** must be assigned the **LOWEST Rank in Zone A**.
+    * *Example:* If we have 3 stocks in Zone A, the New Candidate becomes **A4**.
+    * It must "climb" to A3, A2, A1 in subsequent days by proving consistency.
 
 
 #### 🟢 ZONE A: THE ELITE 
-* **Description:** The stocks in Zone A are the golden goose. We want to have them in our portfolio as long it lays golden eggs. 
-* **Criteria:**  What qualifies them in Zone A depends on the three pillars( Safe + Bargain + Rebound) and CEO's risk factor.
+* **Description:** The stocks in Zone A are the goose that lay golden eggs, we want to have them in our portfolio as long it can lay golden eggs. 
+* **Criteria:** What qualifies them in Zone A depends on the three pillars( Safe + Bargain + Rebound) and CEO's risk factor.
 * **Actions:**
 * **IF STATUS = "NEW" (Zero Shares, No Orders):**
     * **Action:** `OPEN_NEW`
     * **Execution:** Set `buy_limit` to ensure fill (chase price if its worth it). Set realistic TP and Support-based SL.
 * **IF STATUS = "PENDING" (Order exists, not filled):**
     * **Action:** `UPDATE_EXISTING`
-    * **Execution:** **CHASE THE PRICE.** Update `buy_limit` (chase price if its worth it). Do NOT issue `OPEN_NEW`.
+    * **Execution:** **CHASE THE PRICE.** Update `buy_limit` to ensure fill (chase price if its worth it). Do NOT issue `OPEN_NEW`.
 * **IF STATUS = "ACTIVE" (We own it):**
     * **Action:** `UPDATE_EXISTING`
     * **Execution:** Adjust TP/SL based on technicals, we don't want to accidentally kill/sell our golden goose too early. Set `buy_limit` to 0.00.
 
-#### 🟡 ZONE B: THE WAITING ROOM 
-* **Description:** These are stocks that were in our portfolio but recently fell out of grace because they started laying silver eggs instead of golden eggs and CEO feels they are not worth the risk and effort.
-* **Criteria:** "Good" stocks that were filtered out because the CEO is feeling Conservative.
+#### 🟡 ZONE B: THE WAITING ROOM (Silver Geese)
+* **Description:** These are stocks that were "Golden" but have degraded. They are now laying **Silver Eggs** (Profitable, but weak/slow).
+* **Criteria:** "Safe" and "Bargain" are met, but "Rebound" is weak OR CEO Risk Factor is < 1.0 (Conservative).
 * **Goal:** **Exit with dignity.** We do NOT want to sell at a loss because they still lay silver eggs. We sell for a small profit or scratch.
 * **Action:** `UPDATE_EXISTING` (Soft Choke).
 * **Protocol:**
+    * **Buy Limit:** **REMOVE.** (Set to `0`). We do not buy more of a Silver Goose.
     * **Stop Loss:**
         * *If Profitable:* Set slightly above Avg Entry Price (Secure the bag).
         * *If Loss:* Set at **Major Support** (Give it breathing room).
     * **Take Profit:** Set just above **Avg Entry Price** (Get out at break-even/small profit).
-    * **Reasoning:** "Good stock, but CEO is not comfortable with this risk level right now."
+    * **Reasoning:** "Downgraded from Gold to Silver. Holding for now, but no new capital allocated."
 
 #### 🔴 ZONE C: THE TOXIC WASTE (Hard Reject)
 * **Description:** Stocks that are no longer Safe. Falling Knives. Broken Fundamentals. We just found out this golden goose cannot lay eggs at all.
@@ -106,7 +124,7 @@ Perform a daily review on the portfolio:
 ### 🛡️ LOGIC CONSTRAINTS (Sanity Check)
 1.  **The "Delta" Rule:** Do NOT issue an "UPDATE_EXISTING" order if you are simply reaffirming the current numbers.
     * **IF** your new calculated levels (Limit, TP, SL) are identical (or within 0.1%) to the `current_params` provided in the input...
-    * **THEN** send the all Ranks in Zones A, B and C as "HOLD" instead of "UPDATE_EXISTING".
+    * **THEN** send them as "HOLD" instead of "UPDATE_EXISTING".
 2.  **Bracket Logic:** Ensure `take_profit` > `buy_limit` > `stop_loss`.
 3.  **No Duplicates:** Never issue `OPEN_NEW` if `pending_buy_limit` is not None.
 
@@ -129,10 +147,15 @@ Perform a daily review on the portfolio:
 
 ### 📝 OUTPUT REQUIREMENTS (JSON ONLY)
 In the JSON output concatenate Zone and Rank (e.g., A1, A2 etc).
+
+* **INCLUDE:** All stocks assigned to **Zone A** (The Elite).
+* **INCLUDE:** All Active Holdings, even if they fell to **Zone B** or **Zone C** (We must manage the exit).
+* **EXCLUDE:** Any **NEW** candidate that did not make it into Zone A. If a new stock is rejected (Zone B/C/Unranked), do not clutter the output with it. We don't need a record of stocks we ignored.
+
 Return a JSON object with this EXACT structure:
 
 {{
-  "ceo_report": "This is your todo list for tomorrow. Note down all the thesis so that it can be audited in future. For eg: we buy a golden goose with expectation that it will lay a golden egg in future, it is important to follow-up and confirm if it really can lay an egg. ",
+  "ceo_report": "This is your todo list for tomorrow. Note down all the thesis so that it can be audited in future. For eg: When we buy a golden goose with expectation that it will lay a golden egg in future, it is important to follow-up and confirm if it really can lay an egg. ",
   "final_execution_orders": [
     {{
       "ticker": "AAPL",
@@ -141,7 +164,7 @@ Return a JSON object with this EXACT structure:
       "justification_safe": "Why is it safe and not a falling knife? Detailed Analysis (mandatory 3 sentences minimum) ",
       "justification_bargain": "Why is the price attractive? Detailed Analysis (mandatory 3 sentences minimum)",
       "justification_rebound": "Why do you think the price will rebound? Detailed Analysis (mandatory 3 sentences minimum)",
-      "reason": "What is the decision, rank, action plan and why? (mandatory 5 sentences minimum). ",
+      "reason": "Start with the Decision and Rank. Then, provide a strict 'Pros vs Cons' verdict. You MUST explicitly identify the #1 downside or potential pitfall that could cause this trade to fail. (mandatory 5 sentences minimum).",
       "confirmed_params": {{
           "buy_limit": 145.50,
           "take_profit": 160.00,
