@@ -22,9 +22,9 @@ Perform a daily review on the portfolio:
 2.  **Pool & Rank:** Review **ALL** candidates based on the "Safe", "Bargain", and "Rebound potential" pillars. Treat Active Holdings, Pending Orders and New Candidates as EQUALS.
     * Do not prioritize a stock just because we own it.
     * Do not ignore a stock just because we own it.
-    * **Every stock must fight for its rank.** 
-3.  **The Zoning Protocol:** Sort every stock into a single sequential list (Rank 1, 2, 3...) and then assign Zones based on the **CEO's Psychological Standard**.
-																																								  
+			  
+											   
+    * **Every stock must fight for its rank.** 3.  **The Zoning Protocol:** Sort every stock into a single sequential list (Rank 1, 2, 3...) and then assign Zones based on the **CEO's Psychological Standard**.
 
 
 ---
@@ -35,7 +35,7 @@ Perform a daily review on the portfolio:
 * **`avg_entry_price`**: The average price we paid for the held shares. Use this to calculate our current Profit/Loss.
 * **`shares_held` == 0 AND `pending_buy_limit` is None**: This is a NEW IDEA. (Status: New).
 * **`current_price`**: The Real-Time Market Price. **TRUST THIS OVER REPORT TEXT.**
-* **`previous_rank`**: The rank this stock held in yesterday's strategy.
+* **`previous_rank`**: The rank this stock held in yesterday's strategy. (See Rule 2 for Stability Logic).
 
 
 ### 📈 STEP 2: THE "HIERARCHY OF NEEDS" (Strict Priority)
@@ -74,10 +74,16 @@ Perform a daily review on the portfolio:
     * *Exception:* Unless Rule 1 (Safety) is triggered.
 
 **RULE 3: The Queue (New Candidates)**
-* **Logic:** New Geese are on "Probation." They must survive one rotation in the Waiting Room before entering the Elite Zone.
-* **Action:** Any "New" stock qualifying for **ZONE A** must initially be assigned to **ZONE B**.
-    * *Impact:* This forces a "Cooling Off" period.
-    * *Next Day:* If it performs well in Zone B, it can climb the ladder into Zone A (as per Rule 2) and become a "Buy."
+* **Logic:** New candidates are "Potential Geese" (Goslings). They must prove they are healthy before we buy them.
+* **Action:** Any "New" stock that qualifies for **ZONE A** must initially be assigned to **ZONE P** (The Nursery).
+    * *Exception:* If the stock is TRULY exceptional (Rank A1 quality) AND `risk_factor > 1.0` (Aggressive), you may skip Zone P and enter Zone A directly.
+		 
+
+										   
+																
+			 
+																																							
+																							 
 
 
 #### 🟢 ZONE A: THE ELITE 
@@ -94,22 +100,33 @@ Perform a daily review on the portfolio:
     * **Action:** `UPDATE_EXISTING`
     * **Execution:** Adjust TP/SL based on technicals, we don't want to accidentally kill/sell our golden goose too early. Set `buy_limit` to 0.00.
 
+#### 🔵 ZONE P: THE NURSERY (New Potential)
+* **Description:** High-potential new stocks ("Goslings") that need to be watched. They passed the Safety and Bargain checks but are waiting for the "Incumbency" verification.
+* **Criteria:** New stocks that would be Zone A if we already owned them.
+* **Goal:** **Watch and Wait.** Verify price stability for 24 hours.
+* **Action:** `HOLD` (Add to Watchlist). 
+    * *Note:* If it survives the Nursery, it will be promoted to Zone A tomorrow.
+
 #### 🟡 ZONE B: THE WAITING ROOM (Silver Geese)
-* **Description:** These are stocks that were "Golden" but have degraded. They are now laying **Silver Eggs** (Profitable, but weak/slow).
-* **Criteria:** "Safe" and "Bargain" are met, but "Rebound" is weak OR CEO Risk Factor is < 1.0 (Conservative).
-* **Goal:** **Exit with dignity.** We do NOT want to sell at a loss because they still lay silver eggs. We sell for a small profit or scratch.
-* **Action:** `UPDATE_EXISTING` (Soft Choke).
+* **Description:** These are stocks that were in our portfolio but recently fell out of grace because they started laying silver eggs instead of golden eggs and CEO feels they are not worth the risk and effort.
+* **Criteria:** "Safe" stocks that are **Expensive**, have **Weak Rebound**, or were cut by **Risk Factor**.
+* **Goal:** **Exit with Dignity (Gradient).** We do NOT want to sell at a loss because they still lay silver eggs. We sell for a small profit or scratch.
+* **Action:** `UPDATE_EXISTING`.(Soft choke)
 * **Protocol:**
-    * **Buy Limit:** **REMOVE.** (Set to `0`). We do not buy more of a Silver Goose.
-    * **Stop Loss:**
+    * **Buy Limit:** Set to `0.0`. We do not buy more of a Silver Goose.
+
+       * **Stop Loss:**
         * *If Profitable:* Set slightly above Avg Entry Price (Secure the bag).
         * *If Loss:* Set at **Major Support** (Give it breathing room).
-    * **Take Profit:** Give it breathing room.
-    * **Reasoning:** "Downgraded from Gold to Silver. Holding for now, but no new capital allocated."
+
+    * **Take Profit (The Gradient):**
+        * **Top of Zone B:** Set TP at **Avg Entry + 1-2%**. (Dignified Exit).
+        * **Bottom of Zone B:** Set TP at **Avg Entry + 0.1%** (Break Even). **LOWER THE BAR.** These are the weakest links; we want out faster.
+    * **Reasoning:** "Weakest stocks in Zone B accept lower exit prices."
 
 #### 🔴 ZONE C: THE TOXIC WASTE (Hard Reject)
 * **Description:** Stocks that are no longer Safe. Falling Knives. Broken Fundamentals. We just found out this golden goose cannot lay eggs at all.
-* **Criteria:** Unsafe OR Expensive.
+* **Criteria:** **Unsafe** (Fails Priority 1).
 * **Goal:** **ESCAPE.** Liquidity over price.
 * **Action:** `UPDATE_EXISTING` (Hard Choke).
 * **Protocol:**
@@ -117,7 +134,7 @@ Perform a daily review on the portfolio:
     * **Take Profit:** Slightly above `current_price` (Exit on any micro-bounce).
     * **Reasoning:** "Safety violation. Immediate exit required."
 
-* **IF STATUS = "NEW" (in Zone B or C):**
+* **IF STATUS = "NEW" (in Zone P or B or C):**
     * **Action:** `HOLD` (Do not touch).
 ---
 
@@ -148,14 +165,16 @@ Perform a daily review on the portfolio:
 ### 📝 OUTPUT REQUIREMENTS (JSON ONLY)
 In the JSON output concatenate Zone and Rank (e.g., A1, A2 etc).
 
+**RELEVANCE FILTER:**
 * **INCLUDE:** All stocks assigned to **Zone A** (The Elite).
-* **INCLUDE:** All Active Holdings, even if they fell to **Zone B** or **Zone C** (We must manage the exit).
-* **EXCLUDE:** Any **NEW** candidate that did not make it into Zone A. If a new stock is rejected (Zone B/C/Unranked), do not clutter the output with it. We don't need a record of stocks we ignored.
+* **INCLUDE:** All stocks assigned to **Zone P** (The Nursery/Watchlist).
+* **INCLUDE:** All Active Holdings and pending orders, even if they fell to **Zone B** or **Zone C** (We must manage the exit).
+* **EXCLUDE:** Any **NEW** candidate that did not make it into Zone A or Zone P. If a new stock is rejected (Zone B/Zone C/Unranked), do not clutter the output with it. We don't need a record of stocks we ignored.
 
 Return a JSON object with this EXACT structure:
 
 {{
-  "ceo_report": "This is the 'Audit Ledger' for the next trading session. For EACH Zone A/B stock, you MUST define the 'Golden Egg' criteria: \n1. THE HURDLE: What specific price level (Support/EMA) MUST it hold tomorrow to keep its Rank? \n2. THE EXPECTATION: What specific move validates the 'Rebound'? \n(Example: 'AAPL (A1): MUST HOLD 145.20. Expectation: Break above 148.00. Strikes: 0').",
+  "ceo_report": "This is the 'Audit Ledger' for the next trading session. For EACH Zone A/B stock, you MUST define the 'Golden Egg' criteria: \\n1. THE HURDLE: What specific price level (Support/EMA) MUST it hold tomorrow to keep its Rank? \\n2. THE EXPECTATION: What specific move validates the 'Rebound'? \\n(Example: 'AAPL (A1): MUST HOLD 145.20. Expectation: Break above 148.00. Strikes: 0').",
   "final_execution_orders": [
     {{
       "ticker": "AAPL",
