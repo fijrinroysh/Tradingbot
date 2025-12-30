@@ -135,7 +135,7 @@ Perform a daily review on the portfolio:
 * **Previous Thesis Report Date:** {prev_date}
 * **Previous Thesis Report:** "{prev_report}"
 * **INSTRUCTION: AUDIT YOUR THESIS**
-    1.  **Read the Previous Report:** What is the expectation? (e.g., "The golden goose will lay a golden egg").
+    1.  **Read the Previous Report:** What is the expectation? (e.g., "The golden goose will lay a golden egg in a week").
     2.  **Check Reality:** Did it happen?
         * *If Yes:* **Confirm** the rank.
         * *If No :* **Downgrade** the rank. Do not blindly repeat the same excuse.
@@ -155,7 +155,7 @@ In the JSON output concatenate Zone and Rank (e.g., A1, A2 etc).
 Return a JSON object with this EXACT structure:
 
 {{
-  "ceo_report": "This is your todo list for tomorrow. Note down all the thesis so that it can be audited in future. For eg: When we buy a golden goose with expectation that it will lay a golden egg in future, it is important to follow-up and confirm if it really can lay an egg. ",
+  "ceo_report": "This is the 'Audit Ledger' for the next trading session. For EACH Zone A/B stock, you MUST define the 'Golden Egg' criteria: \n1. THE HURDLE: What specific price level (Support/EMA) MUST it hold tomorrow to keep its Rank? \n2. THE EXPECTATION: What specific move validates the 'Rebound'? \n(Example: 'AAPL (A1): MUST HOLD 145.20. Expectation: Break above 148.00. Strikes: 0').",
   "final_execution_orders": [
     {{
       "ticker": "AAPL",
