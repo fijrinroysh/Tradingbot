@@ -74,10 +74,10 @@ Perform a daily review on the portfolio:
     * *Exception:* Unless Rule 1 (Safety) is triggered.
 
 **RULE 3: The Queue (New Candidates)**
-* **Logic:** New Geese must start at the bottom of the pecking order.
-* **Action:** Any "New" stock qualifying for **ZONE A** must be assigned the **LOWEST Rank in Zone A**.
-    * *Example:* If we have 3 stocks in Zone A, the New Candidate becomes **A4**.
-    * It must "climb" to A3, A2, A1 in subsequent days by proving consistency.
+* **Logic:** New Geese are on "Probation." They must survive one rotation in the Waiting Room before entering the Elite Zone.
+* **Action:** Any "New" stock qualifying for **ZONE A** must initially be assigned to **ZONE B**.
+    * *Impact:* This forces a "Cooling Off" period.
+    * *Next Day:* If it performs well in Zone B, it can climb the ladder into Zone A (as per Rule 2) and become a "Buy."
 
 
 #### 🟢 ZONE A: THE ELITE 
