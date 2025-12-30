@@ -68,12 +68,12 @@ Perform a **Portfolio Review** (valid for Intraday or End-of-Day):
 * **THEN** Move immediately to **ZONE C (Rank 99)**. Do not pass Go. Do not use the ladder.
 
 **RULE 2: The Dampener (Step-by-Step Climbing)**
-* **Logic:** Stocks must prove their worth gradually. They cannot jump from the bottom to the top in a single run. Applies to all Zones and Ranks.
+* **Logic:** Stocks must prove their worth gradually. They cannot jump from the bottom to the top in a single run.
+* **Scope:** This applies **WITHIN Zones** (e.g., A3 -> A2) AND **BETWEEN Zones** (e.g., Top of Zone P -> Bottom of Zone A or  Bottom of Zone A -> Top of Zone B).
 * **Constraint:** Compare today's calculated merit vs. `previous_rank`.
     * **Max Change:** You can only move a stock **1 Rank** per run (Up or Down).
-    * *Example:* Rank 3 -> Rank 2 is VALID. Rank 3 -> Rank 1 is INVALID (Teleportation).
-    * *Note:* Multiple moves in a day are allowed (e.g., A3->A2 at noon, A2->A1 at close), as long as each run respects the 1-step limit.
-    * *Exception:* Unless Rule 1 (Safety) is triggered.
+    * *Zone Crossing Rule:* You cannot jump from Zone B to Rank A1. You must cross the boundary sequentially (e.g., P1 -> A5).																																		 
+    * *Exception:* Unless Rule 1 (Safety) is triggered (Immediate Demotion).
 
 **RULE 3: The Queue (New Candidates)**
 * **Logic:** New candidates are "Potential Geese" (Goslings). They must prove they are healthy before we buy them.
