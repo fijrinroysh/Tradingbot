@@ -33,6 +33,7 @@ Perform a **Portfolio Review** (valid for Intraday or End-of-Day):
 * **`pending_buy_limit` exists**: We are TRYING to buy this. (Status: Pending).
 * **`shares_held` > 0**: We OWN this stock. (Status: Active).
 * **`avg_entry_price`**: The average price we paid for the held shares. Use this to calculate our current Profit/Loss.
+* **`current_active_tp` / `current_active_sl`**: The Take Profit and Stop Loss currently active in the market. **Use these for the Delta Rule.**																																	
 * **`shares_held` == 0 AND `pending_buy_limit` is None**: This is a NEW IDEA. (Status: New).
 * **`current_price`**: The Real-Time Market Price. **TRUST THIS OVER REPORT TEXT.**
 * **`previous_rank`**: The rank this stock held in the **MOST RECENT STRATEGY RUN**.
@@ -93,8 +94,15 @@ Perform a **Portfolio Review** (valid for Intraday or End-of-Day):
     * **Action:** `UPDATE_EXISTING`
     * **Execution:** **CHASE THE PRICE.** Update `buy_limit` to ensure fill (chase price if its worth it). Do NOT issue `OPEN_NEW`.
 * **IF STATUS = "ACTIVE" (We own it):**
-    * **Action:** `UPDATE_EXISTING`
-    * **Execution:** Adjust TP/SL based on technicals, we don't want to accidentally kill/sell our golden goose too early. Set `buy_limit` to 0.00.
+    * **Action:** `HOLD` (Default) or `UPDATE_EXISTING`.
+    * **Execution:** Adjust TP/SL based on technicals, we don't want to accidentally kill/sell our golden goose too early. 
+		Compare your NEW `take_profit` and `stop_loss` with the `current_active_tp` and `current_active_sl`.
+        * *If difference < 0.5%:*: **Issue `HOLD`**. Do not spam updates for pennies.
+        * *If difference > 0.5%:*: Issue `UPDATE_EXISTING` to adjust parameters.
+        * *Buy Limit:* Set to `0.0`.
+																					 
+																				
+									
 
 #### 🔵 ZONE P: THE NURSERY (New Potential)
 * **Description:** High-potential new stocks ("Goslings") that need to be watched. They passed the Safety and Bargain checks but are waiting for the "Incumbency" verification.
@@ -107,7 +115,7 @@ Perform a **Portfolio Review** (valid for Intraday or End-of-Day):
 * **Description:** Stocks that were in our portfolio but fell out of grace.
 * **Criteria:** "Safe" stocks that are **Expensive**, have **Weak Rebound**, or were cut by **Risk Factor**.
 * **Goal:** **Exit with Dignity (Gradient).** We do NOT want to sell at a loss because they still lay silver eggs. We sell for a small profit or scratch.
-* **Action:** `UPDATE_EXISTING` (Soft Choke).
+* **Action:** `HOLD` (If current TP/SL are fine) or `UPDATE_EXISTING`.
 * **Protocol:**
     * **Buy Limit:** Set to `0.0`. We do not buy more of a Silver Goose.
 
@@ -124,7 +132,7 @@ Perform a **Portfolio Review** (valid for Intraday or End-of-Day):
 * **Description:** Stocks that are no longer Safe. Falling Knives. Broken Fundamentals. We just found out this golden goose cannot lay eggs at all.
 * **Criteria:** **Unsafe** (Fails Priority 1).
 * **Goal:** **ESCAPE.** Liquidity over price.
-* **Action:** `UPDATE_EXISTING` (Hard Choke).
+* **Action:** `HOLD` (If SL is already tight) or `UPDATE_EXISTING` (To tighten SL).
 * **Protocol:**
     * **Stop Loss:** **TIGHT.** Set just below `current_price`. If it sneezes, we exit.
     * **Take Profit:** Slightly above `current_price` (Exit on any micro-bounce).
@@ -135,9 +143,11 @@ Perform a **Portfolio Review** (valid for Intraday or End-of-Day):
 ---
 
 ### 🛡️ LOGIC CONSTRAINTS (Sanity Check)
-1.  **The "Delta" Rule:** Do NOT issue an "UPDATE_EXISTING" order if you are simply reaffirming the current numbers.
-    * **IF** your new calculated levels (Limit, TP, SL) are identical (or within 0.1%) to the `current_params` provided in the input...
-    * **THEN** send them as "HOLD" instead of "UPDATE_EXISTING".
+										
+1.  **The "Delta" Rule:** 
+    * **Goal:** Do not issue an `UPDATE_EXISTING` order if you are simply reaffirming the current numbers.
+    * **Logic:** Compare your `confirmed_params` (`take_profit`, `stop_loss`) against the `current_active_tp` and `current_active_sl` from input.
+    * **Condition:** IF the values are identical or within **0.5%**, CHANGE `action` to `"HOLD"`.
 2.  **Bracket Logic:** Ensure `take_profit` > `buy_limit` > `stop_loss`.
 3.  **No Duplicates:** Never issue `OPEN_NEW` if `pending_buy_limit` is not None.
 
@@ -159,9 +169,11 @@ Perform a **Portfolio Review** (valid for Intraday or End-of-Day):
 {candidates_data}
 
 ### 📝 OUTPUT REQUIREMENTS (JSON ONLY)
+																
 
 **RELEVANCE FILTER:**
-1. **MANDATORY INCLUDE:** EVERY stock where `shares_held > 0` (Active Holdings) OR `pending_buy_limit` exists. **You CANNOT ignore a stock we own.** If it is garbage, assign it to **Zone C** and issue an exit order. We must have a record of every position to manage the exit.
+
+1. **MANDATORY INCLUDE:** EVERY stock where `shares_held > 0` (Active Holdings) OR `pending_buy_limit` exists. **You CANNOT ignore a stock we own.** If no changes are needed, simply return it with `action: HOLD`.
 2. **INCLUDE:** Any **NEW** candidate that qualifies for **Zone A** or **Zone P**.
 3. **EXCLUDE:** Only **NEW** candidates (Zero Shares) that failed to reach Zone A or Zone P.
 
