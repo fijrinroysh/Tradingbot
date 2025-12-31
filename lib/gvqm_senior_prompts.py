@@ -170,7 +170,7 @@ In the JSON output concatenate Zone and Rank (e.g., A1, A2 etc).
 Return a JSON object with this EXACT structure:
 
 {{
-  "ceo_report": "This is the 'Audit Ledger' for the next trading session. For EACH Zone A/B stock, you MUST define the 'Golden Egg' criteria: \\n1. THE HURDLE: What specific price level (Support/EMA) MUST it hold tomorrow to keep its Rank? \\n2. THE EXPECTATION: What specific move validates the 'Rebound'? \\n(Example: 'AAPL (A1): MUST HOLD 145.20. Expectation: Break above 148.00. Strikes: 0').",
+  "ceo_report": "This is the 'Audit Ledger' for the next trading session. For EACH Zone A/B stock, you MUST define the 'Golden Egg' criteria: \\n1. THE HURDLE: What challenges could come its way tomorrow to keep its Rank? \\n2. THE EXPECTATION: What specific benefits are expected and when it is expected ? .",
   "final_execution_orders": [
     {{
       "ticker": "AAPL",

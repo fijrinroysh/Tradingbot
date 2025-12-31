@@ -45,8 +45,11 @@ def run_pipeline():
     # 1. MARKET CHECK
     # if not trader.is_market_open():
     #    log_pipeline("💤 Market Closed. Aborting.")
-    #    return
-                
+    #    return					 
+									 
+													  
+			   
+				
     # --- JUNIOR PHASE ---
     log_pipeline("🕵️ PHASE 1: JUNIOR ANALYST RESEARCH")
     
@@ -79,15 +82,15 @@ def run_pipeline():
     # --- SENIOR PHASE ---
     log_pipeline("\n👨‍💼 PHASE 2: SENIOR MANAGER STRATEGY")
     
-    # [RESTORED] PRODUCTION SAFETY WRAPPER 
+										   
     try:
-        # 2. FETCH DATA
-        lookback = getattr(config, 'SENIOR_LOOKBACK_DAYS', 10)
-        reports = senior_history.fetch_junior_reports(lookback)
-        log_pipeline(f"Fetched {len(reports)} total reports from history (Last {lookback} days).")
-        
-        # --- LOGIC FIX: PORTFOLIO INJECTION ---
-        # 1. Get Live Holdings (The "Must Manage" List)                                                                       
+        # --- STEP 1: FETCH LIVE PORTFOLIO FIRST ---
+        log_pipeline("   ℹ️ Fetching Live Portfolio Context...")
+															   
+																								  
+		
+												
+																															  
         live_tickers = set()
         try:
             positions = trader.trading_client.get_all_positions()
@@ -101,7 +104,21 @@ def run_pipeline():
         except Exception as e:
             log_pipeline(f"   ⚠️ Could not fetch live portfolio: {e}")
 
-        # 2. FILTER CANDIDATES
+        # --- STEP 2: FETCH REPORTS (DUAL METHOD) ---
+        lookback = getattr(config, 'SENIOR_LOOKBACK_DAYS', 5)
+        
+        # A. Fetch Portfolio Reports (NO Filters)
+        portfolio_reports = senior_history.fetch_portfolio_reports(live_tickers)
+        
+        # B. Fetch Market Reports (STRICT Filters)
+        market_reports = senior_history.fetch_market_reports(lookback)
+        
+        # C. Combine (Routes logic will handle dedup if a stock is in both)
+        reports = portfolio_reports + market_reports
+        
+        log_pipeline(f"fetched {len(portfolio_reports)} portfolio reports + {len(market_reports)} market reports. Total: {len(reports)}")
+        
+        # --- STEP 3: FILTER CANDIDATES ---
         final_candidates = []
         seen_tickers = set()
         
@@ -112,26 +129,26 @@ def run_pipeline():
             score = get_safe_score(raw_report)
             is_held = ticker in live_tickers
             
-            # --- BIAS REMOVAL: CLEAN SLATE PROTOCOL ---
+            # Cleaning
             r = copy.deepcopy(raw_report)
-
-            keys_to_remove = [
-                'recommended_action',  # REMOVE: Don't tell Senior to "BUY"
-                'junior_targets',      # REMOVE: Prevent Price Anchoring
-                'conviction_score',    # REMOVE: Arbitrary number
-                'audit_reason',        # REMOVE: System noise
-                'sector',
-                'status_reason',
-                'valuation_reason',
-                'rebound_reason'
-            ]
+            keys_to_remove = ['recommended_action', 'junior_targets', 'conviction_score', 'audit_reason', 'sector', 'status_reason', 'valuation_reason', 'rebound_reason']
+							  
+																		   
+																		
+																 
+															 
+						 
+								
+								   
+								
+			 
             for k in keys_to_remove:
                 if k in r: del r[k]
-            # -----------------------------------------     
+															
 
-            # ---------------------------------------------------------
-            # CRITERIA 1: ACTIVE HOLDINGS (The "Must Manage" Override)
-            # ---------------------------------------------------------                                                            
+																	   
+            # CRITERIA 1: ACTIVE HOLDINGS (Always Include)
+																																   
             if is_held:
                 if ticker not in seen_tickers:
                     final_candidates.append(r)
@@ -139,15 +156,15 @@ def run_pipeline():
                     log_pipeline(f"   ✅ Auto-Included {ticker} (Portfolio Review)")
                 continue 
 
-            # ---------------------------------------------------------
-            # CRITERIA 2:  HIGH CONVICTION SCORE 
-            # ---------------------------------------------------------                                                                                                                                                                          
+																	   
+            # CRITERIA 2: SCORE FILTER
+																																																												 
             if score <= score_threshold:
                 continue 
                 
-            # ---------------------------------------------------------
-            # CRITERIA 3: PRICE BELOW 250-DAY MOVING AVERAGE
-            # ---------------------------------------------------------
+																	   
+            # CRITERIA 3: 250 SMA CHECK
+																	   
             current_price = trader.get_current_price(ticker)
             sma_250 = trader.get_simple_moving_average(ticker, window=250)
             
@@ -157,7 +174,7 @@ def run_pipeline():
                         final_candidates.append(r)
                         seen_tickers.add(ticker)
                 else:
-                    log_pipeline(f"   📉 Rejecting {ticker}: Price ${current_price} is ABOVE 250 SMA (${sma_250:.2f}).")
+                    log_pipeline(f"   📉 Rejecting {ticker}: Price ${current_price} is ABOVE 250 SMA.")
             else:
                 log_pipeline(f"   ⚠️ Skipping {ticker}: Could not verify SMA compliance.")
         
@@ -167,12 +184,12 @@ def run_pipeline():
             log_pipeline("📉 No candidates found. Stopping Senior Phase.")
             return
 
-        # 3. INJECT LIVE CONTEXT (THE UPGRADE)
-        log_pipeline(f"Fetching Live Data & X-Ray Context for {len(final_candidates)} candidates...")
+        # 4. INJECT LIVE CONTEXT & RANK HISTORY
+        log_pipeline(f"Fetching Live Data & Rank History...")
             
-        # [NEW] Fetch Yesterday's Ranks -----------------------------
+																	 
         previous_ranks = senior_history.fetch_latest_ranks() 
-        # -----------------------------------------------------------
+																	 
 
         holdings_map = {} 
         
@@ -180,34 +197,34 @@ def run_pipeline():
             ticker = c['ticker']
             c['current_price'] = trader.get_current_price(ticker)
             
-            # [NEW] Inject Previous Rank ----------------------------
-            # If it wasn't ranked yesterday, we label it "Unranked"
+            # Inject Previous Rank for Ladder Logic
+																   
             c['previous_rank'] = previous_ranks.get(ticker, "Unranked")
-            # -------------------------------------------------------
-            # --- RICH DATA FETCH ---
+            
+									 
             if hasattr(trader, 'get_position_details'):
                 details = trader.get_position_details(ticker)
-                
+				
                 c['shares_held'] = details['shares_held']
                 c['avg_entry_price'] = details['avg_entry_price'] 
                 c['current_active_tp'] = details['active_tp']
                 c['current_active_sl'] = details['active_sl']
                 c['pending_buy_limit'] = details['pending_buy_limit']
-                
+				
                 holdings_map[ticker] = details['shares_held']
-                
-                if details['status_msg'] != "NONE":
-                    log_pipeline(f"   ℹ️ [CONTEXT] {ticker}: {details['status_msg']}")
+				
+												   
+																						  
             else:
                 c['shares_held'] = trader.get_position(ticker)
                 holdings_map[ticker] = c['shares_held']
-    # --- 🐛 DEBUG DUMP: RAW BRAIN INPUT ---
-    # This prints exactly what the Senior Manager sees before it thinks.
-    #print("\n" + ">"*20 + " [DEBUG] RAW SENIOR INPUT " + "<"*20)
-    #print(json.dumps(final_candidates, indent=2, default=str))
-    #print(">"*20 + " [END DEBUG] " + "<"*20 + "\n")
-    # --------------------------------------
-        # 4. STRATEGY & DECISION
+
+																		
+																 
+															   
+													
+											
+        # 5. STRATEGY & DECISION
         log_pipeline("Calling Senior Agent AI for ranking...")
         context = senior_history.get_last_strategy()
         
@@ -218,7 +235,7 @@ def run_pipeline():
         )
         
         if decision:
-            # Log to Sheets
+						   
             senior_history.log_strategy(decision)
             senior_history.log_detailed_decisions(decision, holdings_map)
             
@@ -227,7 +244,7 @@ def run_pipeline():
             print("="*80)
             print(decision.get('ceo_report'))
             
-            # 5. EXECUTE TRADES
+            # 6. EXECUTE TRADES
             orders = decision.get('final_execution_orders', [])
             log_pipeline(f"\n⚡ PHASE 3: EXECUTION ({len(orders)} Commands)")
             
@@ -237,47 +254,47 @@ def run_pipeline():
                 p = order.get('confirmed_params', {})
                 
                 log_pipeline(f"   👉 Processing Command: {action} {ticker}")
-                
+				
                 trade_events = []
-                
+				
                 try:
                     if action == "OPEN_NEW":
-                        trade_events = trader.execute_entry(
-                            ticker, config.INVEST_PER_TRADE, 
-                            p.get('buy_limit', 0), p.get('take_profit', 0), p.get('stop_loss', 0)
-                        )
+															
+															 
+                        trade_events = trader.execute_entry(ticker, config.INVEST_PER_TRADE, p.get('buy_limit', 0), p.get('take_profit', 0), p.get('stop_loss', 0))
+						 
                     elif action == "UPDATE_EXISTING":
-                        trade_events = trader.execute_update(
-                            ticker, p.get('take_profit', 0), p.get('stop_loss', 0), buy_limit=p.get('buy_limit', 0)
-                        )
+															 
+                        trade_events = trader.execute_update(ticker, p.get('take_profit', 0), p.get('stop_loss', 0), buy_limit=p.get('buy_limit', 0))
+						 
                     elif action == "HOLD":
-                        log_pipeline(f"      ✋ Holding {ticker} (No Action Taken).")
+                        log_pipeline(f"      ✋ Holding {ticker}.")
                         continue
-                    else:
-                        log_pipeline(f"      ⚠️ Unknown Action '{action}' - Skipping.")
+						 
+																						   
                 except Exception as e:
                     log_pipeline(f"      ❌ Execution Exception for {ticker}: {e}")
 
                 if isinstance(trade_events, dict): trade_events = [trade_events]
                 for event in trade_events:
-                    if isinstance(event, dict):
-                        evt_type = event.get('event', 'UNKNOWN')
-                        if evt_type not in ["HOLD", "ERROR"]:
-                            senior_history.log_trade_event(ticker, evt_type, event)
-                            log_pipeline(f"      ✅ Event Logged: {evt_type}")
-                        elif evt_type == "ERROR":
-                            log_pipeline(f"      ❌ Error Event: {event.get('info')}")
+                    if isinstance(event, dict) and event.get('event') != "ERROR":
+																
+															 
+                        senior_history.log_trade_event(ticker, event.get('event'), event)
+																			   
+												 
+																					   
 
-            # 6. SEND EMAIL
+            # 7. SEND EMAIL
             log_pipeline("\n📧 PHASE 4: NOTIFICATION")
             try:
-                # 1. Fetch Account Info                       
+															  
                 account_info = trader.trading_client.get_account()
-                
-                # 2. Fetch Live Portfolio (Mirror Protocol)                                           
+				
+																									  
                 portfolio = trader.trading_client.get_all_positions()
-                
-                # 3. Send Brief               
+				
+											  
                 notifier.send_executive_brief(decision, account_info, reports, portfolio)
 
                 log_pipeline("✅ Executive Brief email dispatched.")
