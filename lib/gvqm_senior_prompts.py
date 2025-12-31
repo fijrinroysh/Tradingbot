@@ -159,11 +159,13 @@ Perform a **Portfolio Review** (valid for Intraday or End-of-Day):
 {candidates_data}
 
 ### 📝 OUTPUT REQUIREMENTS (JSON ONLY)
-In the JSON output concatenate Zone and Rank (e.g., A1, A2 etc).
 
 **RELEVANCE FILTER:**
-* **INCLUDE:** All stocks assigned to **Zone A** (The Elite), **Zone P** (The Nursery/Watchlist), even if they fell to **Zone B** or **Zone C** (We must manage the exit). All the rank are needed for ladder logic in the next run.
-* **EXCLUDE:** Any **NEW** candidate that did not make it into Zone A or Zone P. If a new stock is rejected (Zone B/Zone C/Unranked), do not clutter the output with it. We don't need a record of stocks we ignored.
+1. **MANDATORY INCLUDE:** EVERY stock where `shares_held > 0` (Active Holdings) OR `pending_buy_limit` exists. **You CANNOT ignore a stock we own.** If it is garbage, assign it to **Zone C** and issue an exit order. We must have a record of every position to manage the exit.
+2. **INCLUDE:** Any **NEW** candidate that qualifies for **Zone A** or **Zone P**.
+3. **EXCLUDE:** Only **NEW** candidates (Zero Shares) that failed to reach Zone A or Zone P.
+
+In the JSON output concatenate Zone and Rank (e.g., A1, A2 etc).
 
 Return a JSON object with this EXACT structure:
 
