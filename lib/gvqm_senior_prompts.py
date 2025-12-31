@@ -22,7 +22,12 @@ Perform a **Portfolio Review** (valid for Intraday or End-of-Day):
 2.  **The Setup:** Organize the candidates into a single vertical list based on **Yesterday's Rank**.
     * *Top:* Active Zone A (A1, A2, A3...)
     * *Middle:* Active Zone B (B1, B2...)
-    * *Bottom:* **Zone C** (All New/Unranked Candidates - Formerly Zone P).
+    * **Bottom:** **The Challenger Pool (Zone C Candidates).**
+        * **Who:** Combine ALL **Veterans** (C1, C2...) AND **Fresh Recruits** (Unranked) into one single pool.
+        * **The Seeding (Pre-Sort):** Rank this pool internally based on the Pillars.
+        * **Placement:** Place the *Best* Challenger at the top of the Pool (directly below the Weakest Active Stock). This gives the best new stock the first shot at the title.
+									
+																			 
 3.  **The Tournament:** Run the **"King of the Hill"** protocol to determine the final order.
 			  
 
@@ -66,7 +71,8 @@ Perform a **Portfolio Review** (valid for Intraday or End-of-Day):
 *Do not just "pick" ranks. You must simulate a pairwise fight to the death.*
 
 **RULE 0: THE SAFETY TRAPDOOR (Existential Threats)**
-* **IF** a stock fails the "Safe" pillar (Priority 1)...
+* **IF** a stock fails the "Safe" pillar (Priority 1)...																															
+																																			
 * **THEN** it is **Unsafe (Zone D)**. Eject immediately. Do not risk letting it compete.
 
 **THE ALGORITHM (Top-Down Gravity):**
@@ -76,6 +82,9 @@ Perform a **Portfolio Review** (valid for Intraday or End-of-Day):
 1.  **Select Pair:** Compare the current "King" (Rank N) vs the "Challenger Below" (Rank N+1).
 2.  **The Challenge:** Compare them using the **Hierarchy of Needs (Step 2)**.
     * *The Tie-Breaker:* **Live Momentum.** If the pillars are identical, the stock with better live price action (Green vs Red) wins.
+												
+														
+													  
 3.  **The Outcome:**
     * **If King (N) Wins:** Maintain positions. Move to next pair (N+1 vs N+2).
     * **If Challenger (N+1) Wins:** **SWAP THEM.** (Challenger moves Up to N, King drops to N+1).
@@ -96,6 +105,7 @@ Perform a **Portfolio Review** (valid for Intraday or End-of-Day):
     * **Zone A (Elite):** All stocks ABOVE your calculated Cutoff. (Could be 3 stocks, could be 20).
     * **Zone B (Silver Geese):** **Active** stocks that fell BELOW your Cutoff.
     * **Zone C (Nursery):** **New** stocks that fell BELOW your Cutoff.
+																											
     * **Zone D (Toxic):** Rejected by Rule 0 or bottom of list.
 
 
@@ -140,6 +150,7 @@ Perform a **Portfolio Review** (valid for Intraday or End-of-Day):
 #### 🔵 ZONE C: THE NURSERY (Formerly Zone P)
 * **Description:** New stocks that lost the Tournament and didn't crack Zone A (Below Cutoff).
 * **Criteria:** **MUST HAVE `shares_held == 0`.**
+																   
 * **Goal:** **Watch and Wait.** Verify price stability.
 * **Action:** `HOLD` (Add to Watchlist). 
     * *Note:* If it survives the Nursery, it will be promoted to Zone A in the next run.
@@ -192,10 +203,10 @@ In the JSON output concatenate Zone and Rank (e.g., A1, A2, B1, C1 etc).
 
 **RELEVANCE FILTER:**
 
-1. **MANDATORY INCLUDE:** EVERY stock where `shares_held > 0` (Active Holdings) OR `pending_buy_limit` exists. **You CANNOT ignore a stock we own.** If no changes are needed, simply return it with `action: HOLD`.
-2. **INCLUDE:** Any **NEW** candidate that qualifies for **Zone A** or **Zone C** (The Nursery).
-3. **EXCLUDE:** Only **NEW** candidates (Zero Shares) that failed to reach Zone A or Zone C.
 
+1. **MANDATORY INCLUDE:** EVERY stock where `shares_held > 0` (Active Holdings) OR `pending_buy_limit` exists. **You CANNOT ignore a stock we own.** If no changes are needed, simply return it with `action: HOLD`.
+2. **INCLUDE:** Any **NEW** candidate that qualifies for **Zone A** or **Zone C** (Top 3 Only).
+3. **EXCLUDE:** Only **NEW** candidates (Zero Shares) that failed to reach Zone A or the Top 3 of Zone C.
 	
 
 Return a JSON object with this EXACT structure:
