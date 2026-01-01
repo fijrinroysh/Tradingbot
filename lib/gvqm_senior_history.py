@@ -264,24 +264,49 @@ def get_last_strategy():
             time.sleep(2)
     return None
 
+
 def fetch_latest_ranks():
+    """
+    Fetches ranks STRICTLY from the most recent strategy run.
+    Ignores older runs to ensure 'dropped' stocks reset to Unranked.
+    Supports Alphanumeric ranks (A1, B10).
+    """
     for attempt in range(3):
         try:
             client = get_client()
             if not client: return {}
             try: sheet = client.open(SHEET_NAME).worksheet(SENIOR_DECISIONS_TAB)
             except: return {} 
+            
             records = safe_read_sheet(sheet)
             if not records: return {}
+            
+            # 1. Sort by Date Descending (Newest first)
             sorted_records = sorted(records, key=lambda x: robust_parse_date(x.get('Date', '')), reverse=True)
+            
+            if not sorted_records: return {}
+
+            # 2. Identify the Timestamp of the "Previous Run"
+            # We assume the first record represents the latest batch.
+            latest_run_date = sorted_records[0].get('Date')
+            
             rank_map = {}
             for r in sorted_records:
+                # 3. STRICT BARRIER: Stop if we hit an older batch
+                # This ensures we don't accidentally pull a rank from 2 days ago for a stock that was dropped yesterday.
+                if r.get('Date') != latest_run_date:
+                    break 
+
                 ticker = r.get('Ticker')
-                rank = r.get('Rank')
+                rank = r.get('Rank') # Keep as String (e.g., "A1", "B10")
+                
                 if ticker and ticker not in rank_map:
-                    try: rank_map[ticker] = int(float(rank)) if rank else 99
-                    except: pass
+                    # Do NOT cast to int. We need "A1".
+                    rank_map[ticker] = rank
+
+            print(f"   ✅ [MEMORY] Loaded Context from {latest_run_date}: {len(rank_map)} ranked tickers.")
             return rank_map
+
         except Exception as e:
             print(f"   ⚠️ Memory Fetch Error: {e}")
             time.sleep(1)
