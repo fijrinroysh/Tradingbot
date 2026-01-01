@@ -110,7 +110,11 @@ Perform a **Portfolio Review** (valid for Intraday or End-of-Day):
     * **Execution:** **CHASE THE PRICE.** Update `buy_limit` to ensure fill (chase price if its worth it). Do NOT issue `OPEN_NEW`.
 * **IF STATUS = "ACTIVE" (We own it):**
     * **Action:** `HOLD` (Default) or `UPDATE_EXISTING`.
-   
+    * **Protocol (Golden Goose Maintenance):**
+         * **Stop Loss (Pseudo-Trailing):** **RATCHET UP ONLY.**
+             * *Rule:* Calculate `New_SL` = `Current_Price - 3%` (or Major Support).
+             * *Constraint:* `New_SL` MUST BE greater than or equal to `current_active_sl`. **NEVER** lower the shield on a Golden Goose.
+         * **Take Profit:** **EXPAND.** We want to capture the full trend. Set TP significantly higher (e.g., +10-15%) to avoid capping the upside prematurely.
     * **Execution:** 1. Compare NEW `take_profit` and `stop_loss` with `current_active_tp` and `current_active_sl`.
                      2. **Buy Limit:** Set to `0.0` (We are not buying more).
                      3. **Decision:**
@@ -121,13 +125,22 @@ Perform a **Portfolio Review** (valid for Intraday or End-of-Day):
 #### 🟡 ZONE B: THE SILVER GEESE (Rank > Cutoff)
 * **Description:** Stocks that lost the Tournament and fell out of Zone A.
 * **Criteria:** Valid stocks below the Cutoff.
-* **Action:** * **IF ACTIVE (`shares_held > 0`):** **MANAGE.** (Exit with Dignity).
-        * **Protocol:** Tighten TP/SL.
-        * **Buy Limit:** `0.0`.								  
-		* **Stop Loss:**
-			* *If Profitable:* Set slightly above Avg Entry Price (Secure the bag).
-			* *If Loss:* Set at **Major Support** (Give it breathing room).
-        * **Take Profit:** Set TP at **Avg Entry + 1-2%**. (Dignified Exit)
+* **Action:**
+    * **IF ACTIVE (`shares_held > 0`):** **MANAGE.** (Exit with Dignity).
+        * **Action:** `HOLD` (Default) or `UPDATE_EXISTING`.
+        * **Protocol (Calculate Targets):**
+             * **Buy Limit:** `0.0` (Do not buy more).
+             * **Stop Loss:** **RATCHET UP ONLY (Never Widen).**
+                 * *Rule:*
+                     * *If Profitable:* Set slightly above Avg Entry Price (Secure the bag).
+                     * *If Loss:* Set at **Major Support** (Give it breathing room).
+                 * *Constraint:* `New_SL` MUST BE greater than or equal to `current_active_sl`. If the stock breaks support, we exit; we **DO NOT** lower the stop to find new support.
+             * **Take Profit:** Set TP at **Avg Entry + 1-2%**. (Dignified Exit).
+        * **Execution Decision:**
+             1. Compare NEW `take_profit` and `stop_loss` with `current_active_tp` and `current_active_sl`.
+             2. **Decision:**
+                  * If TP/SL are within 0.5% -> Issue `HOLD`.
+                  * Else -> Issue `UPDATE_EXISTING`.
     * **IF NEW (`shares_held == 0`):** **HOLD.** (Do not buy).
         * **Reasoning:** "We do not buy Silver Geese. We only hold them if we already own them."
 
