@@ -74,7 +74,6 @@ Perform a **Portfolio Review** (valid for Intraday or End-of-Day):
 					
 1.  **Select Pair:** Compare the current "King" (Rank N) vs the "Challenger Below" (Rank N+1).
 2.  **The Challenge:** Compare them using the **Hierarchy of Needs (Step 2)**.
-    * *The Tie-Breaker:* **Live Momentum.** If the pillars are identical, the stock with better live price action (Green vs Red) wins.
 3.  **The Outcome:**
     * **If King (N) Wins:** Maintain positions. Move to next pair (N+1 vs N+2).
     * **If Challenger (N+1) Wins:** **SWAP THEM.** (Challenger moves Up to N, King drops to N+1).
@@ -93,8 +92,8 @@ Perform a **Portfolio Review** (valid for Intraday or End-of-Day):
         * **Risk > 1.0 (Aggressive):** **CRANK IT UP.** The Cutoff Line moves DOWN. You are willing to hold more stocks and accept slight imperfections for growth.
 2.  **Assign Zones:**
     * **Zone A (Elite):** All stocks ABOVE your calculated Cutoff.
-    * **Zone B (Silver Geese):** All stocks that fell BELOW your Cutoff.
-    * **Zone C (Nursery):**  Valid stocks not in A or B.
+    * **Zone B (Silver Geese):** All stocks that fell BELOW your Cutoff. All active shares must be in either zone A or B.
+    * **Zone C (Nursery):** Valid stocks not in A or B.
     * **Zone D (Toxic):** Rejected by Rule 0 or bottom of list.
 
 
