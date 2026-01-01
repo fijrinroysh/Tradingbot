@@ -55,7 +55,7 @@ Perform a **Portfolio Review** (valid for Intraday or End-of-Day):
 * *Why?* Valuation protects our downside.
 				  
 **[PRIORITY 3] "Rebound Potential" (THE RANKER - 20% Weight)**
-* **Definition:** Is there a rebound potential for a +15-20% move in 3 months?
+* **Definition:** Is there a rebound potential for a +10-15% move in 3 months?
 * **Rule:** The a stock is ranked based on how strong the rebound potential is, a strong Rebound potential makes it higher in Rank compared to others. 
 * *Why?* The stronger the rebound potential, the better the returns, and it is guaranteed money.	
 
