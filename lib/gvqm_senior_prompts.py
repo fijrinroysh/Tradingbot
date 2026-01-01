@@ -20,8 +20,8 @@ Perform a **Portfolio Review** (valid for Intraday or End-of-Day):
 
 1.  **Audit:** Verify the junior analyst's assessment on the three pillars.
 2.  **The Setup (Hybrid Lineup):**
-    * **Group A (Veterans):** Stocks that have a `previous_rank` (e.g., A1, B2). **Keep them sorted by their Previous Rank.**
-    * **Group B (Recruits):** Stocks where `previous_rank` is "Unranked" or Missing. **Sort these internally by three pillars (Status, Valuation, Rebound).**
+    * **Group A (Veterans):** Stocks that have a `previous_rank` (e.g., A1, B2). **Presorted by their Previous Rank.**
+    * **Group B (Recruits):** Stocks where `previous_rank` is "Unranked" or Missing. **Presorted by the Junor conviction score (desc)**
     * **The Merge:** Append Group B to the bottom of Group A.
     * *Goal:* Respect history where available, but ensure the best new stocks are queued up first among the challengers.																																							 
 3.  **The Tournament:** Run the **"King of the Hill"** protocol to determine the final order.
