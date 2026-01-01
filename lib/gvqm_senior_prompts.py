@@ -23,9 +23,7 @@ Perform a **Portfolio Review** (valid for Intraday or End-of-Day):
     * **Group A (Veterans):** Stocks that have a `previous_rank` (e.g., A1, B2). **Keep them sorted by their Previous Rank.**
     * **Group B (Recruits):** Stocks where `previous_rank` is "Unranked" or Missing. **Sort these internally by three pillars (Status, Valuation, Rebound).**
     * **The Merge:** Append Group B to the bottom of Group A.
-    * *Goal:* Respect history where available, but ensure the best new stocks are queued up first among the challengers.
-																					 
-																																												 
+    * *Goal:* Respect history where available, but ensure the best new stocks are queued up first among the challengers.																																							 
 3.  **The Tournament:** Run the **"King of the Hill"** protocol to determine the final order.
 	 
 
@@ -51,38 +49,32 @@ Perform a **Portfolio Review** (valid for Intraday or End-of-Day):
 * **Rule:** If a stock is NOT Safe, it is a "Hard Reject" (Zone D). It does not matter how cheap it is or how much it might rebound. We do not catch falling knives.
 * *Why?* We are dealing with distressed stocks. Safety is our only shield against total loss.
 
-		   
-		 
 **[PRIORITY 2] "Bargain" (THE CUSHION - 30% Weight)**
 * **Definition:** Is the entry price historically low? Do we have a "Margin of Safety"?
 * **Rule:** If it is Safe but Expensive, pass. We need the price to be low enough that even if we are wrong, we don't get hurt too bad.
 * *Why?* Valuation protects our downside.
 				  
-
 **[PRIORITY 3] "Rebound Potential" (THE RANKER - 20% Weight)**
-* **Definition:** Is there a catalyst for a +15-20% move in 3 months?
-* **Rule:** This is the tie-breaker. The a stock is ranked based on how strong the rebound catalyst is, a strong Rebound catalyst makes it higher in Rank compared to others. 
-* *Why?* The stronger the rebound catalyst, the better the returns, and it is guaranteed money.	
+* **Definition:** Is there a rebound potential for a +15-20% move in 3 months?
+* **Rule:** The a stock is ranked based on how strong the rebound potential is, a strong Rebound potential makes it higher in Rank compared to others. 
+* *Why?* The stronger the rebound potential, the better the returns, and it is guaranteed money.	
+
+
 
 
 ### 🧠 STEP 3: THE KING OF THE HILL TOURNAMENT (Sorting Logic)
 *Do not just "pick" ranks. You must simulate a pairwise fight to the death.*
 
 **RULE 0: THE SAFETY TRAPDOOR (Existential Threats)**
-* **IF** a stock fails the "Safe" pillar (Priority 1)...							   
-								   
-* **THEN** it is **Unsafe (Zone D)**. Eject immediately. Do not risk letting it compete.
+    * **IF** a stock fails the "Safe" pillar (Priority 1)...							   			   
+    * **THEN** it is **Unsafe (Zone D)**. Eject immediately. Do not risk letting it compete.
 
 **THE ALGORITHM (Top-Down Gravity):**
 *Start at the TOP (Rank 1) and scan DOWN.*
 					
-
 1.  **Select Pair:** Compare the current "King" (Rank N) vs the "Challenger Below" (Rank N+1).
 2.  **The Challenge:** Compare them using the **Hierarchy of Needs (Step 2)**.
     * *The Tie-Breaker:* **Live Momentum.** If the pillars are identical, the stock with better live price action (Green vs Red) wins.
-			
-			  
-			   
 3.  **The Outcome:**
     * **If King (N) Wins:** Maintain positions. Move to next pair (N+1 vs N+2).
     * **If Challenger (N+1) Wins:** **SWAP THEM.** (Challenger moves Up to N, King drops to N+1).
@@ -102,7 +94,7 @@ Perform a **Portfolio Review** (valid for Intraday or End-of-Day):
 2.  **Assign Zones:**
     * **Zone A (Elite):** All stocks ABOVE your calculated Cutoff.
     * **Zone B (Silver Geese):** All stocks that fell BELOW your Cutoff.
-    * **Zone C (Nursery):** (Definition only - excluded from output). Valid stocks not in A or B.
+    * **Zone C (Nursery):**  Valid stocks not in A or B.
     * **Zone D (Toxic):** Rejected by Rule 0 or bottom of list.
 
 
@@ -124,16 +116,7 @@ Perform a **Portfolio Review** (valid for Intraday or End-of-Day):
                      3. **Decision:**
                             * If TP/SL are within 0.5% -> Issue `HOLD`.
                             * Else -> Issue `UPDATE_EXISTING`.
- 
- 
-
-												 
-																								
-												
-																																						 
-																	  
-			   
-																   
+ 										   
 
 #### 🟡 ZONE B: THE SILVER GEESE (Rank > Cutoff)
 * **Description:** Stocks that lost the Tournament and fell out of Zone A.
@@ -151,17 +134,7 @@ Perform a **Portfolio Review** (valid for Intraday or End-of-Day):
 #### 🔵 ZONE C: THE NURSERY (The Reservoir)
 * **Description:** Valid New Stocks that didn't make the cut for Zone A or B.
 * **Action:** `HOLD` (Watchlist Only). 
-																		 
-
-											   
-																							  
-												 
-				   
-													   
-										 
-																						
-																										
-
+																		 																									
 #### 🔴 ZONE D: THE TOXIC WASTE (Hard Reject)
 * **Description:** Stocks that are no longer Safe. Falling Knives. Broken Fundamentals. We just found out this golden goose cannot lay eggs at all.
 * **Criteria:** **Unsafe** (Fails Priority 1).
@@ -203,6 +176,8 @@ Perform a **Portfolio Review** (valid for Intraday or End-of-Day):
 ### 📋 CANDIDATE LIST (Live Data):
 {candidates_data}
 
+
+
 ### 📝 OUTPUT REQUIREMENTS (JSON ONLY)
 In the JSON output, concatenate Zone and **ABSOLUTE RANK**.
 **CRITICAL:** Do NOT reset the rank counter for each Zone.
@@ -213,7 +188,6 @@ In the JSON output, concatenate Zone and **ABSOLUTE RANK**.
 1. **MANDATORY INCLUDE:** **ALL** stocks in **Zone A** and **Zone B**.
 2. **FILTER:** Do **NOT** exclude a stock just because `shares_held` is 0. If it falls into Zone A or B, it MUST be reported.
 3. **EXCLUDE:** Stocks in **Zone C** (Nursery) and **Zone D** (Toxic).
-
 
 Return a JSON object with this EXACT structure:
 
@@ -227,7 +201,7 @@ Return a JSON object with this EXACT structure:
       "justification_safe": "Why is it safe and not a falling knife? Detailed Analysis (mandatory 3 sentences minimum) ",
       "justification_bargain": "Why is the price attractive? Detailed Analysis (mandatory 3 sentences minimum)",
       "justification_rebound": "Why do you think the price will rebound? Detailed Analysis (mandatory 3 sentences minimum)",
-      "reason": "Start with the Decision and Rank and the params. Then, provide a strict 'Pros vs Cons' verdict.  (mandatory 5 sentences minimum).",
+      "reason": "Start with the Decision, Rank and changes(Limit, TP, SL etc.). Then, provide a strict 'Pros vs Cons' verdict.  (mandatory 5 sentences minimum).",
       "confirmed_params": {{
           "buy_limit": 145.50,
           "take_profit": 160.00,

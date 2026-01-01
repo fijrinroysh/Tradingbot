@@ -131,7 +131,7 @@ def run_pipeline():
             
             # Cleaning
             r = copy.deepcopy(raw_report)
-            keys_to_remove = ['recommended_action', 'junior_targets', 'conviction_score', 'audit_reason', 'sector', 'status_reason', 'valuation_reason', 'rebound_reason']
+            keys_to_remove = ['recommended_action', 'junior_targets', 'conviction_score', 'audit_reason', 'sector', 'status_reason', 'valuation_reason', 'rebound_reason','catalyst']
 							  
 																		   
 																		

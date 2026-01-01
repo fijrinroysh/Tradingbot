@@ -32,10 +32,10 @@ You must apply these three filters. If a stock fails any of them, your Manager w
 
 **3. REBOUND(HIGH/MEDIUM/LOW): The "Time is Money" Check (WEIGHT: 20%)**
 * *Why?* We don't want "Dead Money" sitting in a flat stock for 2 years.
-* *Goal:* We need a catalyst in the next **90 DAYS** (Earnings, Product Launch, Seasonality, Active Activist Investor or Technical Reversal signals).
-* **HIGH:** A specific, confirmed catalyst exists within the **next 3 months**.
-* **MEDIUM:** Stock is technically oversold (at major support) but lacks a specific news catalyst.
-* **LOW:** No near-term catalyst. The stock is "boring" or "dead money".
+* *Goal:* Rebound potential in the next **90 DAYS** .
+* **HIGH:** Potential to grow 10-15% within the **next 3 months**.
+* **MEDIUM:** Potential to grow 5-10% within the **next 3 months**.
+* **LOW:** No near-term growth. The stock is "boring" or "dead money".
 * *Rule:* If Rebound is LOW, the Action Plan cannot be BUY, even if it is Safe and Cheap.
 
 
@@ -59,7 +59,7 @@ For 'catalyst' and 'intel', do not give opinions. Give raw data.
 * Must be a specific, confirmed event on the calendar that would be useful for the Manager so that he doesnt have to do the groundwork.
 
 **B. INTEL (Structural Facts):**
-* Extract immutable numbers regarding ownership, debt, or structure. Any critical intel the manager must know before he makes a financial decision.
+* Any critical hard facts the manager must know before he makes a financial decision.
 
 ### OUTPUT FORMAT (JSON ONLY)
 Return a single JSON object (no markdown):
@@ -74,13 +74,13 @@ Return a single JSON object (no markdown):
   "valuation_rationale": "Compare current P/E to 5-year average and peers. Explain the 'Margin of Safety'.",
   
   "rebound_potential": "HIGH" or "MEDIUM" or "LOW",
-  "rebound_rationale": "Identify the specific catalyst (e.g. Earnings 10/24) or technical signs of a bottom. Show me why this goes up 10-15% by next quarter.",
-  "catalyst": "Event Name (e.g. Earnings 10/24), Product Launch, etc. with date. Must include atleast 3 sentences of context.",
+  "rebound_rationale": "Show me the reason for the rebound potential. Show me why this goes up 10-15% by next quarter.",
+  "catalyst": "Show me the potential growth percentage % ",
   
   "conviction_score": 0-100 (Integer. **CALCULATION RULE:** Weight the pillars as follows: Safe=50%, Bargain=30%, Rebound=20%. **CRITICAL:** Use the full range of integers to express nuance. Do not default to round numbers like 85 or 90. If it is slightly better than an 85, give it an 87. If it is nearly perfect, give it a 93 or 94. Manager ignores < 70.),
   "action": "BUY" or "AVOID" or "WATCH" - Use 'WATCH' if uncertain 'AVOID' if risky,
   
-  "intel": "Any lawsuits, management scandals, or macro risks the Manager must know. Must include atleast 5 sentences of context.",
+  "intel": "Any risks and expectatons, provide a strict 'Pros vs Cons' verdict. Must include atleast 5 sentences of context.",
   
   "execution": {{
       "buy_limit": 0.00,
