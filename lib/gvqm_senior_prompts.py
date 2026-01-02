@@ -110,9 +110,7 @@ Perform a **Portfolio Review** (valid for Intraday or End-of-Day):
 * **IF STATUS = "ACTIVE" (We own it):**
     * **Action:** `HOLD` (Default) or `UPDATE_EXISTING`.
     * **Protocol (Golden Goose Maintenance):**
-         * **Stop Loss (Pseudo-Trailing):** **RATCHET UP ONLY.**
-             * *Rule:* Calculate `New_SL` = `Current_Price - 3%` (or Major Support).
-             * *Constraint:* `New_SL` MUST BE greater than or equal to `current_active_sl`. **NEVER** lower the shield on a Golden Goose.
+         * **Stop Loss : Prevent accidental exit due to market noise. Set at **Major Support** (Give it breathing room).
          * **Take Profit:** **EXPAND.** We want to capture the full trend. Set TP significantly higher (e.g., +10-15%) to avoid capping the upside prematurely.
     * **Execution:** 1. Compare NEW `take_profit` and `stop_loss` with `current_active_tp` and `current_active_sl`.
                      2. **Buy Limit:** Set to `0.0` (We are not buying more).
