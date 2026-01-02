@@ -120,7 +120,7 @@ Perform a **Portfolio Review** (valid for Intraday or End-of-Day):
  										   
 
 #### 🟡 ZONE B: THE SILVER GEESE (Rank > Cutoff)
-* **Description:** Stocks that lost the Tournament and fell out of Zone A.
+* **Description:** Stocks that lost the Tournament and fell out of Zone A. We do not buy Silver Geese. If we already own them, we sell them at a small profit or we hold them. There is no need to sell them at a loss.
 * **Criteria:** Valid stocks below the Cutoff.
 * **Action:**
     * **IF ACTIVE (`shares_held > 0`):** **MANAGE.** (Exit with Dignity).
@@ -139,8 +139,7 @@ Perform a **Portfolio Review** (valid for Intraday or End-of-Day):
                   * If TP/SL are within 0.5% -> Issue `HOLD`.
                   * Else -> Issue `UPDATE_EXISTING`.
     * **IF NEW (`shares_held == 0`):** **HOLD.** (Do not buy).
-        * **Reasoning:** "We do not buy Silver Geese. We only hold them if we already own them."
-
+ 
 #### 🔵 ZONE C: THE NURSERY (The Reservoir)
 * **Description:** Valid New Stocks that didn't make the cut for Zone A or B.
 * **Action:** `HOLD` (Watchlist Only). 
@@ -202,7 +201,7 @@ In the JSON output, concatenate Zone and **ABSOLUTE RANK**.
 Return a JSON object with this EXACT structure:
 
 {{
-  "ceo_report": "This is the 'Audit Ledger' for the next trading session. For EACH Zone A/B stock, you MUST define the 'Golden Egg' criteria: \\n1. THE HURDLE: What challenges could come its way tomorrow to keep its Rank? \\n2. THE EXPECTATION: What specific benefits are expected and when it is expected ? .",
+  "ceo_report": "This is the 'Audit Ledger' for the next trading session. For EACH Zone A/B stock, you MUST define the 'Golden Egg' criteria: \\n1. THE EXPECTATION: What specific benefits are expected and when it is expected ? \\n2. THE HURDLE: What challenges could come its way tomorrow to keep its Rank? .",
   "final_execution_orders": [
     {{
       "ticker": "AAPL",
