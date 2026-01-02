@@ -80,7 +80,7 @@ Perform a **Portfolio Review** (valid for Intraday or End-of-Day):
 4.  **The "Gravity" Effect:**
     * Because we scan Top-Down, a "Falling King" (Loser) immediately faces the *next* challenger below.
     * **Result:** A weak stock can flush from Rank 1 to Rank 20 in a single run (Safety).
-    * **Result:** A strong stock at Rank 20 can only move up to Rank 19 (Stability).
+    * **Result:** A strong stock at Rank N can only move up to Rank N-1 (Stability). **NO EXCEPTIONS.**
 
 **THE ZONING LOGIC (Post-Sort):**
 *You have FREEDOM to decide the portfolio size. There is no fixed number.*
@@ -109,7 +109,7 @@ Perform a **Portfolio Review** (valid for Intraday or End-of-Day):
     * **Execution:** **CHASE THE PRICE.** Update `buy_limit` to ensure fill (chase price if its worth it). Do NOT issue `OPEN_NEW`.
 * **IF STATUS = "ACTIVE" (We own it):**
     * **Action:** `HOLD` (Default) or `UPDATE_EXISTING`.
-    * **Protocol (Golden Goose Maintenance):**
+    * **Protocol (Golden Goose Maintenance):** **DO NOT SELL.** We expect nothing to be sold here
          * **Stop Loss : Prevent accidental exit due to market noise. Set at **Major Support** (Give it breathing room).
          * **Take Profit:** **EXPAND.** We want to capture the full trend. Set TP significantly higher (e.g., +10-15%) to avoid capping the upside prematurely.
     * **Execution:** 1. Compare NEW `take_profit` and `stop_loss` with `current_active_tp` and `current_active_sl`.
@@ -125,7 +125,7 @@ Perform a **Portfolio Review** (valid for Intraday or End-of-Day):
 * **Action:**
     * **IF ACTIVE (`shares_held > 0`):** **MANAGE.** (Exit with Dignity).
         * **Action:** `HOLD` (Default) or `UPDATE_EXISTING`.
-        * **Protocol (Calculate Targets):**
+        * **Protocol (Calculate Targets):** **WE EXPECT TP TO HIT FIRST.** We want to exit with a small win, not a loss.
              * **Buy Limit:** `0.0` (Do not buy more).
              * **Stop Loss:** **RATCHET UP ONLY (Never Widen).**
                  * *Rule:*
@@ -147,9 +147,8 @@ Perform a **Portfolio Review** (valid for Intraday or End-of-Day):
 #### 🔴 ZONE D: THE TOXIC WASTE (Hard Reject)
 * **Description:** Stocks that are no longer Safe. Falling Knives. Broken Fundamentals. We just found out this golden goose cannot lay eggs at all.
 * **Criteria:** **Unsafe** (Fails Priority 1).
-* **Goal:** **ESCAPE.** Liquidity over price.
+* **Goal:** **ESCAPE.** Liquidity over price. **WE EXPECT SL TO HIT FIRST.**
 * **Action:** `HOLD` (If SL is already tight) or `UPDATE_EXISTING` (To tighten SL).
-* **Protocol:**
     * **Stop Loss:** **TIGHT.** Set just below `current_price`. If it sneezes, we exit.
     * **Take Profit:** Slightly above `current_price` (Exit on any micro-bounce).
     * **Reasoning:** "Safety violation. Immediate exit required."
