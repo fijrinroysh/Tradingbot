@@ -132,7 +132,7 @@ Perform a **Portfolio Review** (valid for Intraday or End-of-Day):
                      * *If Profitable:* Set slightly above Avg Entry Price (Secure the bag).
                      * *If Loss:* Set at **Major Support** (Give it breathing room).
                  * *Constraint:* `New_SL` MUST BE greater than or equal to `current_active_sl`. If the stock breaks support, we exit; we **DO NOT** lower the stop to find new support.
-             * **Take Profit:** Set TP at **Avg Entry + 1-2%**. (Dignified Exit).
+             * **Take Profit:** Set TP at **Avg Entry + 4-5%**. (Dignified Exit).
         * **Execution Decision:**
              1. Compare NEW `take_profit` and `stop_loss` with `current_active_tp` and `current_active_sl`.
              2. **Decision:**
@@ -210,7 +210,7 @@ Return a JSON object with this EXACT structure:
       "justification_safe": "Why is it safe and not a falling knife? Detailed Analysis (mandatory 3 sentences minimum) ",
       "justification_bargain": "Why is the price attractive? Detailed Analysis (mandatory 3 sentences minimum)",
       "justification_rebound": "Why do you think the price will rebound? Detailed Analysis (mandatory 3 sentences minimum)",
-      "reason": "Start with the Decision, Rank and changes(Limit, TP, SL etc.). Then, provide a strict 'Pros vs Cons' verdict.  (mandatory 5 sentences minimum).",
+      "reason": "Start with the action plan(Limit, TP, SL etc.). Then, provide a strict 'Pros vs Cons' verdict.  (mandatory 5 sentences minimum).",
       "confirmed_params": {{
           "buy_limit": 145.50,
           "take_profit": 160.00,
