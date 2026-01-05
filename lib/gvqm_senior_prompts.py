@@ -21,7 +21,7 @@ Perform a **Portfolio Review** (valid for Intraday or End-of-Day):
 1.  **Audit:** Verify the junior analyst's assessment on the three pillars.
 2.  **The Setup (Hybrid Lineup):**
     * **Group A (Veterans):** Stocks that have a `previous_rank` (e.g., A1, B2). **Presorted by their Previous Rank.**
-    * **Group B (Recruits):** Stocks where `previous_rank` is "Unranked" or Missing. **Presorted by the Junior conviction score desc.**
+    * **Group B (Recruits):** Stocks where `previous_rank` is "Unranked" or Missing. **Presorted by the Junior conviction score.**
     * **The Merge:** Append Group B to the bottom of Group A.
     * *Goal:* The Veterans defend their titles. The Recruits must start at the bottom and fight their way up.
 3.  **The Tournament:** Run the **"King of the Hill"** protocol to determine the final order.
@@ -92,7 +92,7 @@ Perform a **Portfolio Review** (valid for Intraday or End-of-Day):
 4.  **The "Gravity" Effect:**
     * Because we scan Top-Down, a "Falling King" (Loser) immediately faces the *next* challenger below.
     * **Result:** A weak stock can flush from Rank 1 to Rank 20 in a single run (Safety).
-																									   
+																					
 
 **THE ZONING LOGIC (Post-Sort):**
 *You have FREEDOM to decide the portfolio size. There is no fixed number.*
@@ -140,10 +140,9 @@ Perform a **Portfolio Review** (valid for Intraday or End-of-Day):
     * **IF ACTIVE (`shares_held > 0`):** **MANAGE.** (Rotate Capital).
         * **Action:** `HOLD` (Default) or `UPDATE_EXISTING`.
         * **Protocol (Ratchet & Scratch):**
-													  
+			 * **Buy Limit:** `0.0` (Do not buy more).										  
              * **Stop Loss (The Ratchet):**
-                 * **If Profitable:** Move SL to **Break-Even**. Lock in the "Scratch".
-																							
+                 * **If Profitable:** Move SL to **Break-Even**. Lock in the "Scratch".																			
                  * **If Loss:** Set at **Major Support**. Give it one last chance.
                  * *Constraint:* Never widen the stop. Only move it UP.
              * **Take Profit (The Reality Check):**
@@ -154,7 +153,8 @@ Perform a **Portfolio Review** (valid for Intraday or End-of-Day):
              2. **Decision:**
                   * If TP/SL are within 0.5% -> Issue `HOLD`.
                   * Else -> Issue `UPDATE_EXISTING`.
-    * **IF NEW (`shares_held == 0`):** **HOLD.** (Do not buy). Set TP/SL to 0.0.
+    * **IF NEW (`shares_held == 0`):** **HOLD.** (Do not buy). Set TP/SL as `0.0`
+	
         * **Reasoning:** "We do not buy Silver Geese. They are on probation."
 
 #### 🔵 ZONE C: THE NURSERY (The Reservoir)
@@ -226,7 +226,7 @@ Return a JSON object with this EXACT structure:
       "justification_safe": "Why is it safe and not a falling knife? Detailed Analysis (mandatory 3 sentences minimum) ",
       "justification_bargain": "Why is the price attractive? Detailed Analysis (mandatory 3 sentences minimum)",
       "justification_rebound": "Why do you think the price will rebound? Detailed Analysis (mandatory 3 sentences minimum)",
-      "reason": "Report for CEO. Start with the action plan(Limit, TP, SL etc.). Then, provide a strict 'Pros vs Cons' verdict.  (mandatory 5 sentences minimum).",
+      "reason": "Report for CEO - Start with the action plan(Limit, TP, SL etc.). Then, provide a strict 'Pros vs Cons' verdict.  (mandatory 5 sentences minimum).",
       "confirmed_params": {{
           "buy_limit": 145.50,
           "take_profit": 160.00,

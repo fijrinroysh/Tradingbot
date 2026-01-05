@@ -67,9 +67,9 @@ def run_pipeline():
     #    log_pipeline("💤 Market Closed. Aborting.")
     #    return
 
-			   
 	  
-	
+   
+ 
     # --- JUNIOR PHASE ---
     log_pipeline("🕵️ PHASE 1: JUNIOR ANALYST RESEARCH")
     
@@ -102,15 +102,15 @@ def run_pipeline():
     # --- SENIOR PHASE ---
     log_pipeline("\n👨‍💼 PHASE 2: SENIOR MANAGER STRATEGY")
     
-			 
+	
     try:
         # --- STEP 1: FETCH LIVE PORTFOLIO FIRST ---
         log_pipeline("   ℹ️ Fetching Live Portfolio Context...")
-
-						  
+        
+		
   
-			
-								 
+   
+		 
         live_tickers = set()
         try:
             positions = trader.trading_client.get_all_positions()
@@ -153,22 +153,22 @@ def run_pipeline():
             r = copy.deepcopy(raw_report)
             keys_to_remove = ['recommended_action', 'junior_targets', 'conviction_score', 'audit_reason', 'sector', 'status_reason', 'valuation_reason', 'rebound_reason','catalyst']
             
-					 
-				  
-				 
-				
-	   
-		
-		   
-		
+	  
+	  
+	 
 	
+	
+  
+	 
+  
+ 
             for k in keys_to_remove:
                 if k in r: del r[k]
-			   
+	  
 
-					
+	 
             # CRITERIA 1: ACTIVE HOLDINGS (Always Include)
-								   
+		   
             if is_held:
                 if ticker not in seen_tickers:
                     final_candidates.append(r)
@@ -176,15 +176,15 @@ def run_pipeline():
                     log_pipeline(f"   ✅ Auto-Included {ticker} (Portfolio Review)")
                 continue 
 
-					
+	 
             # CRITERIA 2: SCORE FILTER
-															 
+				
             if score <= score_threshold:
                 continue 
                 
-					
+	 
             # CRITERIA 3: 250 SMA CHECK
-					
+	 
             current_price = trader.get_current_price(ticker)
             sma_250 = trader.get_simple_moving_average(ticker, window=250)
             
@@ -207,9 +207,9 @@ def run_pipeline():
         # 4. INJECT LIVE CONTEXT & RANK HISTORY
         log_pipeline(f"Fetching Live Data & Rank History...")
             
-				  
+	  
         previous_ranks = senior_history.fetch_latest_ranks() 
-				  
+	  
 
         holdings_map = {} 
         
@@ -218,46 +218,47 @@ def run_pipeline():
             c['current_price'] = trader.get_current_price(ticker)
             
             # Inject Previous Rank for Ladder Logic
-				   
+	   
             c['previous_rank'] = previous_ranks.get(ticker, "Unranked")
             
-		  
+	
             if hasattr(trader, 'get_position_details'):
                 details = trader.get_position_details(ticker)
                 
                 c['shares_held'] = details['shares_held']
                 c['avg_entry_price'] = details['avg_entry_price'] 
-				
-				# --- NEW: CALCULATE DAYS HELD ---
-				# We try to get the entry time. If missing, default to 0.
-				# You might need to update trader.py to return 'created_at' from Alpaca
-				entry_time = details.get('entry_time', None) 
-				
-				if entry_time:
-					# Calculate delta
-					if isinstance(entry_time, str):
-						# Parse Alpaca string if necessary (simplified)
-						try:
-							entry_dt = datetime.datetime.fromisoformat(entry_time.replace('Z', '+00:00'))
-						except:
-							entry_dt = datetime.datetime.now(datetime.timezone.utc)
-					else:
-						entry_dt = entry_time
-						
-					delta = datetime.datetime.now(datetime.timezone.utc) - entry_dt
-					c['days_held'] = delta.days
-				else:
-					c['days_held'] = 0 # Assume brand new if unknown
-				# --------------------------------
-					
+                
+                # --- NEW: CALCULATE DAYS HELD (Corrected Indentation) ---
+                # We try to get the entry time. If missing, default to 0.
+																		   
+                entry_time = details.get('entry_time', None) 
+                
+                if entry_time:
+                    # Calculate delta
+                    if isinstance(entry_time, str):
+                        try:
+                            # Parse Alpaca string if necessary
+		  
+                            entry_dt = datetime.datetime.fromisoformat(entry_time.replace('Z', '+00:00'))
+                        except:
+                            entry_dt = datetime.datetime.now(datetime.timezone.utc)
+                    else:
+                        entry_dt = entry_time
+                        
+                    delta = datetime.datetime.now(datetime.timezone.utc) - entry_dt
+                    c['days_held'] = delta.days
+                else:
+                    c['days_held'] = 0 # Assume brand new if unknown
+                # --------------------------------------------------------
+                    
                 c['current_active_tp'] = details['active_tp']
                 c['current_active_sl'] = details['active_sl']
                 c['pending_buy_limit'] = details['pending_buy_limit']
                 
                 holdings_map[ticker] = details['shares_held']
-	
-			   
-						
+
+	  
+	  
             else:
                 c['shares_held'] = trader.get_position(ticker)
                 holdings_map[ticker] = c['shares_held']
@@ -295,7 +296,7 @@ def run_pipeline():
         )
         
         if decision:
-		 
+   
             senior_history.log_strategy(decision)
             senior_history.log_detailed_decisions(decision, holdings_map)
             
@@ -319,42 +320,42 @@ def run_pipeline():
                 
                 try:
                     if action == "OPEN_NEW":
-			   
-				
+	  
+	
                         trade_events = trader.execute_entry(ticker, config.INVEST_PER_TRADE, p.get('buy_limit', 0), p.get('take_profit', 0), p.get('stop_loss', 0))
                     
                     elif action == "UPDATE_EXISTING":
-				
+	
                         trade_events = trader.execute_update(ticker, p.get('take_profit', 0), p.get('stop_loss', 0), buy_limit=p.get('buy_limit', 0))
                     
                     elif action == "HOLD":
                         log_pipeline(f"      ✋ Holding {ticker}.")
                         continue
                         
-						 
+	   
                 except Exception as e:
                     log_pipeline(f"      ❌ Execution Exception for {ticker}: {e}")
 
                 if isinstance(trade_events, dict): trade_events = [trade_events]
                 for event in trade_events:
                     if isinstance(event, dict) and event.get('event') != "ERROR":
-				
-				
+	
+	
                         senior_history.log_trade_event(ticker, event.get('event'), event)
-					  
-			 
-						
+	   
+	
+	  
 
             # 7. SEND EMAIL
             log_pipeline("\n📧 PHASE 4: NOTIFICATION")
             try:
-				 
+	 
                 account_info = trader.trading_client.get_account()
-	
-						   
+ 
+		 
                 portfolio = trader.trading_client.get_all_positions()
+ 
 	
-			 
                 notifier.send_executive_brief(decision, account_info, reports, portfolio)
 
                 log_pipeline("✅ Executive Brief email dispatched.")
