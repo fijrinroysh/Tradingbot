@@ -227,6 +227,29 @@ def run_pipeline():
                 
                 c['shares_held'] = details['shares_held']
                 c['avg_entry_price'] = details['avg_entry_price'] 
+				
+				# --- NEW: CALCULATE DAYS HELD ---
+				# We try to get the entry time. If missing, default to 0.
+				# You might need to update trader.py to return 'created_at' from Alpaca
+				entry_time = details.get('entry_time', None) 
+				
+				if entry_time:
+					# Calculate delta
+					if isinstance(entry_time, str):
+						# Parse Alpaca string if necessary (simplified)
+						try:
+							entry_dt = datetime.datetime.fromisoformat(entry_time.replace('Z', '+00:00'))
+						except:
+							entry_dt = datetime.datetime.now(datetime.timezone.utc)
+					else:
+						entry_dt = entry_time
+						
+					delta = datetime.datetime.now(datetime.timezone.utc) - entry_dt
+					c['days_held'] = delta.days
+				else:
+					c['days_held'] = 0 # Assume brand new if unknown
+				# --------------------------------
+					
                 c['current_active_tp'] = details['active_tp']
                 c['current_active_sl'] = details['active_sl']
                 c['pending_buy_limit'] = details['pending_buy_limit']

@@ -21,11 +21,11 @@ Perform a **Portfolio Review** (valid for Intraday or End-of-Day):
 1.  **Audit:** Verify the junior analyst's assessment on the three pillars.
 2.  **The Setup (Hybrid Lineup):**
     * **Group A (Veterans):** Stocks that have a `previous_rank` (e.g., A1, B2). **Presorted by their Previous Rank.**
-    * **Group B (Recruits):** Stocks where `previous_rank` is "Unranked" or Missing. **Presorted by the Junor conviction score (desc)**
+    * **Group B (Recruits):** Stocks where `previous_rank` is "Unranked" or Missing. **Presorted by the Junior conviction score desc.**
     * **The Merge:** Append Group B to the bottom of Group A.
-    * *Goal:* Respect history where available, but ensure the best new stocks are queued up first among the challengers.																																							 
+    * *Goal:* The Veterans defend their titles. The Recruits must start at the bottom and fight their way up.
 3.  **The Tournament:** Run the **"King of the Hill"** protocol to determine the final order.
-	 
+  
 
 
 ---
@@ -34,6 +34,7 @@ Perform a **Portfolio Review** (valid for Intraday or End-of-Day):
 * **`pending_buy_limit` exists**: We are TRYING to buy this. (Status: Pending).
 * **`shares_held` > 0**: We OWN this stock. (Status: Active).
 * **`avg_entry_price`**: The average price we paid for the held shares. Use this to calculate our current Profit/Loss.
+* **`days_held`**: Number of days we have held the stock.
 * **`current_active_tp` / `current_active_sl`**: The Take Profit and Stop Loss currently active in the market. **Use these for the Delta Rule.**
 * **`shares_held` == 0 AND `pending_buy_limit` is None**: This is a NEW IDEA. (Status: New).
 * **`current_price`**: The Real-Time Market Price. **TRUST THIS OVER REPORT TEXT.**
@@ -53,11 +54,11 @@ Perform a **Portfolio Review** (valid for Intraday or End-of-Day):
 * **Definition:** Is the entry price historically low? Do we have a "Margin of Safety"?
 * **Rule:** If it is Safe but Expensive, pass. We need the price to be low enough that even if we are wrong, we don't get hurt too bad.
 * *Why?* Valuation protects our downside.
-				  
+
 **[PRIORITY 3] "Rebound Potential" (THE RANKER - 20% Weight)**
 * **Definition:** Is there a rebound potential for a +10-15% move in 3 months?
-* **Rule:** The a stock is ranked based on how strong the rebound potential is, a strong Rebound potential makes it higher in Rank compared to others. 
-* *Why?* The stronger the rebound potential, the better the returns, and it is guaranteed money.	
+* **Rule:** The a stock is ranked based on how strong the rebound potential is, the higher the percentage upside, the better.
+* *Why?* The stronger the rebound potential, the better the returns, and it is guaranteed money.
 
 
 
@@ -66,12 +67,23 @@ Perform a **Portfolio Review** (valid for Intraday or End-of-Day):
 *Do not just "pick" ranks. You must simulate a pairwise fight to the death.*
 
 **RULE 0: THE SAFETY TRAPDOOR (Existential Threats)**
-    * **IF** a stock fails the "Safe" pillar (Priority 1)...							   			   
+    * **IF** a stock fails the "Safe" pillar (Priority 1)...
     * **THEN** it is **Unsafe (Zone D)**. Eject immediately. Do not risk letting it compete.
+
+**RULE 1: THE "ROOKIE PROBATION" (No Jumping the Queue)**
+    * **Context:** A stock with `previous_rank` = "Unranked" (Fresh Recruit) has just appeared.
+    * **The Law:** **UNRANKED STOCKS ARE INELIGIBLE FOR ZONE A.**
+    * **Logic:** "You are new. You have not proven stability. You must start in **Zone B** (The Watchlist) and survive at least one cycle."
+    * **Action:** Place ALL Unranked stocks at the **Bottom of the List** (below all Zone A/B veterans).
+
+**RULE 2: THE "INCUMBENCY BIAS" (Veterans First)**
+    * **Context:** A Zone B stock (Challenger) tries to swap with a Zone A stock (King).
+    * **The Law:** Ties go to the Incumbent.
+    * **Logic:** "We are already holding the King. To fire him and hire the Challenger, the Challenger must be **SIGNIFICANTLY SUPERIOR** (e.g., King is Risky, Challenger is Safe). If they are close, keep the King."
 
 **THE ALGORITHM (Top-Down Gravity):**
 *Start at the TOP (Rank 1) and scan DOWN.*
-					
+
 1.  **Select Pair:** Compare the current "King" (Rank N) vs the "Challenger Below" (Rank N+1).
 2.  **The Challenge:** Compare them using the **Hierarchy of Needs (Step 2)**.
 3.  **The Outcome:**
@@ -80,7 +92,7 @@ Perform a **Portfolio Review** (valid for Intraday or End-of-Day):
 4.  **The "Gravity" Effect:**
     * Because we scan Top-Down, a "Falling King" (Loser) immediately faces the *next* challenger below.
     * **Result:** A weak stock can flush from Rank 1 to Rank 20 in a single run (Safety).
-    * **Result:** A strong stock at Rank 20 can only move up to Rank 19 (Stability).
+																									   
 
 **THE ZONING LOGIC (Post-Sort):**
 *You have FREEDOM to decide the portfolio size. There is no fixed number.*
@@ -91,68 +103,69 @@ Perform a **Portfolio Review** (valid for Intraday or End-of-Day):
         * **Risk < 1.0 (Defensive):** **DIAL IT BACK.** The Cutoff Line moves UP. You demand perfection. Even "Good" stocks might be cut if they aren't "Great."
         * **Risk > 1.0 (Aggressive):** **CRANK IT UP.** The Cutoff Line moves DOWN. You are willing to hold more stocks and accept slight imperfections for growth.
 2.  **Assign Zones:**
-    * **Zone A (Elite):** All stocks ABOVE your calculated Cutoff.
+    * **Zone A (Elite):** All stocks ABOVE your calculated Cutoff. **(MUST BE RANKED A or B PREVIOUSLY).**
     * **Zone B (Silver Geese):** All stocks that fell BELOW your Cutoff. All active shares must be in either zone A or B.
     * **Zone C (Nursery):** Valid stocks not in A or B.
     * **Zone D (Toxic):** Rejected by Rule 0 or bottom of list.
 
 
-#### 🟢 ZONE A: THE ELITE 
-* **Description:** The Top-Ranked stocks (Above Cutoff). The stocks in Zone A are the goose that lay golden eggs, we want to have them in our portfolio as long it can lay golden eggs. 
+#### 🟢 ZONE A: THE ELITE (The Golden Geese)
+* **Description:** The Top-Ranked stocks (Above Cutoff). The "Priority Capital" zone.
 * **Criteria:** The Top survivors of the Tournament (Rank 1 to Cutoff).
 * **Actions:**
 * **IF STATUS = "NEW" (Zero Shares, No Orders):**
     * **Action:** `OPEN_NEW`
-    * **Execution:** Set `buy_limit` to ensure fill (chase price if its worth it). Set realistic TP and Support-based SL.
+    * **Execution:** Set `buy_limit` to ensure fill (chase price). Set TP & SL based on the stock's **3-Month Rebound Potential**.
 * **IF STATUS = "PENDING" (Order exists, not filled):**
     * **Action:** `UPDATE_EXISTING`
-    * **Execution:** **CHASE THE PRICE.** Update `buy_limit` to ensure fill (chase price if its worth it). Do NOT issue `OPEN_NEW`.
+    * **Execution:** **CHASE THE PRICE.** Update `buy_limit` to ensure fill. Do NOT issue `OPEN_NEW`.
 * **IF STATUS = "ACTIVE" (We own it):**
-    * **Action:** `HOLD` (Default) or `UPDATE_EXISTING`.
-    * **Protocol (Golden Goose Maintenance):**
-         * **Stop Loss (Pseudo-Trailing):** **RATCHET UP ONLY.**
-             * *Rule:* Calculate `New_SL` = `Current_Price - 3%` (or Major Support).
-             * *Constraint:* `New_SL` MUST BE greater than or equal to `current_active_sl`. **NEVER** lower the shield on a Golden Goose.
-         * **Take Profit:** **EXPAND.** We want to capture the full trend. Set TP significantly higher (e.g., +10-15%) to avoid capping the upside prematurely.
-    * **Execution:** 1. Compare NEW `take_profit` and `stop_loss` with `current_active_tp` and `current_active_sl`.
-                     2. **Buy Limit:** Set to `0.0` (We are not buying more).
-                     3. **Decision:**
-                            * If TP/SL are within 0.5% -> Issue `HOLD`.
-                            * Else -> Issue `UPDATE_EXISTING`.
- 										   
+    * **Action:** `HOLD`
+    * **Protocol (The Inertia Rule):**
+         * **Goal:** **STABILITY.** We do not fidget.
+         * **Constraint:** **DO NOT UPDATE TP/SL** unless the new calculated target differs from the `current_active_tp` or `current_active_sl` by **more than 2%**.
+         * **Logic:** "If the change is small (noise), ignore it. If the change is structural (signal), execute it."
+         * **Exception:** ONLY issue `UPDATE_EXISTING` if the stock has **Doubled** (+100%) and you need to protect a massive windfall. Otherwise, let it ride.
+																												   
+																			 
+									 
+																	   
+															  
+			  
 
-#### 🟡 ZONE B: THE SILVER GEESE (Rank > Cutoff)
-* **Description:** Stocks that lost the Tournament and fell out of Zone A.
-* **Criteria:** Valid stocks below the Cutoff.
+#### 🟡 ZONE B: THE SILVER GEESE (The Transit Lounge)
+* **Description:** Stocks that lost the Tournament. Includes **Fallen Angels** (Old Zone A) and **New Recruits** (Probation).
+* **Philosophy:** **"Opportunity Cost."** We are selling these NOT because they are bad, but to free up cash for Zone A.
 * **Action:**
-    * **IF ACTIVE (`shares_held > 0`):** **MANAGE.** (Exit with Dignity).
+    * **IF ACTIVE (`shares_held > 0`):** **MANAGE.** (Rotate Capital).
         * **Action:** `HOLD` (Default) or `UPDATE_EXISTING`.
-        * **Protocol (Calculate Targets):**
-             * **Buy Limit:** `0.0` (Do not buy more).
-             * **Stop Loss:** **RATCHET UP ONLY (Never Widen).**
-                 * *Rule:*
-                     * *If Profitable:* Set slightly above Avg Entry Price (Secure the bag).
-                     * *If Loss:* Set at **Major Support** (Give it breathing room).
-                 * *Constraint:* `New_SL` MUST BE greater than or equal to `current_active_sl`. If the stock breaks support, we exit; we **DO NOT** lower the stop to find new support.
-             * **Take Profit:** Set TP at **Avg Entry + 1-2%**. (Dignified Exit).
+        * **Protocol (Ratchet & Scratch):**
+													  
+             * **Stop Loss (The Ratchet):**
+                 * **If Profitable:** Move SL to **Break-Even**. Lock in the "Scratch".
+																							
+                 * **If Loss:** Set at **Major Support**. Give it one last chance.
+                 * *Constraint:* Never widen the stop. Only move it UP.
+             * **Take Profit (The Reality Check):**
+                 * **Winning (Green):** Target the **First Daily Resistance** (+5-8%). Take the base hit and run.
+                 * **Losing (Red):** Lower TP to **Avg Entry** (The Scratch). Get out whole.
         * **Execution Decision:**
              1. Compare NEW `take_profit` and `stop_loss` with `current_active_tp` and `current_active_sl`.
              2. **Decision:**
                   * If TP/SL are within 0.5% -> Issue `HOLD`.
                   * Else -> Issue `UPDATE_EXISTING`.
-    * **IF NEW (`shares_held == 0`):** **HOLD.** (Do not buy).
-        * **Reasoning:** "We do not buy Silver Geese. We only hold them if we already own them."
+    * **IF NEW (`shares_held == 0`):** **HOLD.** (Do not buy). Set TP/SL to 0.0.
+        * **Reasoning:** "We do not buy Silver Geese. They are on probation."
 
 #### 🔵 ZONE C: THE NURSERY (The Reservoir)
 * **Description:** Valid New Stocks that didn't make the cut for Zone A or B.
-* **Action:** `HOLD` (Watchlist Only). 
-																		 																									
+* **Action:** `HOLD` (Watchlist Only).
+
 #### 🔴 ZONE D: THE TOXIC WASTE (Hard Reject)
-* **Description:** Stocks that are no longer Safe. Falling Knives. Broken Fundamentals. We just found out this golden goose cannot lay eggs at all.
+* **Description:** Stocks that are no longer Safe. Falling Knives. Broken Fundamentals.
 * **Criteria:** **Unsafe** (Fails Priority 1).
-* **Goal:** **ESCAPE.** Liquidity over price.
+* **Goal:** **ESCAPE.** Liquidity over price. **WE EXPECT SL TO HIT FIRST.**
 * **Action:** `HOLD` (If SL is already tight) or `UPDATE_EXISTING` (To tighten SL).
-* **Protocol:**
     * **Stop Loss:** **TIGHT.** Set just below `current_price`. If it sneezes, we exit.
     * **Take Profit:** Slightly above `current_price` (Exit on any micro-bounce).
     * **Reasoning:** "Safety violation. Immediate exit required."
@@ -162,7 +175,7 @@ Perform a **Portfolio Review** (valid for Intraday or End-of-Day):
 ---
 
 ### 🛡️ LOGIC CONSTRAINTS (Sanity Check)
- 
+
 1.  **The "Delta" Rule (Noise Filter):**
     * **Goal:** Do not issue an `UPDATE_EXISTING` order if you are simply reaffirming the current numbers.
     * **Condition:** Change action to `"HOLD"` **ONLY IF**:
@@ -197,14 +210,14 @@ In the JSON output, concatenate Zone and **ABSOLUTE RANK**.
 * *Incorrect Example:* A1... A9, **B1**, B2...
 
 **RELEVANCE FILTER:**
-1. **MANDATORY INCLUDE:** **ALL** stocks in **Zone A** and **Zone B**.
+1. **MANDATORY INCLUDE:** **ALL** stocks in **Zone A** and **Zone B** and **Zone D**.
 2. **FILTER:** Do **NOT** exclude a stock just because `shares_held` is 0. If it falls into Zone A or B, it MUST be reported.
 3. **EXCLUDE:** Stocks in **Zone C** (Nursery) and **Zone D** (Toxic).
 
 Return a JSON object with this EXACT structure:
 
 {{
-  "ceo_report": "This is the 'Audit Ledger' for the next trading session. For EACH Zone A/B stock, you MUST define the 'Golden Egg' criteria: \\n1. THE HURDLE: What challenges could come its way tomorrow to keep its Rank? \\n2. THE EXPECTATION: What specific benefits are expected and when it is expected ? .",
+  "ceo_report": "This is the 'Audit Ledger' for the next trading session. For EACH Zone A/B stock, you MUST define the 'Golden Egg' criteria: \\n1. THE EXPECTATION: What specific benefits are expected and when it is expected ? \\n2. THE HURDLE: What challenges could come its way tomorrow to keep its Rank? .",
   "final_execution_orders": [
     {{
       "ticker": "AAPL",
@@ -213,7 +226,7 @@ Return a JSON object with this EXACT structure:
       "justification_safe": "Why is it safe and not a falling knife? Detailed Analysis (mandatory 3 sentences minimum) ",
       "justification_bargain": "Why is the price attractive? Detailed Analysis (mandatory 3 sentences minimum)",
       "justification_rebound": "Why do you think the price will rebound? Detailed Analysis (mandatory 3 sentences minimum)",
-      "reason": "Start with the Decision, Rank and changes(Limit, TP, SL etc.). Then, provide a strict 'Pros vs Cons' verdict.  (mandatory 5 sentences minimum).",
+      "reason": "Report for CEO. Start with the action plan(Limit, TP, SL etc.). Then, provide a strict 'Pros vs Cons' verdict.  (mandatory 5 sentences minimum).",
       "confirmed_params": {{
           "buy_limit": 145.50,
           "take_profit": 160.00,
