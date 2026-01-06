@@ -70,10 +70,10 @@ Perform a **Portfolio Review** (valid for Intraday or End-of-Day):
     * **IF** a stock fails the "Safe" pillar (Priority 1)...
     * **THEN** it is **Unsafe (Zone D)**. Eject immediately. Do not risk letting it compete.
 
-**RULE 1: THE "ROOKIE PROBATION" (No Jumping the Queue)**
+**RULE 1: THE "ROOKIE PROBATION" (The 15-Day Filter)**
     * **Context:** A stock with `previous_rank` = "Unranked" (Fresh Recruit) has just appeared.
     * **The Law:** **UNRANKED STOCKS ARE INELIGIBLE FOR ZONE A.**
-    * **Logic:** "You are new. You have not proven stability. You must start in **Zone B** (The Watchlist) and survive at least one cycle."
+    * **Logic:** "Our models often find value 2 weeks too early. New picks tend to drift lower for 15 days before rebounding. The Probation Period in Zone B is our shield against this premature entry."
     * **Action:** Place ALL Unranked stocks at the **Bottom of the List** (below all Zone A/B veterans).
 
 **RULE 2: THE "INCUMBENCY BIAS" (Veterans First)**
@@ -92,7 +92,7 @@ Perform a **Portfolio Review** (valid for Intraday or End-of-Day):
 4.  **The "Gravity" Effect:**
     * Because we scan Top-Down, a "Falling King" (Loser) immediately faces the *next* challenger below.
     * **Result:** A weak stock can flush from Rank 1 to Rank 20 in a single run (Safety).
-																					
+	  
 
 **THE ZONING LOGIC (Post-Sort):**
 *You have FREEDOM to decide the portfolio size. There is no fixed number.*
@@ -115,46 +115,54 @@ Perform a **Portfolio Review** (valid for Intraday or End-of-Day):
 * **Actions:**
 * **IF STATUS = "NEW" (Zero Shares, No Orders):**
     * **Action:** `OPEN_NEW`
-    * **Execution:** Set `buy_limit` to ensure fill (chase price). Set TP & SL based on the stock's **3-Month Rebound Potential**.
+    * **Execution:** Set `buy_limit` to ensure fill. Set TP & SL based on the stock's **3-Month Rebound Potential**.
 * **IF STATUS = "PENDING" (Order exists, not filled):**
     * **Action:** `UPDATE_EXISTING`
     * **Execution:** **CHASE THE PRICE.** Update `buy_limit` to ensure fill. Do NOT issue `OPEN_NEW`.
 * **IF STATUS = "ACTIVE" (We own it):**
     * **Action:** `HOLD`
-    * **Protocol (The Inertia Rule):**
-         * **Goal:** **STABILITY.** We do not fidget.
-         * **Constraint:** **DO NOT UPDATE TP/SL** unless the new calculated target differs from the `current_active_tp` or `current_active_sl` by **more than 2%**.
-         * **Logic:** "If the change is small (noise), ignore it. If the change is structural (signal), execute it."
-         * **Exception:** ONLY issue `UPDATE_EXISTING` if the stock has **Doubled** (+100%) and you need to protect a massive windfall. Otherwise, let it ride.
-																												   
-																			 
-									 
-																	   
-															  
-			  
+    * **Protocol (The Lifecycle Manager):**
+         * **Phase 1: INCUBATION (`days_held` < 60):**
+             * **Mindset:** "Blue Sky." We trust the 3-month thesis.
+             * **Constraint:** **DO NOT UPDATE TP/SL** unless the new target differs from current active orders by **more than 2%**.
+             * **Logic:** Avoid noise. Do not lower the TP.
+         * **Phase 2: HARVEST (`days_held` >= 60):**
+             * **Mindset:** "Diminishing Returns." The trade is maturing.
+             * **Rule:** **CAP THE UPSIDE.** Do not raise the Take Profit further. Assume saturation.
+             * **Action:** Focus on **Trailing the Stop Loss** to protect gains.
+         * **Saturation Check:** If `current_price` > `avg_entry_price` * 1.15 (15% gain), assume rebound is near completion. Do not project massive new upside.
+	 
+  
 
 #### 🟡 ZONE B: THE SILVER GEESE (The Transit Lounge)
 * **Description:** Stocks that lost the Tournament. Includes **Fallen Angels** (Old Zone A) and **New Recruits** (Probation).
-* **Philosophy:** **"Opportunity Cost."** We are selling these NOT because they are bad, but to free up cash for Zone A.
+* **Philosophy:** **"Opportunity Cost."** We are selling these to free up cash for Zone A, but we respect the setup.
 * **Action:**
     * **IF ACTIVE (`shares_held > 0`):** **MANAGE.** (Rotate Capital).
         * **Action:** `HOLD` (Default) or `UPDATE_EXISTING`.
-        * **Protocol (Ratchet & Scratch):**
-			 * **Buy Limit:** `0.0` (Do not buy more).										  
-             * **Stop Loss (The Ratchet):**
-                 * **If Profitable:** Move SL to **Break-Even**. Lock in the "Scratch".																			
-                 * **If Loss:** Set at **Major Support**. Give it one last chance.
-                 * *Constraint:* Never widen the stop. Only move it UP.
-             * **Take Profit (The Reality Check):**
-                 * **Winning (Green):** Target the **First Daily Resistance** (+5-8%). Take the base hit and run.
-                 * **Losing (Red):** Lower TP to **Avg Entry** (The Scratch). Get out whole.
+        * **Protocol (The 1-Month Timer):**
+             * **Goal:** "Get out within 30 days."
+             * **Phase 1: INCUBATION (`days_held` < 15):**
+                 * **Mindset:** "Give it a chance." The trade is young.
+                 * **Action:** Maintain **Original Targets**.
+                 * **Take Profit:** **ASSESS THE 1-MONTH REBOUND POTENTIAL YOURSELF.**
+                 * **Stop Loss:** **Major Support** (Structural).
+                 * *Constraint:* Do not move SL to Break-Even or lower TP to Scratch yet (unless price spikes).
+             * **Phase 2: HARVEST (`days_held` >= 15):**
+                 * **Mindset:** "Time is up." If it hasn't moved in 2 weeks, it is dead money.
+                 * **SCENARIO 1: WINNING (Current Price > Avg Entry):**
+                     * **Take Profit:** Maintain the Rebound Target.
+                     * **Stop Loss:** **Lock it in.** Move SL to **Break-Even** immediately.
+                 * **SCENARIO 2: LOSING (Current Price <= Avg Entry):**
+                     * **Take Profit:** **The Scratch.** Lower TP to **Avg Entry**. Get out whole.
+                     * **Stop Loss:** **Major Support**.
         * **Execution Decision:**
              1. Compare NEW `take_profit` and `stop_loss` with `current_active_tp` and `current_active_sl`.
              2. **Decision:**
                   * If TP/SL are within 0.5% -> Issue `HOLD`.
                   * Else -> Issue `UPDATE_EXISTING`.
     * **IF NEW (`shares_held == 0`):** **HOLD.** (Do not buy). Set TP/SL as `0.0`
-	
+ 
         * **Reasoning:** "We do not buy Silver Geese. They are on probation."
 
 #### 🔵 ZONE C: THE NURSERY (The Reservoir)
