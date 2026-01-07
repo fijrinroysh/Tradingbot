@@ -6,7 +6,7 @@ import sys, os
 import datetime
 import copy
 import json
-import re  # Added for Rank Parsing
+import re
 
 # Setup Paths
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -23,6 +23,10 @@ import lib.gvqm_senior_history as senior_history
 import lib.gvqm_email_notifier as notifier
 
 main_routes = Blueprint('main_routes', __name__)
+
+# ==========================================
+# 🛠️ HELPER FUNCTIONS
+# ==========================================
 
 def log_pipeline(message):
     """Central logger for the pipeline process"""
@@ -45,34 +49,61 @@ def parse_rank_score(rank_str):
     """
     if not rank_str or rank_str == "Unranked": return 99999
     try:
-        # Extract the zone letter (A, B, C)
         zone = rank_str[0].upper()
-        # Extract the number
         num_str = re.sub(r'\D', '', rank_str)
         num = int(num_str) if num_str else 0
-        
-        # Weighting: A=10000, B=20000, C=30000
         prefix = (ord(zone) - ord('A') + 1) * 10000
         return prefix + num
     except:
         return 99999
 
-def run_pipeline():
-    print("\n" + "="*60)
-    log_pipeline("🚀 STARTING DAILY TRADING PIPELINE (PRODUCTION)")
-    print("="*60)
-    
-    # 1. MARKET CHECK
-    # if not trader.is_market_open():
-    #    log_pipeline("💤 Market Closed. Aborting.")
-    #    return
+def calculate_days_held(ticker, details):
+    """
+    Robustly calculates days held using position details or order history fallback.
+    Returns: Integer (days)
+    """
+    entry_time = details.get('entry_time', None)
+    shares = details.get('shares_held', 0)
 
-	  
-   
- 
-    # --- JUNIOR PHASE ---
-    log_pipeline("🕵️ PHASE 1: JUNIOR ANALYST RESEARCH")
+    # 1. Try fetching from Details first
+    if entry_time:
+        if isinstance(entry_time, str):
+            try:
+                entry_dt = datetime.datetime.fromisoformat(entry_time.replace('Z', '+00:00'))
+            except:
+                entry_dt = datetime.datetime.now(datetime.timezone.utc)
+        else:
+            entry_dt = entry_time
+        
+        delta = datetime.datetime.now(datetime.timezone.utc) - entry_dt
+        return delta.days
+
+    # 2. Fallback: If missing but we OWN it, check Order History
+    elif shares > 0:
+        try:
+            # Fetch last 50 closed orders to find the entry
+            req = trader.GetOrdersRequest(status=trader.QueryOrderStatus.CLOSED, symbols=[ticker], limit=50)
+            closed_orders = trader.trading_client.get_orders(filter=req)
+            
+            # Find the most recent BUY order
+            last_buy = next((o for o in closed_orders if o.side == trader.OrderSide.BUY and o.filled_at), None)
+            
+            if last_buy:
+                delta = datetime.datetime.now(datetime.timezone.utc) - last_buy.filled_at
+                log_pipeline(f"   🕒 Calculated days_held for {ticker} from orders: {delta.days} days")
+                return delta.days
+        except Exception as e:
+            log_pipeline(f"   ⚠️ Could not calc days_held for {ticker}: {e}")
     
+    # Default to 0 (New/Unknown)
+    return 0
+
+# ==========================================
+# 🕵️ PHASE 1: JUNIOR ANALYST
+# ==========================================
+
+def run_junior_phase():
+    log_pipeline("🕵️ PHASE 1: JUNIOR ANALYST RESEARCH")
     try:
         candidates = scanner.find_distressed_stocks()
         log_pipeline(f"Scanner found {len(candidates)} raw candidates.")
@@ -95,208 +126,197 @@ def run_pipeline():
                 processed_count += 1
             time.sleep(1)
         log_pipeline(f"Junior Analyst filed {processed_count} new reports.")
-            
     except Exception as e:
         log_pipeline(f"❌ CRITICAL ERROR in Junior Phase: {e}")
 
-    # --- SENIOR PHASE ---
-    log_pipeline("\n👨‍💼 PHASE 2: SENIOR MANAGER STRATEGY")
-    
-	
+# ==========================================
+# 👨‍💼 PHASE 2: SENIOR MANAGER
+# ==========================================
+
+def get_live_context():
+    """Returns a set of all tickers currently held or with open orders."""
+    log_pipeline("   ℹ️ Fetching Live Portfolio Context...")
+    live_tickers = set()
     try:
-        # --- STEP 1: FETCH LIVE PORTFOLIO FIRST ---
-        log_pipeline("   ℹ️ Fetching Live Portfolio Context...")
+        positions = trader.trading_client.get_all_positions()
+        for p in positions: live_tickers.add(p.symbol)
         
-		
-  
-   
-		 
-        live_tickers = set()
-        try:
-            positions = trader.trading_client.get_all_positions()
-            for p in positions: live_tickers.add(p.symbol)
+        req_params = trader.GetOrdersRequest(status=trader.QueryOrderStatus.OPEN)
+        orders = trader.trading_client.get_orders(filter=req_params)
+        for o in orders: live_tickers.add(o.symbol)
+        
+        log_pipeline(f"   ℹ️ Portfolio Context: Tracking {len(live_tickers)} active tickers: {list(live_tickers)}")
+    except Exception as e:
+        log_pipeline(f"   ⚠️ Could not fetch live portfolio: {e}")
+    return live_tickers
+
+def filter_candidates(live_tickers):
+    """Fetches reports and filters them based on Score and SMA rules."""
+    lookback = getattr(config, 'SENIOR_LOOKBACK_DAYS', 5)
+    score_threshold = getattr(config, 'JUNIOR_SCORE_THRESHOLD', 88)
+    
+    # --- STEP 2: FETCH REPORTS (DUAL METHOD) ---
+    portfolio_reports = senior_history.fetch_portfolio_reports(live_tickers)
+    market_reports = senior_history.fetch_market_reports(lookback)
+    reports = portfolio_reports + market_reports
+    
+    log_pipeline(f"fetched {len(portfolio_reports)} portfolio reports + {len(market_reports)} market reports. Total: {len(reports)}")
+    log_pipeline(f"Applying filters: Score > {score_threshold} AND Price < 250 SMA (Unless Held)...")
+
+    # --- STEP 3: FILTER CANDIDATES ---
+    final_candidates = []
+    seen_tickers = set()
+
+    for raw_report in reports:
+        ticker = raw_report.get('ticker')
+        score = get_safe_score(raw_report)
+        is_held = ticker in live_tickers
+        
+        # Clean report
+        r = copy.deepcopy(raw_report)
+        keys_to_remove = ['recommended_action', 'junior_targets', 'conviction_score', 'audit_reason', 'sector', 'status_reason', 'valuation_reason', 'rebound_reason','catalyst']
+        for k in keys_to_remove:
+            if k in r: del r[k]
+
+        # CRITERIA 1: ACTIVE HOLDINGS (Always Include)
+        if is_held:
+            if ticker not in seen_tickers:
+                final_candidates.append(r)
+                seen_tickers.add(ticker)
+                log_pipeline(f"   ✅ Auto-Included {ticker} (Portfolio Review)")
+            continue 
+
+        # CRITERIA 2: SCORE FILTER
+        if score <= score_threshold: continue 
             
-            req_params = trader.GetOrdersRequest(status=trader.QueryOrderStatus.OPEN)
-            orders = trader.trading_client.get_orders(filter=req_params)
-            for o in orders: live_tickers.add(o.symbol)
-
-            log_pipeline(f"   ℹ️ Portfolio Context: Tracking {len(live_tickers)} active tickers: {list(live_tickers)}")
-        except Exception as e:
-            log_pipeline(f"   ⚠️ Could not fetch live portfolio: {e}")
-
-        # --- STEP 2: FETCH REPORTS (DUAL METHOD) ---
-        lookback = getattr(config, 'SENIOR_LOOKBACK_DAYS', 5)
+        # CRITERIA 3: 250 SMA CHECK
+        current_price = trader.get_current_price(ticker)
+        sma_250 = trader.get_simple_moving_average(ticker, window=250)
         
-        # A. Fetch Portfolio Reports (NO Filters)
-        portfolio_reports = senior_history.fetch_portfolio_reports(live_tickers)
-        
-        # B. Fetch Market Reports (STRICT Filters)
-        market_reports = senior_history.fetch_market_reports(lookback)
-        
-        # C. Combine (Routes logic will handle dedup if a stock is in both)
-        reports = portfolio_reports + market_reports
-        
-        log_pipeline(f"fetched {len(portfolio_reports)} portfolio reports + {len(market_reports)} market reports. Total: {len(reports)}")
-        
-        # --- STEP 3: FILTER CANDIDATES ---
-        final_candidates = []
-        seen_tickers = set()
-        
-        log_pipeline(f"Applying filters: Score > {score_threshold} AND Price < 250 SMA (Unless Held)...")
-
-        for raw_report in reports:
-            ticker = raw_report.get('ticker')
-            score = get_safe_score(raw_report)
-            is_held = ticker in live_tickers
-            
-            # Cleaning
-            r = copy.deepcopy(raw_report)
-            keys_to_remove = ['recommended_action', 'junior_targets', 'conviction_score', 'audit_reason', 'sector', 'status_reason', 'valuation_reason', 'rebound_reason','catalyst']
-            
-	  
-	  
-	 
-	
-	
-  
-	 
-  
- 
-            for k in keys_to_remove:
-                if k in r: del r[k]
-	  
-
-	 
-            # CRITERIA 1: ACTIVE HOLDINGS (Always Include)
-		   
-            if is_held:
+        if current_price and sma_250:
+            if current_price < sma_250:
                 if ticker not in seen_tickers:
                     final_candidates.append(r)
                     seen_tickers.add(ticker)
-                    log_pipeline(f"   ✅ Auto-Included {ticker} (Portfolio Review)")
-                continue 
-
-	 
-            # CRITERIA 2: SCORE FILTER
-				
-            if score <= score_threshold:
-                continue 
-                
-	 
-            # CRITERIA 3: 250 SMA CHECK
-	 
-            current_price = trader.get_current_price(ticker)
-            sma_250 = trader.get_simple_moving_average(ticker, window=250)
-            
-            if current_price and sma_250:
-                if current_price < sma_250:
-                    if ticker not in seen_tickers:
-                        final_candidates.append(r)
-                        seen_tickers.add(ticker)
-                else:
-                    log_pipeline(f"   📉 Rejecting {ticker}: Price ${current_price} is ABOVE 250 SMA.")
             else:
-                log_pipeline(f"   ⚠️ Skipping {ticker}: Could not verify SMA compliance.")
+                log_pipeline(f"   📉 Rejecting {ticker}: Price ${current_price} is ABOVE 250 SMA.")
+        else:
+            log_pipeline(f"   ⚠️ Skipping {ticker}: Could not verify SMA compliance.")
+
+    return final_candidates
+
+def enrich_and_sort_candidates(candidates):
+    """Injects live data (Price, Rank, Holdings, Days Held) and sorts them."""
+    log_pipeline(f"Fetching Live Data & Rank History...")
+    previous_ranks = senior_history.fetch_latest_ranks()
+    holdings_map = {}
+    
+    # 1. Enrich Data
+    for c in candidates:
+        ticker = c['ticker']
+        c['current_price'] = trader.get_current_price(ticker)
+        # Inject Previous Rank for Ladder Logic
+        c['previous_rank'] = previous_ranks.get(ticker, "Unranked")
         
+        if hasattr(trader, 'get_position_details'):
+            details = trader.get_position_details(ticker)
+            
+            c['shares_held'] = details['shares_held']
+            c['avg_entry_price'] = details['avg_entry_price']
+            c['current_active_tp'] = details['active_tp']
+            c['current_active_sl'] = details['active_sl']
+            c['pending_buy_limit'] = details['pending_buy_limit']
+            
+            # --- NEW: CALCULATE DAYS HELD (Corrected Indentation) ---
+            c['days_held'] = calculate_days_held(ticker, details)
+            
+            holdings_map[ticker] = details['shares_held']
+        else:
+            c['shares_held'] = trader.get_position(ticker)
+            holdings_map[ticker] = c['shares_held']
+
+    # ------------------------------------------------------------------
+    # NEW STEP 4.5: PRE-SORTING (CRITICAL FIX FOR ATTENTION SPAN)
+    # ------------------------------------------------------------------
+    log_pipeline("   🔢 Pre-Sorting Candidates (Veterans vs Recruits)...")
+    
+    active_holdings = [c for c in candidates if c.get('shares_held', 0) > 0]
+    new_candidates = [c for c in candidates if c.get('shares_held', 0) == 0]
+
+    # 1. Sort Veterans by Previous Rank (A1 < A2 < B1) to preserve stability
+    active_holdings.sort(key=lambda x: parse_rank_score(x.get('previous_rank')))
+
+    # 2. Sort Recruits by Junior Score (Desc) to ensure Meritocracy
+    new_candidates.sort(key=lambda x: int(float(x.get('conviction_score') or 0)), reverse=True)
+
+    # 3. Merge: Veterans at the Top, Best Recruits next, Weakest Recruits last
+    sorted_list = active_holdings + new_candidates
+    log_pipeline(f"   📊 Sorted List Prepared: {len(active_holdings)} Veterans + {len(new_candidates)} Recruits.")
+    
+    return sorted_list, holdings_map
+
+def execute_decisions(decision):
+    """Parses JSON decision and executes trades."""
+    # 6. EXECUTE TRADES
+    orders = decision.get('final_execution_orders', [])
+    log_pipeline(f"\n⚡ PHASE 3: EXECUTION ({len(orders)} Commands)")
+    
+    for order in orders:
+        ticker = order.get('ticker')
+        action = order.get('action', 'HOLD').upper() 
+        p = order.get('confirmed_params', {})
+        
+        log_pipeline(f"   👉 Processing Command: {action} {ticker}")
+        
+        trade_events = []
+        try:
+            if action == "OPEN_NEW":
+                trade_events = trader.execute_entry(ticker, config.INVEST_PER_TRADE, p.get('buy_limit', 0), p.get('take_profit', 0), p.get('stop_loss', 0))
+            
+            elif action == "UPDATE_EXISTING":
+                trade_events = trader.execute_update(ticker, p.get('take_profit', 0), p.get('stop_loss', 0), buy_limit=p.get('buy_limit', 0))
+            
+            elif action == "HOLD":
+                log_pipeline(f"      ✋ Holding {ticker}.")
+                continue
+                
+        except Exception as e:
+            log_pipeline(f"      ❌ Execution Exception for {ticker}: {e}")
+
+        if isinstance(trade_events, dict): trade_events = [trade_events]
+        for event in trade_events:
+            if isinstance(event, dict) and event.get('event') != "ERROR":
+                senior_history.log_trade_event(ticker, event.get('event'), event)
+
+def run_senior_phase():
+    log_pipeline("\n👨‍💼 PHASE 2: SENIOR MANAGER STRATEGY")
+    try:
+        # 1. Fetch Context
+        live_tickers = get_live_context()
+
+        # 2. Filter Candidates
+        final_candidates = filter_candidates(live_tickers)
         log_pipeline(f"Senior Agent will review {len(final_candidates)} candidates.")
         
         if not final_candidates:
             log_pipeline("📉 No candidates found. Stopping Senior Phase.")
             return
 
-        # 4. INJECT LIVE CONTEXT & RANK HISTORY
-        log_pipeline(f"Fetching Live Data & Rank History...")
-            
-	  
-        previous_ranks = senior_history.fetch_latest_ranks() 
-	  
-
-        holdings_map = {} 
-        
-        for c in final_candidates:
-            ticker = c['ticker']
-            c['current_price'] = trader.get_current_price(ticker)
-            
-            # Inject Previous Rank for Ladder Logic
-	   
-            c['previous_rank'] = previous_ranks.get(ticker, "Unranked")
-            
-	
-            if hasattr(trader, 'get_position_details'):
-                details = trader.get_position_details(ticker)
-                
-                c['shares_held'] = details['shares_held']
-                c['avg_entry_price'] = details['avg_entry_price'] 
-                
-                # --- NEW: CALCULATE DAYS HELD (Corrected Indentation) ---
-                # We try to get the entry time. If missing, default to 0.
-																		   
-                entry_time = details.get('entry_time', None) 
-                
-                if entry_time:
-                    # Calculate delta
-                    if isinstance(entry_time, str):
-                        try:
-                            # Parse Alpaca string if necessary
-		  
-                            entry_dt = datetime.datetime.fromisoformat(entry_time.replace('Z', '+00:00'))
-                        except:
-                            entry_dt = datetime.datetime.now(datetime.timezone.utc)
-                    else:
-                        entry_dt = entry_time
-                        
-                    delta = datetime.datetime.now(datetime.timezone.utc) - entry_dt
-                    c['days_held'] = delta.days
-                else:
-                    c['days_held'] = 0 # Assume brand new if unknown
-                # --------------------------------------------------------
-                    
-                c['current_active_tp'] = details['active_tp']
-                c['current_active_sl'] = details['active_sl']
-                c['pending_buy_limit'] = details['pending_buy_limit']
-                
-                holdings_map[ticker] = details['shares_held']
-
-	  
-	  
-            else:
-                c['shares_held'] = trader.get_position(ticker)
-                holdings_map[ticker] = c['shares_held']
-
-        # ------------------------------------------------------------------
-        # NEW STEP 4.5: PRE-SORTING (CRITICAL FIX FOR ATTENTION SPAN)
-        # ------------------------------------------------------------------
-        log_pipeline("   🔢 Pre-Sorting Candidates (Veterans vs Recruits)...")
-
-        # Split List
-        active_holdings = [c for c in final_candidates if c.get('shares_held', 0) > 0]
-        new_candidates = [c for c in final_candidates if c.get('shares_held', 0) == 0]
-
-        # 1. Sort Veterans by Previous Rank (A1 < A2 < B1) to preserve stability
-        active_holdings.sort(key=lambda x: parse_rank_score(x.get('previous_rank')))
-
-        # 2. Sort Recruits by Junior Score (Desc) to ensure Meritocracy
-        # (Handling potential None values safely)
-        new_candidates.sort(key=lambda x: int(float(x.get('conviction_score') or 0)), reverse=True)
-
-        # 3. Merge: Veterans at the Top, Best Recruits next, Weakest Recruits last
-        final_candidates = active_holdings + new_candidates
-        
-        log_pipeline(f"   📊 Sorted List Prepared: {len(active_holdings)} Veterans + {len(new_candidates)} Recruits.")
-        # ------------------------------------------------------------------
+        # 3. Enrich & Sort
+        sorted_candidates, holdings_map = enrich_and_sort_candidates(final_candidates)
 
         # 5. STRATEGY & DECISION
         log_pipeline("Calling Senior Agent AI for ranking...")
         context = senior_history.get_last_strategy()
-        
         decision = senior_agent.rank_portfolio(
-            final_candidates, 
+            sorted_candidates, 
             top_n=getattr(config, 'SENIOR_TOP_PICKS', 5),
+                # [NEW] Retrieve Risk Factor
+            risk_factor = getattr(config, 'RISK_FACTOR', 1.0),
             prev_context=context
         )
         
         if decision:
-   
             senior_history.log_strategy(decision)
             senior_history.log_detailed_decisions(decision, holdings_map)
             
@@ -305,59 +325,15 @@ def run_pipeline():
             print("="*80)
             print(decision.get('ceo_report'))
             
-            # 6. EXECUTE TRADES
-            orders = decision.get('final_execution_orders', [])
-            log_pipeline(f"\n⚡ PHASE 3: EXECUTION ({len(orders)} Commands)")
+            # 5. Execute
+            execute_decisions(decision)
             
-            for order in orders:
-                ticker = order.get('ticker')
-                action = order.get('action', 'HOLD').upper() 
-                p = order.get('confirmed_params', {})
-                
-                log_pipeline(f"   👉 Processing Command: {action} {ticker}")
-                
-                trade_events = []
-                
-                try:
-                    if action == "OPEN_NEW":
-	  
-	
-                        trade_events = trader.execute_entry(ticker, config.INVEST_PER_TRADE, p.get('buy_limit', 0), p.get('take_profit', 0), p.get('stop_loss', 0))
-                    
-                    elif action == "UPDATE_EXISTING":
-	
-                        trade_events = trader.execute_update(ticker, p.get('take_profit', 0), p.get('stop_loss', 0), buy_limit=p.get('buy_limit', 0))
-                    
-                    elif action == "HOLD":
-                        log_pipeline(f"      ✋ Holding {ticker}.")
-                        continue
-                        
-	   
-                except Exception as e:
-                    log_pipeline(f"      ❌ Execution Exception for {ticker}: {e}")
-
-                if isinstance(trade_events, dict): trade_events = [trade_events]
-                for event in trade_events:
-                    if isinstance(event, dict) and event.get('event') != "ERROR":
-	
-	
-                        senior_history.log_trade_event(ticker, event.get('event'), event)
-	   
-	
-	  
-
             # 7. SEND EMAIL
             log_pipeline("\n📧 PHASE 4: NOTIFICATION")
             try:
-	 
                 account_info = trader.trading_client.get_account()
- 
-		 
                 portfolio = trader.trading_client.get_all_positions()
- 
-	
-                notifier.send_executive_brief(decision, account_info, reports, portfolio)
-
+                notifier.send_executive_brief(decision, account_info, sorted_candidates, portfolio)
                 log_pipeline("✅ Executive Brief email dispatched.")
             except Exception as e:
                 log_pipeline(f"❌ Failed to send email: {e}")
@@ -365,9 +341,30 @@ def run_pipeline():
     except Exception as e:
         log_pipeline(f"❌ CRITICAL ERROR in Senior Phase: {e}")
 
+# ==========================================
+# 🚀 MAIN PIPELINE
+# ==========================================
+
+def run_pipeline():
+    print("\n" + "="*60)
+    log_pipeline("🚀 STARTING DAILY TRADING PIPELINE (PRODUCTION)")
+    print("="*60)
+    
+    # 1. MARKET CHECK
+    # if not trader.is_market_open():
+    #    log_pipeline("💤 Market Closed. Aborting.")
+    #    return
+
+    run_junior_phase()
+    run_senior_phase()
+
     print("\n" + "="*80)
     log_pipeline("✅ PIPELINE COMPLETE. Check Sheets & Email.")
     print("="*80 + "\n")
+
+# ==========================================
+# 🌐 FLASK ROUTES
+# ==========================================
 
 @main_routes.route('/tradingbot')
 def trigger_scan():

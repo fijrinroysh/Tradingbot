@@ -133,23 +133,21 @@ def visualize_decision(candidates, decision):
 
     print("="*82 + "\n")
 
-def rank_portfolio(candidates_list, top_n=5, lookback_days=10, prev_context=None):
+def rank_portfolio(candidates_list, top_n=5, risk_factor=1.0, lookback_days=10, prev_context=None):
     log_debug(f"Starting analysis for {len(candidates_list)} candidates using model: {MODEL_NAME}")
     
     if not prev_context: prev_context = {"date": "None", "top_tickers": "None"}
     
-    # [NEW] Retrieve Risk Factor
-    risk_factor = getattr(config, 'RISK_FACTOR', 1.0)
+
 
     try:
         # [UPDATED] Pass risk_factor and map top_n to max_trades
         prompt = prompts.SENIOR_MANAGER_PROMPT.format(
             count=len(candidates_list),
-            max_trades=top_n, # Maps to {max_trades}
+            #max_trades=top_n, # Maps to {max_trades}
             risk_factor=risk_factor, # Maps to {risk_factor}
             lookback=lookback_days,
-            prev_date=prev_context.get('date'),
-														
+            prev_date=prev_context.get('date'),	
             prev_report=prev_context.get('ceo_report', 'None'),
             candidates_data=json.dumps(candidates_list, indent=2)
         )
@@ -161,7 +159,7 @@ def rank_portfolio(candidates_list, top_n=5, lookback_days=10, prev_context=None
             print("\n" + "="*60)
             print(f"🧠 [SENIOR] DEBUG: PROMPT GENERATED | Risk: {risk_factor} | Max: {top_n}")
             print("="*60)
-            # print(prompt) # Uncomment to view full text
+            print(prompt) # Uncomment to view full text
             print("="*60 + "\n")
 
     except Exception as e:
