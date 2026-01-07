@@ -111,7 +111,7 @@ EMAIL_RECIPIENT = os.getenv("EMAIL")
 
 GOOGLE_SHEET_NAME = "TradingBot_History"
 
-DEBUG_MODE = os.getenv("DEBUG_MODE", "False")
+DEBUG_MODE = os.getenv("DEBUG_MODE", False)
 
 
 
