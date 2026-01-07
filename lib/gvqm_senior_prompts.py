@@ -123,8 +123,8 @@ Perform a **Portfolio Review** (valid for Intraday or End-of-Day):
     * **Action:** `HOLD`
     * **Protocol (The Lifecycle Manager):**
          * **Phase 1: INCUBATION (`days_held` < 60):**
-             * **Mindset:** "Blue Sky." We trust the 3-month thesis.
-             * **Constraint:** **DO NOT UPDATE TP/SL** unless the new target differs from current active orders by **more than 2%**.
+             * **Mindset:** Set TP & SL based on the stock's **3-Month Rebound Potential**
+             * **Constraint:** **DO NOT UPDATE TP/SL** unless the new target differs from current active orders by **more than 1%**.
              * **Logic:** Avoid noise. Do not lower the TP.
          * **Phase 2: HARVEST (`days_held` >= 60):**
              * **Mindset:** "Diminishing Returns." The trade is maturing.
