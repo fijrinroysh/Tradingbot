@@ -130,6 +130,6 @@ DEBUG_MODE = os.getenv("DEBUG_MODE", False)
 #   If max_trades = 5 and RISK_FACTOR = 1.2 -> Effective Capacity ~6 stocks.
 #   If max_trades = 5 and RISK_FACTOR = 0.8 -> Effective Capacity ~4 stocks.
 
-RISK_FACTOR = float(os.getenv("RISK_FACTOR", 0.8))  # Default: 1.0 (Neutral)
+RISK_FACTOR = float(os.getenv("RISK_FACTOR", 0.9))  # Default: 1.0 (Neutral)
 
 
