@@ -75,7 +75,6 @@ Perform a **Portfolio Review** (valid for Intraday or End-of-Day):
 **RULE 2: THE "INCUMBENCY BIAS" (Veterans First)**
     * **Context:** A Zone B stock (Challenger) tries to swap with a Zone A stock (King).
     * **The Law:** Ties go to the Incumbent.
-    * **Logic:** "We are already holding the King. To fire him and hire the Challenger, the Challenger must be **SIGNIFICANTLY SUPERIOR** (e.g., King is Risky, Challenger is Safe). If they are close, keep the King."
 
 **THE ALGORITHM (Top-Down Gravity):**
 *Start at the TOP (Rank 1) and scan DOWN.*
@@ -114,8 +113,8 @@ Perform a **Portfolio Review** (valid for Intraday or End-of-Day):
 * **IF STATUS = "PENDING" (Order exists, not filled):**
     * **Action:** `UPDATE_EXISTING`
     * **Execution:** **CHASE THE PRICE.** Update `buy_limit` to ensure fill. Do NOT issue `OPEN_NEW`.
-* **IF STATUS = "ACTIVE" (We own it):**
-    * **Action:** `HOLD` (Default) or `UPDATE_EXISTING`.
+* **IF STATUS = "ACTIVE" (We own it):** Set `buy_limit` as `0.0`
+    * **Action:** `HOLD` (Default) or `UPDATE_EXISTING`. 
     * **Protocol (The Lifecycle Manager):**
          * **Phase 1: INCUBATION (`days_held` < 60):**
              * **Mindset:** "Recalibrate." We regained Elite Status.

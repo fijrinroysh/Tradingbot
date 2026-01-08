@@ -14,3 +14,5 @@ google_credentials.json
 # Ignore cached data files
 backtesting/cache/
 # ---
+
+senior_prompt_debug.txt

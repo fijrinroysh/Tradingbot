@@ -157,9 +157,17 @@ def rank_portfolio(candidates_list, top_n=5, risk_factor=1.0, lookback_days=10, 
 												
 																							
             print("\n" + "="*60)
-            print(f"🧠 [SENIOR] DEBUG: PROMPT GENERATED | Risk: {risk_factor} | Max: {top_n}")
+            print(f"🧠 [SENIOR] DEBUG: PROMPT GENERATED | Risk: {risk_factor} ")
             print("="*60)
-            print(prompt) # Uncomment to view full text
+            ##print(prompt) # Uncomment to view full text
+            print("="*60 + "\n")
+
+            # Save to a file so you can read the whole thing!
+            filename = "senior_prompt_debug.txt"
+            with open(filename, "w", encoding="utf-8") as f:
+                f.write(prompt)
+                
+            print(f"📝 Prompt saved to file: {filename} (Open this file to see full output)")
             print("="*60 + "\n")
 
     except Exception as e:

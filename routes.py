@@ -311,11 +311,11 @@ def run_senior_phase():
         if raw_risk == 1.0:
             risk_instruction = "Neutral.  I trust your standard judgment. Proceed with your normal, expert judgment"
         elif raw_risk < 1.0:
-            pct = int((1.0 - raw_risk) * 100)
-            risk_instruction = f" You are taking too much risk for my taste. Play it safe, tighten your standards by roughly {pct}% from your normal expert judgement."
+            pct = int(round((1.0 - raw_risk) * 100))
+            risk_instruction = f" You are taking too much risk for my taste. Play it safe, tighten your standards by {pct}% from your normal expert judgement."
         else:
-            pct = int((raw_risk - 1.0) * 100)
-            risk_instruction = f"You are being too conservative for my taste. Go for growth, loosen your standards by roughly {pct}% from your normal expert judgement."
+            pct = int(round((raw_risk - 1.0) * 100))
+            risk_instruction = f"You are being too conservative for my taste. Go for growth, loosen your standards by  {pct}% from your normal expert judgement."
         
         log_pipeline(f"   ⚖️ Risk Mandate: {risk_instruction}")
         # -------------------------------------------
