@@ -12,8 +12,6 @@ NEWS_API_KEY = "41c62705f4db4931a0a7e551870a6d87"
 
 TRADINGVIEW_SECRET = "IAMIRONMAN"
 
-
-
 # 4. FINNHUB API KEY (for backtesting)
 FINNHUB_KEY = "d43pmk1r01qge0cuufvgd43pmk1r01qge0cuug00"
 # ---
@@ -130,6 +128,6 @@ DEBUG_MODE = os.getenv("DEBUG_MODE", False)
 #   If max_trades = 5 and RISK_FACTOR = 1.2 -> Effective Capacity ~6 stocks.
 #   If max_trades = 5 and RISK_FACTOR = 0.8 -> Effective Capacity ~4 stocks.
 
-RISK_FACTOR = float(os.getenv("RISK_FACTOR", 0.9))  # Default: 1.0 (Neutral)
+RISK_FACTOR = float(os.getenv("RISK_FACTOR", 1.0))  # Default: 1.0 (Neutral)
 
 
