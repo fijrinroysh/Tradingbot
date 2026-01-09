@@ -72,9 +72,6 @@ Perform a **Portfolio Review** (valid for Intraday or End-of-Day):
     * **Logic:** "Our models often find value 2 weeks too early. New picks tend to drift lower for 15 days before rebounding. The Probation Period in Zone B is our shield against this premature entry."
     * **Action:** Place ALL Unranked stocks at the **Bottom of the List** (below all Zone A/B veterans).
 
-**RULE 2: THE "INCUMBENCY BIAS" (Veterans First)**
-    * **Context:** A Zone B stock (Challenger) tries to swap with a Zone A stock (King).
-    * **The Law:** Ties go to the Incumbent.
 
 **THE ALGORITHM (Top-Down Gravity):**
 *Start at the TOP (Rank 1) and scan DOWN.*
