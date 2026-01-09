@@ -213,9 +213,9 @@ In the JSON output, concatenate Zone and **ABSOLUTE RANK**.
 * *Incorrect Example:* A1... A9, **B1**, B2...
 
 **RELEVANCE FILTER:**
-1. **MANDATORY INCLUDE:** **ALL** stocks in **Zone A** and **Zone B** and **Zone D**.
+1. **MANDATORY INCLUDE:** **ALL** stocks upto Rank 20.
 2. **FILTER:** Do **NOT** exclude a stock just because `shares_held` is 0. If it falls into Zone A or B, it MUST be reported.
-3. **EXCLUDE:** Stocks in **Zone C** (Nursery) and **Zone D** (Toxic).
+3. **EXCLUDE:** Stocks in **Zone C** (Nursery).
 
 Return a JSON object with this EXACT structure:
 
