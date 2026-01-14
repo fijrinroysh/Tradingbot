@@ -85,6 +85,7 @@ def _fetch_all_raw_reports():
 
 def _parse_report(row):
     """Internal Helper: Formats a raw row into a clean report object."""
+    # [STRICT] Now assumes Google Sheet headers match the new Schema
     return {
         "ticker": row.get('Ticker', '').upper().strip(),
         "report_date": robust_parse_date(row.get('Date', '')).strftime("%Y-%m-%d %H:%M"),
@@ -95,8 +96,11 @@ def _parse_report(row):
         "status_reason": row.get('Status_Reason', ''),
         "valuation": row.get('Valuation', ''),
         "valuation_reason": row.get('Valuation_Reason', ''),
-        "rebound_potential": row.get('Rebound', ''),
-        "rebound_reason": row.get('Rebound_Reason', ''),
+        
+        # LOOKING FOR NEW COLUMN NAMES
+        "upside_magnitude": row.get('Upside_Magnitude', ''), 
+        "upside_rationale": row.get('Upside_Rationale', ''),
+        
         "catalyst": row.get('Catalyst', ''),
         "intel": row.get('Intel', ''),
         "junior_targets": {

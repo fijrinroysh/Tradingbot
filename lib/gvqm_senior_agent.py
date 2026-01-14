@@ -144,7 +144,7 @@ def rank_portfolio(candidates_list, top_n=5, risk_factor=1.0, lookback_days=10, 
         # [UPDATED] Pass risk_factor and map top_n to max_trades
         prompt = prompts.SENIOR_MANAGER_PROMPT.format(
             count=len(candidates_list),
-            #max_trades=top_n, # Maps to {max_trades}
+            max_trades=top_n, # Maps to {max_trades}
             risk_factor=risk_factor, # Maps to {risk_factor}
             lookback=lookback_days,
             prev_date=prev_context.get('date'),	
@@ -160,7 +160,7 @@ def rank_portfolio(candidates_list, top_n=5, risk_factor=1.0, lookback_days=10, 
             print(f"🧠 [SENIOR] DEBUG: PROMPT GENERATED | Risk: {risk_factor} ")
             print("="*60)
             ##print(prompt) # Uncomment to view full text
-            print("="*60 + "\n")
+            print("="*60 + "\n") 
 
             # Save to a file so you can read the whole thing!
             filename = "senior_prompt_debug.txt"
