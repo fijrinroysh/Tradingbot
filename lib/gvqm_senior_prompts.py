@@ -217,9 +217,10 @@ In the JSON output, concatenate Zone and **ABSOLUTE RANK**.
 * *Correct Example:* A1, A2... A9, **B10**, B11...
 * *Incorrect Example:* A1... A9, **B1**, B2...
 
-**RELEVANCE FILTER:**
-1. **MANDATORY INCLUDE:** **ALL** stocks.
-2. **FILTER:** Do **NOT** exclude a stock just because `shares_held` is 0.
+**RELEVANCE FILTER (ZERO LOSS PROTOCOL):**
+1. **INPUT EQUALS OUTPUT:** You received {count} candidates. You MUST return {count} decisions.
+2. **MANDATORY INCLUSION:** Include **EVERY** stock from the Candidate List, even if the action is `HOLD` or the Rank is low (e.g., B20).
+3. **NO FILTERING:** Do NOT exclude stocks because they are "boring" or "waiting". Zone B and Zone C stocks MUST be reported.
 
 
 Return a JSON object with this EXACT structure:
