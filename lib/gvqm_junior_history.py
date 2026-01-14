@@ -44,18 +44,18 @@ def log_report(ticker, analysis):
             sheet = sh.sheet1
             
             # --- DEBUG: PRINT URL ---
-            # This tells us EXACTLY where the data is going
+														   
             if attempt == 0:
                 print(f"   📝 Writing to Sheet: {sh.title} (ID: {sh.id})")
-                print(f"   🔗 URL: https://docs.google.com/spreadsheets/d/{sh.id}")
+																					 
 
-            # --- CLEAN HEADERS (16 Columns) ---
+            # --- CLEAN HEADERS (Updated for Upside Magnitude) ---
             if sheet.row_count < 1 or not sheet.row_values(1):
                  headers = [
                      "Date", "Ticker", "Sector", "Action", "Score", 
                      "Status", "Status_Reason", 
                      "Valuation", "Valuation_Reason", 
-                     "Rebound", "Rebound_Reason", 
+                     "Upside_Magnitude", "Upside_Rationale", # <--- UPDATED NAMES
                      "Catalyst", 
                      "Buy_Limit", "Take_Profit", "Stop_Loss",
                      "Intel"
@@ -64,7 +64,7 @@ def log_report(ticker, analysis):
 
             exec_plan = analysis.get('execution', {})
             
-													   
+            # [STRICT] Directly accessing the new keys. No fallbacks.
             row = [
                 datetime.now().strftime("%Y-%m-%d %H:%M"),
                 ticker, 
@@ -75,8 +75,8 @@ def log_report(ticker, analysis):
                 analysis.get('status_rationale'),
                 analysis.get('valuation'), 
                 analysis.get('valuation_rationale'),
-                analysis.get('rebound_potential'), 
-                analysis.get('rebound_rationale'),
+                analysis.get('upside_magnitude'), # Strict Key
+                analysis.get('upside_rationale'), # Strict Key
                 analysis.get('catalyst'),
 	
 			 

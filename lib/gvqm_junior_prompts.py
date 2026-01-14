@@ -28,14 +28,14 @@ You must apply these three filters. If a stock fails any of them, your Manager w
 * **EXPENSIVE:** Trading at a premium despite the price drop.
 
 
-**3. REBOUND(HIGH/MEDIUM/LOW): The "Time is Money" Check (WEIGHT: 20%)**
-* *Why?* We don't want "Dead Money" sitting in a flat stock for 2 years.
-* *Goal:* Rebound potential in the next **90 DAYS** .
-* **HIGH:** Potential to grow 10-15% within the **next 3 months**.
-* **MEDIUM:** Potential to grow 5-10% within the **next 3 months**.
-* **LOW:** No near-term growth. The stock is "boring" or "dead money".
-* *Rule:* If Rebound is LOW, the Action Plan cannot be BUY, even if it is Safe and Cheap.
-
+**3. UPSIDE MAGNITUDE(HUGE/MODERATE/LOW): The "Size of Prize" Check (WEIGHT: 20%)**
+* *Definition:* How big is the gap between Current Price and Fair Value? (e.g., +20% vs +5%).
+* *The Bias Trap:* **Do NOT confuse "Speed" (Momentum) with "Size" (Potential).**
+* *Rule:* A stock sitting dead at the bottom often has **MORE** upside potential than a stock that has already surged. Rank based on the **size of the prize**, not how fast it is moving.
+* *Why?* We want the biggest wins, not just the fastest ones.
+* **HUGE:** Significant gap (>20%) between price and value.
+* **MODERATE:** Moderate gap (10-20%).
+* **LOW:** Little to no gap (<10%).
 
 
 
@@ -71,11 +71,12 @@ Return a single JSON object (no markdown):
   "valuation": "BARGAIN" or "FAIR" or "EXPENSIVE",
   "valuation_rationale": " Explain the 'Margin of Safety'.",
   
-  "rebound_potential": "HIGH" or "MEDIUM" or "LOW",
-  "rebound_rationale": "Show me the reason for the rebound potential. Show me why this goes up 10-15% by next quarter.",
+  "upside_magnitude": "HUGE" or "MODERATE" or "LOW",
+  "upside_rationale": "Analyze the gap between Current Price and Fair Value. Why is the prize big? Do not focus on speed.",
+  
   "catalyst": "Identify the DRIVER of the growth ",
   
-  "conviction_score": 0-100 (Integer. **CALCULATION RULE:** Weight the pillars as follows: Safe=50%, Bargain=30%, Rebound=20%. **CRITICAL:** Use the full range of integers to express nuance. Do not default to round numbers like 85 or 90. If it is slightly better than an 85, give it an 87. If it is nearly perfect, give it a 93 or 94. Manager ignores < 70.),
+  "conviction_score": 0-100 (Integer. **CALCULATION RULE:** Weight the pillars as follows: Safe=50%, Bargain=30%, Upside=20%. **CRITICAL:** Use the full range of integers to express nuance. Do not default to round numbers like 85 or 90. If it is slightly better than an 85, give it an 87. If it is nearly perfect, give it a 93 or 94. Manager ignores < 70.),
   "action": "BUY" or "AVOID" or "WATCH" - Use 'WATCH' if uncertain 'AVOID' if risky,
   
   "intel": "Any risks and expectatons, provide a strict 'Pros vs Cons' verdict. Must include atleast 5 sentences of context.",
