@@ -218,14 +218,14 @@ In the JSON output, concatenate Zone and **ABSOLUTE RANK**.
 * *Incorrect Example:* A1... A9, **B1**, B2...
 
 **RELEVANCE FILTER:**
-1. **MANDATORY INCLUDE:** **ALL** stocks upto Rank 20.
-2. **FILTER:** Do **NOT** exclude a stock just because `shares_held` is 0. If it falls into Zone A or B, it MUST be reported.
-3. **EXCLUDE:** Stocks in **Zone C** (Nursery).
+1. **MANDATORY INCLUDE:** **ALL** stocks.
+2. **FILTER:** Do **NOT** exclude a stock just because `shares_held` is 0.
+
 
 Return a JSON object with this EXACT structure:
 
 {{
-  "ceo_report": "This is the 'Audit Ledger' for the next trading session. For EACH Zone A/B stock, you MUST define the 'Golden Egg' criteria: \\n1. THE EXPECTATION: What specific benefits are expected and when it is expected ? \\n2. THE HURDLE: What challenges could come its way tomorrow to keep its Rank? .",
+  "ceo_report": "This is the 'To Do' for the next trading session. Keep track of things you have done so far and things yet to be done in the next trading session. For EACH Zone A/B stock, you MUST define the 'Golden Egg' criteria: \\n1. THE EXPECTATION: What specific benefits are expected and when it is expected ? \\n2. THE HURDLE: What challenges could come its way tomorrow to keep its Rank? .",
   "final_execution_orders": [
     {{
       "ticker": "AAPL",
