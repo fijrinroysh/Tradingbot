@@ -1,10 +1,15 @@
 import config
 import datetime
 import time
+	
+import pandas as pd 
+  
 from alpaca.trading.client import TradingClient
 from alpaca.trading.requests import LimitOrderRequest, TakeProfitRequest, StopLossRequest, GetOrdersRequest
 from alpaca.trading.enums import OrderSide, TimeInForce, OrderClass, QueryOrderStatus, OrderType
 from alpaca.data.historical import StockHistoricalDataClient
+					 
+	  
 from alpaca.data.requests import StockLatestTradeRequest, StockBarsRequest
 from alpaca.data.timeframe import TimeFrame
 
@@ -109,7 +114,7 @@ def _enforce_contract(data):
     if isinstance(data, list): return data if data else []
     return [{"event": "ERROR", "info": str(data)}]
 
-# [FIX] Common injector to restore logging
+   
 def _inject_log_params(result_list, qty, buy, tp, sl):
     """Common helper to inject trade parameters into result objects for logging."""
     for item in result_list:
@@ -118,7 +123,107 @@ def _inject_log_params(result_list, qty, buy, tp, sl):
         item['take_profit'] = tp
         item['stop_loss'] = sl
 
-def normalize_ticker(ticker): return ticker.replace('-', '.') if ticker else ticker
+def normalize_ticker(ticker): 
+    """Converts 'BF-B' to 'BF.B' for Alpaca API compatibility."""
+    return ticker.replace('-', '.') if ticker else ticker
+  
+
+# ==========================================================
+#  ⚡ BULK DATA FETCHER (Optimization)
+# ==========================================================
+def get_bulk_market_data(tickers, lookback=14):
+    """
+    Fetches History (for ATR) and Current Prices for ALL tickers in 2 API calls.
+				
+    Returns: (price_map, atr_map) keyed by the ORIGINAL (Hyphen) tickers.
+    """
+    price_map = {}
+    atr_map = {}
+    
+    if not tickers: return {}, {}
+
+    # 1. CREATE TRANSLATION MAP (Yahoo Hyphen -> Alpaca Dot)
+		 
+    ticker_map = { t.replace('-', '.'): t for t in tickers }
+    alpaca_tickers = list(ticker_map.keys())
+
+
+    # 2. BULK FETCH CURRENT PRICES
+    try:
+	
+        latest_trades_req = StockLatestTradeRequest(symbol_or_symbols=alpaca_tickers)
+        latest_trades = data_client.get_stock_latest_trade(latest_trades_req)
+        
+        for alpaca_ticker, trade in latest_trades.items():
+            original_ticker = ticker_map.get(alpaca_ticker, alpaca_ticker)
+            price_map[original_ticker] = round(trade.price, 2)
+            
+    except Exception as e:
+        print(f"[TRADER] ⚠️ Bulk Price Fetch Warning: {e}")
+
+    # 3. BULK FETCH HISTORY & CALCULATE ATR
+    try:
+        # [FIX] Added Start Date to ensure data is returned
+        start_dt = datetime.datetime.now() - datetime.timedelta(days=45)
+        
+        bars_request = StockBarsRequest(
+            symbol_or_symbols=alpaca_tickers,
+            timeframe=TimeFrame.Day,
+            start=start_dt,       # <--- CRITICAL FIX from debug session
+            limit=None
+        )
+        bars_df = data_client.get_stock_bars(bars_request).df
+
+        if not bars_df.empty:
+            # Handle MultiIndex [symbol, timestamp]
+            if 'symbol' in bars_df.index.names:
+	  
+                for alpaca_ticker, group in bars_df.groupby(level='symbol'):
+                    original_ticker = ticker_map.get(alpaca_ticker, alpaca_ticker)
+                    
+                    try:
+                        # Safety: Check row count
+                        if len(group) < lookback:
+                            print(f"[TRADER] ⚠️ {original_ticker}: Not enough data for ATR ({len(group)} rows < {lookback}). Defaulting to 0.0")
+                            atr_map[original_ticker] = 0.0
+                            continue
+
+                        # Vectorized ATR Logic
+                        df = group.copy()
+                        # Ensure sorted by date
+														 
+                        df = df.sort_index()
+                        
+                        df['h-l'] = df['high'] - df['low']
+                        df['h-pc'] = (df['high'] - df['close'].shift(1)).abs()
+                        df['l-pc'] = (df['low'] - df['close'].shift(1)).abs()
+                        df['tr'] = df[['h-l', 'h-pc', 'l-pc']].max(axis=1)
+                        
+                        # Rolling Average for ATR
+                        atr = df['tr'].rolling(window=lookback).mean().iloc[-1]
+                        
+										   
+                        if pd.isna(atr):
+                            atr_map[original_ticker] = 0.0
+                        else:
+                            atr_map[original_ticker] = round(float(atr), 2)
+																			   
+																								  
+
+                    except Exception as calc_err:
+                        print(f"[TRADER] ⚠️ ATR Calc Failed for {original_ticker}: {calc_err}")
+                        atr_map[original_ticker] = 0.0
+                        
+    except Exception as e:
+        print(f"[TRADER] ⚠️ Bulk History/ATR Fetch Warning: {e}")
+
+    return price_map, atr_map
+
+# ==========================================================
+#  INDIVIDUAL HELPERS (Legacy / Fallback)
+# ==========================================================
+  
+   
 
 def get_current_price(ticker):
     ticker = normalize_ticker(ticker)
@@ -145,6 +250,9 @@ def get_position(ticker):
 #  👀 THE CONTEXT FETCHER
 # ==========================================================
 def _fetch_snapshot(ticker):
+		   
+    alpaca_ticker = normalize_ticker(ticker)
+ 
     state = {
         "shares": 0.0, 
         "avg_entry": 0.0, 
@@ -157,7 +265,7 @@ def _fetch_snapshot(ticker):
     try:
         # 1. Shares & Entry Price
         try:
-            pos = trading_client.get_open_position(normalize_ticker(ticker))
+            pos = trading_client.get_open_position(alpaca_ticker)
             state["shares"] = float(pos.qty)
             state["avg_entry"] = float(pos.avg_entry_price)
         except:
@@ -165,7 +273,7 @@ def _fetch_snapshot(ticker):
             state["avg_entry"] = 0.0
 
         # 2. Orders
-        req = GetOrdersRequest(status=QueryOrderStatus.ALL, symbols=[ticker], limit=500)
+        req = GetOrdersRequest(status=QueryOrderStatus.ALL, symbols=[alpaca_ticker], limit=500)
         all_orders = trading_client.get_orders(filter=req)
   
         live_statuses = ['new', 'partially_filled', 'accepted', 'pending_new', 'pending_replace', 'held']
@@ -189,7 +297,7 @@ def _fetch_snapshot(ticker):
         return state
 
 def get_position_details(ticker):
-    ticker = normalize_ticker(ticker)
+				
     snap = _fetch_snapshot(ticker)
     
     details = {
@@ -214,19 +322,21 @@ def get_position_details(ticker):
 # ==========================================================
 
 def execute_update(ticker, take_profit, stop_loss, buy_limit=0):
-    ticker = normalize_ticker(ticker)
+		
+    alpaca_ticker = normalize_ticker(ticker)
+ 
     req_data = {"limit": buy_limit, "tp": take_profit, "sl": stop_loss}
     
-    # 1. SNAPSHOT BEFORE
+	  
     initial_state = _fetch_snapshot(ticker)
     if initial_state["manual"]:
         res = _enforce_contract({"event": "HOLD", "info": "User Manual Override"})
         log_execution_matrix(ticker, "UPDATE", initial_state, req_data, initial_state, res)
         return res
 
-    # 2. EXECUTE
+	
     try:
-        req_filter = GetOrdersRequest(status=QueryOrderStatus.ALL, symbols=[ticker], limit=500)
+        req_filter = GetOrdersRequest(status=QueryOrderStatus.ALL, symbols=[alpaca_ticker], limit=500)
         all_orders = trading_client.get_orders(filter=req_filter)
         live_statuses = ['new', 'partially_filled', 'accepted', 'pending_new', 'pending_replace', 'held']
         orders = [o for o in all_orders if (o.status.value if hasattr(o.status, 'value') else str(o.status)) in live_statuses]
@@ -234,23 +344,23 @@ def execute_update(ticker, take_profit, stop_loss, buy_limit=0):
         buy = next((o for o in orders if o.side == OrderSide.BUY), None)
   
         if buy:
-            res = pending_mgr.manage_pending_order(trading_client, ticker, buy, buy_limit, take_profit, stop_loss, orders)
+            res = pending_mgr.manage_pending_order(trading_client, alpaca_ticker, buy, buy_limit, take_profit, stop_loss, orders)
         else:
             if initial_state["shares"] > 0:
-                res = filled_mgr.manage_active_position(trading_client, ticker, initial_state["shares"], take_profit, stop_loss, orders)
+                res = filled_mgr.manage_active_position(trading_client, alpaca_ticker, initial_state["shares"], take_profit, stop_loss, orders)
             else:
                 res = [{"event": "HOLD", "info": "Nothing to update"}]
         
         final_res = _enforce_contract(res)
 
-        # [FIX] Resolve Qty and Inject Data
+	
         log_qty = initial_state['shares']
         if log_qty == 0 and buy and hasattr(buy, 'qty'):
             log_qty = float(buy.qty)
             
         _inject_log_params(final_res, log_qty, buy_limit, take_profit, stop_loss)
 
-        # [FIX] Calculate Deltas for "Nice Details"
+	  
         for item in final_res:
             if item.get('event') not in ['ERROR', 'HOLD']:
                 deltas = []
@@ -267,21 +377,23 @@ def execute_update(ticker, take_profit, stop_loss, buy_limit=0):
     except Exception as e:
         final_res = _enforce_contract({"event": "ERROR", "info": str(e)})
 
-    # 3. VERIFY
+   
     if final_res[0].get("event") not in ["ERROR", "HOLD"]:
         time.sleep(2) 
     
     final_state = _fetch_snapshot(ticker)
-    
-    # 4. LOG
+ 
+   
     log_execution_matrix(ticker, "UPDATE", initial_state, req_data, final_state, final_res)
     return final_res
 
 def execute_entry(ticker, investment_amount, buy_limit, take_profit, stop_loss):
-    ticker = normalize_ticker(ticker)
+		
+    alpaca_ticker = normalize_ticker(ticker)
+ 
     req_data = {"limit": buy_limit, "tp": take_profit, "sl": stop_loss, "amt": investment_amount}
     
-    # 1. SNAPSHOT
+	 
     initial_state = _fetch_snapshot(ticker)
     if initial_state["shares"] > 0 or initial_state["pending_buy"] or initial_state["manual"]:
         info = "Already Owned" if initial_state["shares"] > 0 else "Pending Exists"
@@ -289,7 +401,7 @@ def execute_entry(ticker, investment_amount, buy_limit, take_profit, stop_loss):
         log_execution_matrix(ticker, "ENTRY", initial_state, req_data, initial_state, res)
         return res
 
-    # 2. CALC & SUBMIT
+	   
     if buy_limit <= 0: return _enforce_contract({"event": "ERROR", "info": "Invalid Price"})
     qty = int(investment_amount / buy_limit)
  
@@ -297,7 +409,7 @@ def execute_entry(ticker, investment_amount, buy_limit, take_profit, stop_loss):
       
     try:
         order = LimitOrderRequest(
-            symbol=ticker, qty=qty, side=OrderSide.BUY, time_in_force=TimeInForce.GTC,
+            symbol=alpaca_ticker, qty=qty, side=OrderSide.BUY, time_in_force=TimeInForce.GTC,
             limit_price=buy_limit, order_class=OrderClass.BRACKET,
             take_profit=TakeProfitRequest(limit_price=take_profit),
             stop_loss=StopLossRequest(stop_price=stop_loss)
@@ -305,17 +417,21 @@ def execute_entry(ticker, investment_amount, buy_limit, take_profit, stop_loss):
         trade = trading_client.submit_order(order)
  
         final_res = _enforce_contract(trade)
-        
-        # [FIX] Use Shared Injector
+  
+	 
         _inject_log_params(final_res, qty, buy_limit, take_profit, stop_loss)
-        
+  
         for item in final_res:
             item['info'] = f"New Entry | Limit: {buy_limit}"
 
+  
+   
     except Exception as e:
         final_res = _enforce_contract({"event": "ERROR", "info": str(e)})
 
-    # 3. VERIFY
+  
+
+   
     if final_res[0].get("event") not in ["ERROR", "HOLD"]:
         time.sleep(2) 
         

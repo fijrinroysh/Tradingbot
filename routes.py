@@ -110,7 +110,15 @@ def run_junior_phase():
         
         limit = getattr(config, 'DAILY_SCAN_LIMIT', 20)
         score_threshold = getattr(config, 'JUNIOR_SCORE_THRESHOLD', 88)
-        fresh_candidates = junior_history.filter_candidates(candidates, limit=limit)
+        
+        # --- FIX: EXPLICITLY HANDLE 0 LIMIT ---
+        if limit == 0:
+            log_pipeline("⚠️ Daily Scan Limit set to 0. Skipping Junior Analysis.")
+            fresh_candidates = []
+        else:
+            fresh_candidates = junior_history.filter_candidates(candidates, limit=limit)
+        # --------------------------------------
+
         log_pipeline(f"Filtered to {len(fresh_candidates)} fresh candidates (Limit: {limit}).")
         
         processed_count = 0
@@ -174,7 +182,16 @@ def filter_candidates(live_tickers):
         
         # Clean report
         r = copy.deepcopy(raw_report)
-        keys_to_remove = ['recommended_action', 'junior_targets', 'conviction_score', 'audit_reason', 'sector', 'status_reason', 'valuation_reason', 'rebound_reason','catalyst']
+		
+																				  
+						  
+        # [FIX] Updated 'rebound_reason' to 'upside_rationale' to match new Schema
+        keys_to_remove = [
+            'recommended_action', 'junior_targets', 'conviction_score', 
+            'audit_reason', 'sector', 'status_reason', 'valuation_reason', 
+            'upside_rationale', 'catalyst'  # <--- CHANGED HERE
+        ]
+		
         for k in keys_to_remove:
             if k in r: del r[k]
 
@@ -211,13 +228,27 @@ def enrich_and_sort_candidates(candidates):
     previous_ranks = senior_history.fetch_latest_ranks()
     holdings_map = {}
     
+
+    # [NEW] 1. Extract List of Tickers & Bulk Fetch via Trader
+    all_tickers = [c['ticker'] for c in candidates]
+    price_map, atr_map = trader.get_bulk_market_data(all_tickers)															  
+												   
+																 
+
     # 1. Enrich Data
     for c in candidates:
         ticker = c['ticker']
-        c['current_price'] = trader.get_current_price(ticker)
+		
+									 
+        # [NEW] Assign from Bulk Data
+        c['current_price'] = price_map.get(ticker, 0.0)
+        c['daily_volatility'] = atr_map.get(ticker, 0.0) # Inject ATR
+																	 
+		
         # Inject Previous Rank for Ladder Logic
         c['previous_rank'] = previous_ranks.get(ticker, "Unranked")
         
+																		   
         if hasattr(trader, 'get_position_details'):
             details = trader.get_position_details(ticker)
             
