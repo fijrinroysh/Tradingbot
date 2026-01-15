@@ -188,7 +188,7 @@ def filter_candidates(live_tickers):
         # [FIX] Updated 'rebound_reason' to 'upside_rationale' to match new Schema
         keys_to_remove = [
             'recommended_action', 'conviction_score', 
-            'audit_reason', 'sector', 'upside_rationale'  # <--- CHANGED HERE
+            'audit_reason', 'sector', 'junior_targets' ,'catalyst','upside_rationale' # <--- CHANGED HERE
         ]
 		
         for k in keys_to_remove:
