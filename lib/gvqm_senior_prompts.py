@@ -58,10 +58,14 @@ Perform a **Portfolio Review** (valid for Intraday or End-of-Day):
 * **Rule:** A stock sitting dead at the bottom (Zone B) often has **MORE** upside potential than a stock that has already surged 5% (Zone A). Rank based on the **size of the prize**, not how fast it is moving.
 * *Why?* We want the biggest wins, not just the fastest ones.
 
-**[PRIORITY 4] "Catalyst & Momentum" (THE TIE-BREAKER - 5% Weight)**
-* **Definition:** Is there an immediate reason for the stock to move NOW? .
-* **Rule:** **ONLY** use this to break ties between stocks of equal Quality. If Stock A and Stock B are both Safe/Cheap with Huge Upside, buy the one that is moving TODAY.
-* *Why?* We prefer stocks that pay us sooner rather than later, but NEVER at the expense of Quality.
+**[PRIORITY 4] "Timing: Technical Reversion" (THE TRIGGER - 5% Weight)**
+* **Definition:** Is the "Rubber Band" snapping back right now?
+* **Reliable Signals:** **Oversold Bounce**, **RSI Divergence**, **Reclaiming a Key Level**.
+* **UNRELIABLE Signals (IGNORE):** Do **NOT** count "Upcoming Earnings" or "Hype Rumors" as a positive factor.
+* **Rule:** **ONLY** use this to break ties between stocks of equal Quality. If Stock A is "Falling" and Stock B is "Turning", buy Stock B.
+
+																																																	  
+  
 
 
 ### 🧠 STEP 3: THE KING OF THE HILL TOURNAMENT (Sorting Logic)
@@ -71,10 +75,11 @@ Perform a **Portfolio Review** (valid for Intraday or End-of-Day):
     * **IF** a stock fails the "Safe" pillar (Priority 1)...
     * **THEN** it is **Unsafe (Zone D)**. Eject immediately. Do not risk letting it compete.
 
-**RULE 1: THE "ROOKIE PROBATION" (The 15-Day Filter)**
-    * **Context:** A stock with `previous_rank` = "Unranked" (Fresh Recruit) has just appeared.
-    * **Action:** Place ALL Unranked stocks at the **Bottom of the List** .
 
+**RULE 1: THE "ROOKIE PROBATION" **
+    * **Context:** A stock with `previous_rank` = "Unranked" (Fresh Recruit) has just appeared.
+    * **The Law:** **UNRANKED STOCKS ARE INELIGIBLE FOR ZONE A.**
+    * **Action:** Place ALL Unranked stocks at the **Bottom of the List** (below all Zone A/B veterans).
 
 **THE ALGORITHM (Top-Down Gravity):**
 *Start at the TOP (Rank 1) and scan DOWN.*
@@ -97,15 +102,15 @@ Perform a **Portfolio Review** (valid for Intraday or End-of-Day):
     * **Apply the Risk Mandate:** Shift the cutoff line UP (Stricter) or DOWN (Lenient) according to the percentage deviation defined in the **CEO Profile**.
 																		   
 2.  **Assign Zones:**
-    * **Zone A (Elite):** All stocks ABOVE your calculated Cutoff. **(MUST BE RANKED A or B PREVIOUSLY).**
-    * **Zone B (Silver Geese):** All stocks that fell BELOW your Cutoff. All active shares must be in either zone A or B.
+    * **Zone A (Elite):** High Rank **AND** Positive Technical Signal (Pillar 4). **(We do NOT buy falling knives).**
+    * **Zone B (Silver Geese):** Stocks that missed the Cutoff **OR** High Rank stocks that failed Pillar 4 (Sleeping Giants).
     * **Zone C (Nursery):** Valid stocks not in A or B.
     * **Zone D (Toxic):** Rejected by Rule 0 or bottom of list.
 
 
 #### 🟢 ZONE A: THE ELITE (The Golden Geese)
-* **Description:** The Top-Ranked stocks (Above Cutoff). The "Priority Capital" zone.
-* **Criteria:** The Top survivors of the Tournament (Rank 1 to Cutoff).
+* **Description:** The Top-Ranked stocks that are **READY TO MOVE**.
+* **Criteria:** Must be Top Rank **AND** show a Reliable Signal (Bounce/Divergence/Support).
 * **Actions:**
 * **IF STATUS = "NEW" (Zero Shares, No Orders):**
     * **Action:** `OPEN_NEW`
@@ -134,8 +139,8 @@ Perform a **Portfolio Review** (valid for Intraday or End-of-Day):
   
 
 #### 🟡 ZONE B: THE SILVER GEESE (The Transit Lounge)
-* **Description:** Stocks that lost the Tournament. Includes **Fallen Angels** (Old Zone A) and **New Recruits** (Probation).
-* **Philosophy:** **"Opportunity Cost."** We are selling these to free up cash for Zone A, but **DO NOT SELL AT LOSS.**. 
+* **Description:** Stocks that lost the Tournament **OR** are waiting for a Technical Signal.
+* **Philosophy:** **"Opportunity Cost / Waiting Room."** We watch them closely, but we do not buy yet.
 * **Action:**
     * **IF ACTIVE (`shares_held > 0`):** **MANAGE.** (Rotate Capital).
         * **Action:** `HOLD` (Default) or `UPDATE_EXISTING`.
@@ -151,7 +156,7 @@ Perform a **Portfolio Review** (valid for Intraday or End-of-Day):
                  * **Mindset:** "Time is up." If it hasn't moved in 3 weeks, it is dead money.
                  * **SCENARIO 1: WINNING (Current Price > Avg Entry):**
                      * **Take Profit:** Maintain the Upside Target.
-                     * **Stop Loss:** Calculate `current_price` minus **1.0 * `daily_volatility`**. (Tight Leash).
+                     * **Stop Loss:** **Lock it in.** Move SL to **Break-Even** immediately.
                  * **SCENARIO 2: LOSING (Current Price <= Avg Entry):**
                      * **Take Profit:** **The Scratch.** Lower TP to **Avg Entry**. Get out whole.
                      * **Stop Loss:** Calculate `current_price` minus **1.0 * `daily_volatility`**. (Tight Leash).
@@ -163,7 +168,6 @@ Perform a **Portfolio Review** (valid for Intraday or End-of-Day):
                   * Else -> Issue `UPDATE_EXISTING`.
     * **IF NEW (`shares_held == 0`):** **HOLD.** (Do not buy). Set TP/SL as `0.0`
  
-        * **Reasoning:** "We do not buy Silver Geese. They are on probation."
 
 #### 🔵 ZONE C: THE NURSERY (The Reservoir)
 * **Description:** Valid New Stocks that didn't make the cut for Zone A or B.
@@ -231,9 +235,9 @@ Return a JSON object with this EXACT structure:
       "ticker": "AAPL",
       "rank": "A1",
       "action": "OPEN_NEW",
-      "justification_safe": "Why is it safe and not a falling knife? Detailed Analysis (mandatory 3 sentences minimum) ",
-      "justification_bargain": "Why is the price attractive? Detailed Analysis (mandatory 3 sentences minimum)",
-      "justification_rebound": "Analyze the gap between Current Price and Fair Value. Why is the prize big? Do not focus on speed. (mandatory 3 sentences minimum)",
+      "justification_safe": "Pillar 1 Justification (mandatory 3 sentences minimum) ",
+      "justification_bargain": "Pillar 2 Justification (mandatory 3 sentences minimum)",
+      "justification_rebound": "Pillar 3 Justification (mandatory 3 sentences minimum)",
       "reason": "Report for CEO - Start with the action plan(Limit, TP, SL etc.). Then, provide a strict 'Pros vs Cons' verdict.  (mandatory 5 sentences minimum).",
       "confirmed_params": {{
           "buy_limit": 145.50,
