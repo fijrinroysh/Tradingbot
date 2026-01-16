@@ -54,6 +54,7 @@ def log_execution_matrix(ticker, command, initial_state, request_data, final_sta
     req_lines = []
     if "amt" in request_data: req_lines.append(f"Invest: ${request_data['amt']}")
     if request_data.get('limit', 0) > 0: req_lines.append(f"Set Buy: ${request_data['limit']:.2f}")
+    elif request_data.get('action') == "CANCEL": req_lines.append("ACTION: CANCEL")
     else: req_lines.append("Set Buy: (Hold/Mkt)")
     
     req_lines.append(f"Set TP:  ${request_data['tp']:.2f}")
@@ -63,7 +64,7 @@ def log_execution_matrix(ticker, command, initial_state, request_data, final_sta
     res_lines = []
     evt = exec_result[0].get("event", "UNKNOWN") if exec_result else "UNKNOWN"
     
-    if evt in ["ERROR", "HOLD"]:
+    if evt in ["ERROR", "HOLD", "CANCEL_PENDING"]:
         res_lines.append(f"Status: {evt}")
         res_lines.append(f"Info:   {exec_result[0].get('info', '')[:15]}...")
     else:
@@ -320,6 +321,30 @@ def get_position_details(ticker):
 # ==========================================================
 #  MAIN ENTRY POINTS (Verified & Validated)
 # ==========================================================
+
+# --- NEW: EXPLICIT CANCEL ACTION ---
+def execute_cancel(ticker):
+    """
+    New Dedicated Route for CANCEL_PENDING action.
+    """
+    alpaca_ticker = normalize_ticker(ticker)
+    
+    # 1. Snapshot Before
+    initial_state = _fetch_snapshot(ticker)
+    
+    # 2. Execute Kill
+    # Call the new function in the manager
+    final_res = pending_mgr.kill_order(trading_client, alpaca_ticker)
+    
+    # 3. Snapshot After
+    final_state = _fetch_snapshot(ticker)
+    
+    # 4. Log Matrix
+    # We construct a fake 'request_data' just for the log table display
+    req_data = {"limit": 0.0, "tp": 0.0, "sl": 0.0, "action": "CANCEL"}
+    
+    log_execution_matrix(ticker, "CANCEL", initial_state, req_data, final_state, final_res)
+    return final_res
 
 def execute_update(ticker, take_profit, stop_loss, buy_limit=0):
 		

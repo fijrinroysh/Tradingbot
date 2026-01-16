@@ -1,11 +1,39 @@
 import time
 import datetime
-from alpaca.trading.requests import LimitOrderRequest, TakeProfitRequest, StopLossRequest, ReplaceOrderRequest
-from alpaca.trading.enums import OrderSide, TimeInForce, OrderClass, OrderType
+from alpaca.trading.requests import LimitOrderRequest, TakeProfitRequest, StopLossRequest, ReplaceOrderRequest, GetOrdersRequest
+from alpaca.trading.enums import OrderSide, TimeInForce, OrderClass, OrderType, QueryOrderStatus
 
 def log(message):
     timestamp = datetime.datetime.now().strftime("%H:%M:%S")
     print(f"[{timestamp}] [PENDING_MGR] {message}")
+
+# --- NEW: EXPLICIT KILL SWITCH ---
+def kill_order(client, ticker):
+    """
+    Explicitly finds and cancels any open orders for this ticker.
+    Used when action is 'CANCEL_PENDING'.
+    """
+    log(f"💀 KILL COMMAND received for {ticker}.")
+    try:
+        # 1. Find the orders
+        req = GetOrdersRequest(status=QueryOrderStatus.OPEN, symbols=[ticker])
+        orders = client.get_orders(filter=req)
+        
+        if not orders:
+            return [{"event": "HOLD", "info": "No Orders to Cancel"}]
+
+        # 2. Cancel them
+        cancel_ids = []
+        for o in orders:
+            client.cancel_order_by_id(o.id)
+            cancel_ids.append(str(o.id))
+        
+        time.sleep(2) # Wait for Alpaca to process
+        return [{"event": "CANCEL_PENDING", "info": f"Killed {len(cancel_ids)} orders"}]
+
+    except Exception as e:
+        log(f"❌ Kill Failed: {e}")
+        return [{"event": "ERROR", "info": str(e)}]
 
 def manage_pending_order(client, ticker, parent_buy, buy_limit, take_profit, stop_loss, orders):
     """
@@ -37,27 +65,9 @@ def manage_pending_order(client, ticker, parent_buy, buy_limit, take_profit, sto
         return _nuclear_resubmit(client, ticker, parent_buy, buy_limit, take_profit, stop_loss, orders)
 
     return [{"event": "HOLD_PENDING", "info": "Bracket is aligned"}]
-    """
-    Main Entry Point for Pending Orders (Unfilled).
-    Tries Polite Update -> Falls back to Nuclear Resubmit.
-    """
-    current_limit = float(parent_buy.limit_price)
-    needs_limit_update = buy_limit > 0 and abs(current_limit - float(buy_limit)) >= 0.01
+	   
 
-    try:
-        # PLAN A: POLITE UPDATE
-        if needs_limit_update:
-            log(f"👉 Updating Buy Limit for {ticker}: {current_limit} -> {buy_limit}")
-            client.replace_order_by_id(parent_buy.id, ReplaceOrderRequest(limit_price=float(buy_limit)))
-            time.sleep(1) # Allow settlement
-            return [{"event": "UPDATE_PENDING", "info": "Limit Updated"}]
-        
-        # Note: We skip complex leg updates on pending orders to avoid broker brittleness.
-        return [{"event": "HOLD_PENDING", "info": "No Limit Change Needed"}]
-
-    except Exception as e:
-        log(f"⚠️ Update Failed ({e}). Escalating to NUCLEAR RESUBMIT.")
-        return _nuclear_resubmit(client, ticker, parent_buy, buy_limit, take_profit, stop_loss, orders)
+														   
 
 def _nuclear_resubmit(client, ticker, parent_buy, buy_limit, take_profit, stop_loss, orders):
     """

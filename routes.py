@@ -305,6 +305,9 @@ def execute_decisions(decision):
             elif action == "UPDATE_EXISTING":
                 trade_events = trader.execute_update(ticker, p.get('take_profit', 0), p.get('stop_loss', 0), buy_limit=p.get('buy_limit', 0))
             
+            elif action == "CANCEL_PENDING":
+                trade_events = trader.execute_cancel(ticker)
+            
             elif action == "HOLD":
                 log_pipeline(f"      ✋ Holding {ticker}.")
                 continue
