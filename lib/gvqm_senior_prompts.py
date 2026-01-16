@@ -87,19 +87,9 @@ You must rank these stocks as if you own **NONE** of them.
 
 						 			  
 **1. ZONE A (SORT BY BEHAVIOR 1 INTENSITY)**
-* **The Metric:** **VELOCITY.** Who is printing the biggest Green Candle **RIGHT NOW**?
-* **The Logic:**
-    * **Rank 1:** The "Rocket." Highest Daily % Gain + Breakout Volume.
-    * **Rank Lower:** Weak bounces or flat stocks.
-* *Goal:* If OXY is up +3% today and MSI is flat, **OXY MUST BE RANKED HIGHER**, even if we own MSI.
-
 **2. ZONE B (SORT BY BEHAVIOR 2 STABILITY)**
-* **The Metric:** **FLOOR STRENGTH.** Who has the most solid support level?
-* **The Logic:** Tightest consolidation pattern goes to the top. The "sleepiest" stock is the best B-Tier.
-
 **3. ZONE C (SORT BY BEHAVIOR 3 DANGER)**
-* **The Metric:** **CRITICALITY.** Who is closest to the Stop Loss?
-* **The Logic:** Stocks threatening to break support go to the top (High Alert).
+
 
 **RULE 0: THE SAFETY TRAPDOOR**
 * **IF** Junior says "Unsafe" -> **Zone D (Toxic)**. Eject.
