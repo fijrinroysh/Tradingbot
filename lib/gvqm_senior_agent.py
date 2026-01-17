@@ -27,13 +27,13 @@ def clean_json_text(text):
         return text
     except: return text
 
-# --- VISUALIZATION ENGINE (UPDATED FOR A1/B1 RANKING) ---                                                                            
+# --- VISUALIZATION ENGINE ---                                                                            
 def visualize_decision(candidates, decision):
     """
     Prints a human-readable 'Reality vs Decision' matrix.
-    v4.0: Updated for Alphanumeric Ranks (A1, B1) & Risk Dial.
+    v4.1: Updated to handle 'HIDDEN' strings safely.
     """
-    # [NEW] Get Risk Context for Header
+    # Get Risk Context for Header
     risk_factor = getattr(config, 'RISK_FACTOR', 1.0)
     mode = "NEUTRAL"
     if risk_factor > 1.0: mode = "AGGRESSIVE"
@@ -54,24 +54,31 @@ def visualize_decision(candidates, decision):
         # --- PREPARE DATA ---
         price = cand.get('current_price', 0)
         held = cand.get('shares_held', 0)
-        avg_entry = cand.get('avg_entry_price', 0) 
+												   
         
+        # Handle HIDDEN Entry Price safely
+        raw_entry = cand.get('avg_entry_price', 0)
+        if isinstance(raw_entry, (int, float)):
+            entry_str = f"${raw_entry:.2f}"
+        else:
+            entry_str = str(raw_entry) # "HIDDEN"
+
         curr_tp = cand.get('current_active_tp', '-') or '-'
         curr_sl = cand.get('current_active_sl', '-') or '-'
         
         pending_buy = cand.get('pending_buy_limit')
-        if pending_buy and pending_buy != "MKT" and float(pending_buy) > 0:
-            pending_str = f"PENDING BUY @ ${pending_buy}"
+        if pending_buy and pending_buy != "MKT" and str(pending_buy).replace('.','',1).isdigit() and float(pending_buy) > 0:
+            pending_str = f"PENDING BUY @ ${float(pending_buy):.2f}"
         elif pending_buy == "MKT":
              pending_str = "PENDING BUY @ MKT"
         else:
             pending_str = "No Pending Orders"
 
-        # --- NEW: RANK DATA ---
-        # Now expects "A1", "A2", "B1" etc.
+        # --- RANK DATA ---
+										   
         rank = order.get('rank', 'N/A') 
         prev_rank = order.get('previous_rank', 'N/A')
-        
+		
         action = order.get('action', 'HOLD')
         
         # --- PILLARS ---
@@ -91,7 +98,7 @@ def visualize_decision(candidates, decision):
 
         # --- DRAW TABLE ---
         print(f"{color}" + "-"*82)
-        # Display Rank cleanly: "Rank: A1"
+										  
         print(f" {ticker:<6} | {action:<15} | RANK: {rank}")
         print("-" * 82 + f"{reset}")
         
@@ -105,7 +112,7 @@ def visualize_decision(candidates, decision):
         
         # Row 2: Held
         if held > 0:
-            r2_left = f"Held:     {held} @ ${avg_entry:.2f}"
+            r2_left = f"Held:     {held} @ {entry_str}"
         else:
             r2_left = f"Held:     0 shares"
             
@@ -121,9 +128,9 @@ def visualize_decision(candidates, decision):
         r4_left = f"Status:   {pending_str}"
         print(f" {r4_left:<38} |")
 
-					   
-															
-								  
+		
+			   
+		  
         
         print(f" {'-'*80}")
         print(f" 🛡️ Safe:    {why_safe[:70]}")
@@ -141,11 +148,11 @@ def rank_portfolio(candidates_list, top_n=5, risk_factor=1.0, lookback_days=10, 
 
 
     try:
-        # [UPDATED] Pass risk_factor and map top_n to max_trades
+																
         prompt = prompts.SENIOR_MANAGER_PROMPT.format(
             count=len(candidates_list),
-            max_trades=top_n, # Maps to {max_trades}
-            risk_factor=risk_factor, # Maps to {risk_factor}
+            max_trades=top_n, 
+            risk_factor=risk_factor, 
             lookback=lookback_days,
             prev_date=prev_context.get('date'),	
             prev_report=prev_context.get('ceo_report', 'None'),
@@ -153,22 +160,21 @@ def rank_portfolio(candidates_list, top_n=5, risk_factor=1.0, lookback_days=10, 
         )
 
         if getattr(config, 'DEBUG_MODE', False):
-																							
-												
-																							
+					   
+																						
             print("\n" + "="*60)
             print(f"🧠 [SENIOR] DEBUG: PROMPT GENERATED | Risk: {risk_factor} ")
-            print("="*60)
-            ##print(prompt) # Uncomment to view full text
-            print("="*60 + "\n") 
-
-            # Save to a file so you can read the whole thing!
+            print("="*60)					
+																				  
+						 
+            # Save prompt to file
+												 
             filename = "senior_prompt_debug.txt"
             with open(filename, "w", encoding="utf-8") as f:
                 f.write(prompt)
-                
-            print(f"📝 Prompt saved to file: {filename} (Open this file to see full output)")
-            print("="*60 + "\n")
+				
+            print(f"📝 Prompt saved to file: {filename}")
+					
 
     except Exception as e:
         log_debug(f"CRITICAL: Failed to construct prompt. Error: {e}")
@@ -201,18 +207,28 @@ def rank_portfolio(candidates_list, top_n=5, risk_factor=1.0, lookback_days=10, 
             if response.status_code == 200:
                 try:
                     text = response.json()['candidates'][0]['content']['parts'][0]['text']
+                    
+                    # [NEW] WRITE RAW RESPONSE TO FILE FOR DEBUGGING
+                    if getattr(config, 'DEBUG_MODE', False):
+                        debug_filename = "senior_response_debug.txt"
+                        with open(debug_filename, "w", encoding="utf-8") as f:
+                            f.write(text)
+                        print(f"📝 Raw AI Response saved to: {debug_filename}")
+
                     cleaned_json = clean_json_text(text)
                     decision_data = json.loads(cleaned_json)
 
                     visualize_decision(candidates_list, decision_data)
 
-														 
-																				   
+			   
+					   
 
                     return decision_data
                 except Exception as e:
                     log_debug(f"❌ Senior Parsing Error: {e}")
-                    print(f"RAW TEXT: {text[:200]}...") 
+                    if getattr(config, 'DEBUG_MODE', False):
+                        with open("senior_response_ERROR_debug.txt", "w", encoding="utf-8") as f:
+                            f.write(text)
                     return None
             elif response.status_code in [429, 503]:
                 time.sleep((attempt + 1) * 10)

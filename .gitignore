@@ -15,4 +15,4 @@ google_credentials.json
 backtesting/cache/
 # ---
 
-senior_prompt_debug.txt
+*debug.txt

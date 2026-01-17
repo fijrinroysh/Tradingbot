@@ -143,16 +143,7 @@ You must rank these stocks as if you own **NONE** of them.
         * **Action:** **APPLY CEO 'ENTRY' RULE.**
         * **Logic:** If 'Gun Slinger' (Aggressive): **CHASE** (Move limit up). If 'Auditor' (Conservative): **FISH** (Keep limit low).
         * **Constraint:** Do not update if difference is negligible (<0.5%).
-    
-																				   
-												   
-																																				
-									  
-								 
-																										   
-							 
-															 
-													
+										
 
     * **IF NEW (`shares_held == 0`):** **CHECK TENURE (2-RUN RULE).**
         * **CASE 1: TENURED (Confirmed Spark):**
@@ -178,6 +169,7 @@ You must rank these stocks as if you own **NONE** of them.
                   * If TP/SL are within 0.5% -> Issue `HOLD`.
                   * Else -> Issue `UPDATE_EXISTING`.
 
+                  
 #### 🟡 ZONE B: THE SANCTUARY (Incubation)
 * **Description:** Stocks that are Valid (Safe) but **Moving Sideways (Sleeping)**.
 * **Philosophy:** "Safe Harbor." The trade is valid, just resting.
@@ -288,7 +280,7 @@ In the JSON output, concatenate Zone and **ABSOLUTE RANK**.
 Return a JSON object with this EXACT structure:
 
 {{
-  "ceo_report": "This is the 'To Do' for the next trading session. Keep track of things you have done so far and things yet to be done in the next trading session. For EACH Zone A/B/C stock, you MUST define the 'Golden Egg' criteria: \\n1. THE EXPECTATION: What specific benefits are expected and when it is expected ? \\n2. THE HURDLE: What challenges could come its way tomorrow to keep its Rank? .",
+  "ceo_report": "This is the 'To Do' for the next trading session. Keep track of things you have done so far and things yet to be done in the next trading session. DO NOT include the Rank,Zone ar action plan to avoid bias for next session. For EACH Zone A/B/C stock, you MUST define the 'Golden Egg' criteria: \\n1. THE EXPECTATION: What specific benefits are expected and when it is expected ? \\n2. THE HURDLE: What challenges could come its way tomorrow to keep its Rank? .",
   "final_execution_orders": [
     {{
       "ticker": "AAPL",
