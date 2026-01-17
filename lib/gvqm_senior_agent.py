@@ -220,9 +220,6 @@ def rank_portfolio(candidates_list, top_n=5, risk_factor=1.0, lookback_days=10, 
 
                     visualize_decision(candidates_list, decision_data)
 
-			   
-					   
-
                     return decision_data
                 except Exception as e:
                     log_debug(f"❌ Senior Parsing Error: {e}")

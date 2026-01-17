@@ -353,34 +353,35 @@ def run_senior_phase():
             c['days_held'] = "HIDDEN"
         # -----------------------------------------------
 
-        # --- CONVERSATIONAL RISK TRANSLATOR (DYNAMIC INJECTION) ---
+
+# --- CONVERSATIONAL RISK TRANSLATOR (DYNAMIC INJECTION) ---
         raw_risk = getattr(config, 'RISK_FACTOR', 1.0)
         
         if raw_risk == 1.0:
             risk_instruction = "Neutral. I trust your standard judgment. Proceed with your normal, expert judgment.\n"
             risk_instruction += "**OPERATIONAL RULES (BALANCED):**\n"
-            risk_instruction += "* **ENTRY:** **Balanced.** Look for valid setups. Don't chase blindly.\n"
-            risk_instruction += "* **EXIT:** **Standard.** Use standard ATR trails. Maintain structure."
+            risk_instruction += "* **ENTRY:** **High Probability.** Focus on 'Quality' over 'Speed'. Ensure the setup has genuine follow-through potential.\n"
+            risk_instruction += "* **EXIT:** **Standard.** Respect the structural trend. Do not choke the trade, but do not let profits evaporate."
 
         elif raw_risk < 1.0:
             pct = int(round((1.0 - raw_risk) * 100))
             risk_instruction = f"You are taking too much risk for my taste. Play it safe, tighten your standards by {pct}% from your normal expert judgement.\n\n"
             risk_instruction += "**OPERATIONAL RULES (CONSERVATIVE):**\n"
-            risk_instruction += "* **ENTRY:** **The Auditor.** Wait. Do not buy the first spark. Require **Confirmation** (Higher Lows or Break of Resistance). Better to miss the bottom than catch a knife.\n"
-            risk_instruction += "* **EXIT:** **The Accountant.** **PROTECT PROFIT.** If a stock stalls or goes sideways, **TIGHTEN THE STOP.** Lock in gains immediately. Do not let Green turn to Red."
+            risk_instruction += "* **ENTRY:** **The Auditor.** **Skepticism is your shield.** Assume every rally is a 'Dead Cat Bounce' until proven otherwise. Demand undeniable structural proof (e.g. key level reclamation) before committing capital.\n"
+            risk_instruction += "* **EXIT:** **The Accountant.** **Capital Preservation is King.** Treat stagnation as a threat. If the momentum fades, cash out immediately. We prefer a small win to a break-even."
             
         else:
             pct = int(round((raw_risk - 1.0) * 100))
             risk_instruction = f"You are being too conservative for my taste. Go for growth, loosen your standards by {pct}% from your normal expert judgement.\n\n"
             risk_instruction += "**OPERATIONAL RULES (AGGRESSIVE):**\n"
-            risk_instruction += "* **ENTRY:** **Gun Slinger.** Buy EARLY. If a stock flashes a 'Spark' (Green Candle), buy it immediately. Do not wait for perfect confirmation.\n"
-            risk_instruction += "* **EXIT:** **Diamond Hands.** Give the stock room. If it goes sideways or dips slightly, **HOLD.** Do not choke the trade. Risk giving back profit to capture the home run."
+            risk_instruction += "* **ENTRY:** **Momentum Hunter.** **Speed is your weapon.** We are here to catch the reversal *before* the crowd. If you see signs of institutional accumulation or a shift in character, execute. Do not wait for a perfect confirmed trend.\n"
+            risk_instruction += "* **EXIT:** **Trend Rider.** **Volatility is the price of admission.** Give the stock wide latitude to breathe. We are hunting for the 'Home Run', so ignore minor intraday noise and wick-outs."
         
         log_pipeline(f"   ⚖️ Risk Mandate: {risk_instruction[:100]}...")
         # -------------------------------------------
 
         # 4. AI Decision													  
-        log_pipeline("Calling Senior Agent AI for ranking (BLINDED DATA)...")
+        log_pipeline("Calling Senior Agent AI for ranking ...")
         context = senior_history.get_last_strategy()
 		
         # [UPDATED] We now pass 'blinded_candidates' instead of 'sorted_candidates'

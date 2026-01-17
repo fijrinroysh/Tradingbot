@@ -141,18 +141,17 @@ You must rank these stocks as if you own **NONE** of them.
 * **Action:**
     * **IF PENDING (`pending_buy_limit` exists):** **MANAGE THE ORDER.**
         * **Action:** **APPLY CEO 'ENTRY' RULE.**
-        * **Logic:** If 'Gun Slinger' (Aggressive): **CHASE** (Move limit up). If 'Auditor' (Conservative): **FISH** (Keep limit low).
-        * **Constraint:** Do not update if difference is negligible (<0.5%).
-										
-
+        * **Logic:** If 'Gun Slinger' (Aggressive): **CHASE** (Adjust limit to capture momentum). If 'Auditor' (Conservative): **FISH** (Leave limit low or slightly adjust for structure).
+        * **Constraint:** Do not update if the change is structurally insignificant.
+    
     * **IF NEW (`shares_held == 0`):** **CHECK TENURE (2-RUN RULE).**
         * **CASE 1: TENURED (Confirmed Spark):**
             * *Condition:* `previous_rank` was **Zone A**.
             * *Action:* **BUY (`OPEN_NEW`).**
-            * *Protocol:* **APPLY CEO 'ENTRY' RULE.** (Aggressive = Chase +0.2%. Conservative = Limit at Price).
+            * *Protocol:* **APPLY CEO 'ENTRY' RULE.** (Aggressive = Chase Momentum. Conservative = Limit at Support).
             * **Take Profit:** **APPLY CEO 'PROFIT' RULE.**
-                 * Logic: If Conservative -> Set at **250-Day MA** (Bank the Mean Reversion).
-                 * Logic: If Aggressive -> Set at Junior analyst target** (Let it Run).
+                 * Logic: If Conservative -> **Mean Reversion.** Target the 250-Day MA or nearest major resistance.
+                 * Logic: If Aggressive -> **Blue Sky.** Set a high target (Junior's Fair Value) or rely on the Trailing Stop to exit.
         * **CASE 2: PROBATION (Unconfirmed):**
             * *Condition:* `previous_rank` was **Zone B, C, or Unranked**.
             * *Action:* **HOLD.**
@@ -160,73 +159,61 @@ You must rank these stocks as if you own **NONE** of them.
     
     * **IF ACTIVE (`shares_held > 0`):** **HOLD** (Default) or **UPDATE_EXISTING**.
         * **Stop Loss:** **APPLY CEO 'EXIT' RULE.**
-        * **Protocol:** If 'Diamond Hands' (Aggressive): **LOOSE TRAIL** (2.5x ATR). If 'Accountant' (Conservative): **TIGHT TRAIL** (1.5x ATR).
+        * **Protocol:**
+             * If 'Diamond Hands' (Aggressive): **LOOSE TRAIL.** Place SL below the recent structural low or volatility band. Give it room to breathe.
+             * If 'Accountant' (Conservative): **TIGHT TRAIL.** Trail closely behind price. Protect the unrealized gain.
         * **Take Profit:** **APPLY CEO 'PROFIT' RULE.**
-             * Logic: Conservative = **250-Day MA**. Aggressive = **Unlimited/High** (Use Trailing Stop).
         * **Execution Decision:**
-             1. Compare NEW `take_profit` and `stop_loss` with `current_active_tp` and `current_active_sl`.
+             1. Compare NEW calculated targets with `current_active_tp` and `current_active_sl`.
              2. **Decision:**
-                  * If TP/SL are within 0.5% -> Issue `HOLD`.
-                  * Else -> Issue `UPDATE_EXISTING`.
+                  * If the difference is negligible (noise) -> Issue `HOLD`.
+                  * If the structure has shifted -> Issue `UPDATE_EXISTING`.
 
-                  
 #### 🟡 ZONE B: THE SANCTUARY (Incubation)
 * **Description:** Stocks that are Valid (Safe) but **Moving Sideways (Sleeping)**.
 * **Philosophy:** "Safe Harbor." The trade is valid, just resting.
 * **Action:**
     * **IF PENDING:** **CANCEL (`CANCEL_PENDING`).**
-        * **Instruction:** Set `buy_limit`, `take_profit`, and `stop_loss` to 0.0.
+        * **Instruction:** Set parameters to 0.0.
         * **Reason:** The Spark is gone. Pull the order.
-
 
     * **IF ACTIVE (`shares_held > 0`):** **CHECK TENURE (2-RUN RULE).**
         * **CASE 1: TENURED (Confirmed Sleep):** `previous_rank` was **Zone B**.
             * *Action:* **HOLD** or **UPDATE_EXISTING**.
             * *Logic:* "The floor is holding. Do not over-trade the chop."
-            * *Stop Loss:* **Maintain Standard Room.** Keep `current_price` - **1.5 * `daily_volatility`**.
-            * *Take Profit:* **250-Day MA.** (Standard Target).
-            * *Execution Decision:*
-                 1. Compare NEW `take_profit` and `stop_loss` with `current_active_tp` and `current_active_sl`.
-                 2. **Decision:**
-                      * If TP/SL are within 0.5% -> Issue `HOLD`.
-                      * Else -> Issue `UPDATE_EXISTING`.
+            * *Stop Loss:* **STRUCTURE DEFENSE.** Place SL below the consolidation floor (Support). Do not get stopped out by random noise within the box.
+            * *Take Profit:* **STANDARD.** Maintain the Mean Reversion target (250-Day MA).
+            * *Execution Decision:* Update only if the consolidation range shifts significantly.
         * **CASE 2: PROBATION (Just Arrived):** `previous_rank` was **Zone A or C**.
             * *Action:* **HOLD.**
             * *Reason:* "Stock is transitioning. Do not change strategy until settled (2 runs)."
             
-
     * **IF NEW:** **HOLD.** (Reason: "Good quality, but waiting for Spark"). Set TP/SL to 0.0.
 				
-
 
 #### 🟠 ZONE C: THE FALLING KNIFE (Danger)
 * **Description:** Stocks that are **Breaking Down (Lower Lows)**.
 * **Philosophy:** "Structure Broken. Protect Capital."
 * **Action:**
     * **IF PENDING:** **CANCEL (`CANCEL_PENDING`).**
-        * **Instruction:** Set `buy_limit`, `take_profit`, and `stop_loss` to 0.0.
+        * **Instruction:** Set parameters to 0.0.
         * **Reason:** Trend is broken. Do not catch the knife.
 
     * **IF ACTIVE (`shares_held > 0`):** **CHECK TENURE (2-RUN RULE).**
         * **CASE 1: TENURED (Confirmed Breakdown):** `previous_rank` was **Zone C**.
              * **Action:** **APPLY CEO 'EXIT' RULE.**
              * **Logic:** "We are in Danger. Ignore Entry Price. Focus on Volatility."
-                 * If 'Accountant' (Conservative): **KILL IT** (Tighten SL to 1.0x ATR).
-                 * If 'Diamond Hands' (Aggressive): **GIVE ROOM** (Use Structural Low / 2.0x ATR).
-             * **Take Profit:** Set to **250-Day MA** (Even Aggressive traders should cap upside in Zone C - Safety First).
+                 * If 'Accountant' (Conservative): **KILL IT.** Tighten SL aggressively. Any further drop triggers exit.
+                 * If 'Diamond Hands' (Aggressive): **GIVE ROOM.** Place SL below the current structural swing low. Allow for a "Double Bottom" attempt, but do not hold a bag.
+             * **Take Profit:** **DEFENSIVE.** Set target to scratch the trade (Break-Even) or the 250-Day MA, whichever is closer.
              * **CONSTRAINT (THE RATCHET):** **NEVER MOVE STOP LOSS DOWN.** If your calculated New SL is lower than the `current_active_sl`, you **MUST** keep the `current_active_sl`.
-             * **Execution Decision:**
-                  1. Compare NEW `take_profit` and `stop_loss` with `current_active_tp` and `current_active_sl`.
-                  2. **Decision:**
-                       * If TP/SL are within 0.5% -> Issue `HOLD`.
-                       * Else -> Issue `UPDATE_EXISTING`.
+             * **Execution Decision:** Update targets immediately to reflect the new danger level.
         
         * **CASE 2: PROBATION (Flash Drop?):** `previous_rank` was **Zone A or B**.
             * *Action:* **HOLD.**
             * *Reason:* "Do not panic sell on a wick. Maintain existing stop. Verify breakdown next session."
 
     * **IF NEW (`shares_held == 0`):** **HOLD.** (Reason: "Do not catch the falling knife"). Set TP/SL to 0.0.
-								   
 
 					  
 
