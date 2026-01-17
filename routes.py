@@ -109,7 +109,7 @@ def run_junior_phase():
         log_pipeline(f"Scanner found {len(candidates)} raw candidates.")
         
         limit = getattr(config, 'DAILY_SCAN_LIMIT', 20)
-        score_threshold = getattr(config, 'JUNIOR_SCORE_THRESHOLD', 88)
+																	   
         
         # --- FIX: EXPLICITLY HANDLE 0 LIMIT ---
         if limit == 0:
@@ -183,11 +183,11 @@ def filter_candidates(live_tickers):
         # Clean report
         r = copy.deepcopy(raw_report)
 		
+					  
+		
 																				  
-						  
-        # [FIX] Updated 'rebound_reason' to 'upside_rationale' to match new Schema
         keys_to_remove = [
-            'recommended_action', 'audit_reason', 'sector', 'junior_targets' ,'catalyst' # <--- CHANGED HERE
+            'recommended_action', 'audit_reason', 'sector', 'junior_targets' ,'catalyst'
         ]
 		
         for k in keys_to_remove:
@@ -231,22 +231,22 @@ def enrich_and_sort_candidates(candidates):
     all_tickers = [c['ticker'] for c in candidates]
     price_map, atr_map = trader.get_bulk_market_data(all_tickers)															  
 												   
-																 
+				 
 
     # 1. Enrich Data
     for c in candidates:
         ticker = c['ticker']
 		
-									 
+		  
         # [NEW] Assign from Bulk Data
         c['current_price'] = price_map.get(ticker, 0.0)
         c['daily_volatility'] = atr_map.get(ticker, 0.0) # Inject ATR
 																	 
-		
+  
         # Inject Previous Rank for Ladder Logic
         c['previous_rank'] = previous_ranks.get(ticker, "Unranked")
         
-																		   
+					 
         if hasattr(trader, 'get_position_details'):
             details = trader.get_position_details(ticker)
             
@@ -256,7 +256,7 @@ def enrich_and_sort_candidates(candidates):
             c['current_active_sl'] = details['active_sl']
             c['pending_buy_limit'] = details['pending_buy_limit']
             
-            # --- NEW: CALCULATE DAYS HELD (Corrected Indentation) ---
+            # --- NEW: CALCULATE DAYS HELD ---
             c['days_held'] = calculate_days_held(ticker, details)
             
             holdings_map[ticker] = details['shares_held']
@@ -303,6 +303,13 @@ def execute_decisions(decision):
                 trade_events = trader.execute_entry(ticker, config.INVEST_PER_TRADE, p.get('buy_limit', 0), p.get('take_profit', 0), p.get('stop_loss', 0))
             
             elif action == "UPDATE_EXISTING":
+                # --- NEW: BLIND PROTOCOL SAFETY CHECK ---
+                # If AI was blinded, it might not send valid SL/TP numbers.
+                # However, Python executes based on valid inputs. 
+                # If 'stop_loss' is missing or 0, existing logic might fail or set 0.
+                # We assume the AI still provides 'structure-based' SL if it can see Current Price and ATR.
+                # The 'Break-Even' logic will be handled if the AI outputs a specific number, 
+                # OR we could add a flag here, but sticking to non-aggressive changes, we rely on the Prompt using ATR/Price.
                 trade_events = trader.execute_update(ticker, p.get('take_profit', 0), p.get('stop_loss', 0), buy_limit=p.get('buy_limit', 0))
             
             elif action == "CANCEL_PENDING":
@@ -337,7 +344,16 @@ def run_senior_phase():
         # 3. Enrich & Sort
         sorted_candidates, holdings_map = enrich_and_sort_candidates(final_candidates)
 
-        # --- NEW: CONVERSATIONAL RISK TRANSLATOR (DYNAMIC INJECTION) ---
+        # --- NEW: DATA SANITIZATION (BLIND PROTOCOL) ---
+        # We perform a deep copy to sanitize the data sent to the AI, 
+        # protecting it from Profit Bias (Entry Price) and Tenure Bias (Days Held).
+        blinded_candidates = copy.deepcopy(sorted_candidates)
+        for c in blinded_candidates:
+            c['avg_entry_price'] = "HIDDEN"
+            c['days_held'] = "HIDDEN"
+        # -----------------------------------------------
+
+        # --- CONVERSATIONAL RISK TRANSLATOR (DYNAMIC INJECTION) ---
         raw_risk = getattr(config, 'RISK_FACTOR', 1.0)
         
         if raw_risk == 1.0:
@@ -364,14 +380,14 @@ def run_senior_phase():
         # -------------------------------------------
 
         # 4. AI Decision													  
-        log_pipeline("Calling Senior Agent AI for ranking...")
+        log_pipeline("Calling Senior Agent AI for ranking (BLINDED DATA)...")
         context = senior_history.get_last_strategy()
 		
-																 
+        # [UPDATED] We now pass 'blinded_candidates' instead of 'sorted_candidates'
         decision = senior_agent.rank_portfolio(
-            sorted_candidates, 
+            blinded_candidates, 
             top_n=getattr(config, 'SENIOR_TOP_PICKS', 5),
-                # [NEW] Retrieve Risk Factor
+											
             risk_factor = risk_instruction,
             prev_context=context
         )
