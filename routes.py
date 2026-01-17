@@ -337,19 +337,30 @@ def run_senior_phase():
         # 3. Enrich & Sort
         sorted_candidates, holdings_map = enrich_and_sort_candidates(final_candidates)
 
-        # --- NEW: CONVERSATIONAL RISK TRANSLATOR ---
+        # --- NEW: CONVERSATIONAL RISK TRANSLATOR (DYNAMIC INJECTION) ---
         raw_risk = getattr(config, 'RISK_FACTOR', 1.0)
         
         if raw_risk == 1.0:
-            risk_instruction = "Neutral.  I trust your standard judgment. Proceed with your normal, expert judgment"
+            risk_instruction = "Neutral. I trust your standard judgment. Proceed with your normal, expert judgment.\n"
+            risk_instruction += "**OPERATIONAL RULES (BALANCED):**\n"
+            risk_instruction += "* **ENTRY:** **Balanced.** Look for valid setups. Don't chase blindly.\n"
+            risk_instruction += "* **EXIT:** **Standard.** Use standard ATR trails. Maintain structure."
+
         elif raw_risk < 1.0:
             pct = int(round((1.0 - raw_risk) * 100))
-            risk_instruction = f" You are taking too much risk for my taste. Play it safe, tighten your standards by {pct}% from your normal expert judgement."
+            risk_instruction = f"You are taking too much risk for my taste. Play it safe, tighten your standards by {pct}% from your normal expert judgement.\n\n"
+            risk_instruction += "**OPERATIONAL RULES (CONSERVATIVE):**\n"
+            risk_instruction += "* **ENTRY:** **The Auditor.** Wait. Do not buy the first spark. Require **Confirmation** (Higher Lows or Break of Resistance). Better to miss the bottom than catch a knife.\n"
+            risk_instruction += "* **EXIT:** **The Accountant.** **PROTECT PROFIT.** If a stock stalls or goes sideways, **TIGHTEN THE STOP.** Lock in gains immediately. Do not let Green turn to Red."
+            
         else:
             pct = int(round((raw_risk - 1.0) * 100))
-            risk_instruction = f"You are being too conservative for my taste. Go for growth, loosen your standards by  {pct}% from your normal expert judgement."
+            risk_instruction = f"You are being too conservative for my taste. Go for growth, loosen your standards by {pct}% from your normal expert judgement.\n\n"
+            risk_instruction += "**OPERATIONAL RULES (AGGRESSIVE):**\n"
+            risk_instruction += "* **ENTRY:** **Gun Slinger.** Buy EARLY. If a stock flashes a 'Spark' (Green Candle), buy it immediately. Do not wait for perfect confirmation.\n"
+            risk_instruction += "* **EXIT:** **Diamond Hands.** Give the stock room. If it goes sideways or dips slightly, **HOLD.** Do not choke the trade. Risk giving back profit to capture the home run."
         
-        log_pipeline(f"   ⚖️ Risk Mandate: {risk_instruction}")
+        log_pipeline(f"   ⚖️ Risk Mandate: {risk_instruction[:100]}...")
         # -------------------------------------------
 
         # 4. AI Decision													  
