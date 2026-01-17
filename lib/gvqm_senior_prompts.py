@@ -48,7 +48,7 @@ Perform a **Portfolio Review** (valid for Intraday or End-of-Day):
 ### 📈 STEP 2: PILLAR 4 - THE REVERSION TRIGGER (The Only Variable)
 
 *You must categorize every stock into one of these three behaviors. This determines the Zone.*
-	 
+  
 
 
 **BEHAVIOR 1: THE SPARK (Reversal) -> ZONE A (Action)**
@@ -98,7 +98,7 @@ Perform a **Portfolio Review** (valid for Intraday or End-of-Day):
 You must rank these stocks as if you own **NONE** of them.
 1.  **IGNORE TOTAL RETURN:** You cannot see Entry Price. Rank strictly on **Current Velocity**.
 2.  **IGNORE OWNERSHIP:** A "Pending" breakout is superior to a "Stagnant" owned stock.
-	  
+   
 3.  **IGNORE PREVIOUS RANK:** Yesterday's news is irrelevant for today's sort.
 
 **THE SORTING ALGORITHM (CHART ONLY):**
@@ -110,7 +110,7 @@ You must rank these stocks as if you own **NONE** of them.
     * **Rank 1 (The Alpha):** The stock showing the most undeniable evidence of Institutional Buying (Volume + Structure + Momentum).
     * **Rank Lower:** Stocks moving up on weak volume or retail hype.
     * *Tie-Breaker:* If two stocks have equal conviction, prioritize the one with the cleanest path to upside resistance.
-												
+								
 
 **2. ZONE B (SORT BY 'THE COIL' TENSION)**
 * **The Metric:** **POTENTIAL ENERGY.** Who is "Coiling" the tightest?
@@ -143,17 +143,25 @@ You must rank these stocks as if you own **NONE** of them.
         * **Action:** **APPLY CEO 'ENTRY' RULE.**
         * **Logic:** If 'Gun Slinger' (Aggressive): **CHASE** (Move limit up). If 'Auditor' (Conservative): **FISH** (Keep limit low).
         * **Constraint:** Do not update if difference is negligible (<0.5%).
-	  
-	  
     
+																				   
+												   
+																																				
+									  
+								 
+																										   
+							 
+															 
+													
+
     * **IF NEW (`shares_held == 0`):** **CHECK TENURE (2-RUN RULE).**
         * **CASE 1: TENURED (Confirmed Spark):**
             * *Condition:* `previous_rank` was **Zone A**.
             * *Action:* **BUY (`OPEN_NEW`).**
             * *Protocol:* **APPLY CEO 'ENTRY' RULE.** (Aggressive = Chase +0.2%. Conservative = Limit at Price).
-            * **Take Profit:** 250-Day MA .
-	   
-   
+            * **Take Profit:** **APPLY CEO 'PROFIT' RULE.**
+                 * Logic: If Conservative -> Set at **250-Day MA** (Bank the Mean Reversion).
+                 * Logic: If Aggressive -> Set at Junior analyst target** (Let it Run).
         * **CASE 2: PROBATION (Unconfirmed):**
             * *Condition:* `previous_rank` was **Zone B, C, or Unranked**.
             * *Action:* **HOLD.**
@@ -162,7 +170,8 @@ You must rank these stocks as if you own **NONE** of them.
     * **IF ACTIVE (`shares_held > 0`):** **HOLD** (Default) or **UPDATE_EXISTING**.
         * **Stop Loss:** **APPLY CEO 'EXIT' RULE.**
         * **Protocol:** If 'Diamond Hands' (Aggressive): **LOOSE TRAIL** (2.5x ATR). If 'Accountant' (Conservative): **TIGHT TRAIL** (1.5x ATR).
-        * **Take Profit:** 250-Day MA.
+        * **Take Profit:** **APPLY CEO 'PROFIT' RULE.**
+             * Logic: Conservative = **250-Day MA**. Aggressive = **Unlimited/High** (Use Trailing Stop).
         * **Execution Decision:**
              1. Compare NEW `take_profit` and `stop_loss` with `current_active_tp` and `current_active_sl`.
              2. **Decision:**
@@ -178,28 +187,12 @@ You must rank these stocks as if you own **NONE** of them.
         * **Reason:** The Spark is gone. Pull the order.
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     * **IF ACTIVE (`shares_held > 0`):** **CHECK TENURE (2-RUN RULE).**
         * **CASE 1: TENURED (Confirmed Sleep):** `previous_rank` was **Zone B**.
             * *Action:* **HOLD** or **UPDATE_EXISTING**.
             * *Logic:* "The floor is holding. Do not over-trade the chop."
             * *Stop Loss:* **Maintain Standard Room.** Keep `current_price` - **1.5 * `daily_volatility`**.
+            * *Take Profit:* **250-Day MA.** (Standard Target).
             * *Execution Decision:*
                  1. Compare NEW `take_profit` and `stop_loss` with `current_active_tp` and `current_active_sl`.
                  2. **Decision:**
@@ -209,8 +202,7 @@ You must rank these stocks as if you own **NONE** of them.
             * *Action:* **HOLD.**
             * *Reason:* "Stock is transitioning. Do not change strategy until settled (2 runs)."
             
-		
-	 
+
     * **IF NEW:** **HOLD.** (Reason: "Good quality, but waiting for Spark"). Set TP/SL to 0.0.
 				
 
@@ -222,19 +214,14 @@ You must rank these stocks as if you own **NONE** of them.
     * **IF PENDING:** **CANCEL (`CANCEL_PENDING`).**
         * **Instruction:** Set `buy_limit`, `take_profit`, and `stop_loss` to 0.0.
         * **Reason:** Trend is broken. Do not catch the knife.
-	 
-   
 
     * **IF ACTIVE (`shares_held > 0`):** **CHECK TENURE (2-RUN RULE).**
         * **CASE 1: TENURED (Confirmed Breakdown):** `previous_rank` was **Zone C**.
              * **Action:** **APPLY CEO 'EXIT' RULE.**
              * **Logic:** "We are in Danger. Ignore Entry Price. Focus on Volatility."
                  * If 'Accountant' (Conservative): **KILL IT** (Tighten SL to 1.0x ATR).
-											 
-												 
-													   
                  * If 'Diamond Hands' (Aggressive): **GIVE ROOM** (Use Structural Low / 2.0x ATR).
-             * **Take Profit:** Set to **250-Day MA** (Standard Target, just in case it reverses).
+             * **Take Profit:** Set to **250-Day MA** (Even Aggressive traders should cap upside in Zone C - Safety First).
              * **CONSTRAINT (THE RATCHET):** **NEVER MOVE STOP LOSS DOWN.** If your calculated New SL is lower than the `current_active_sl`, you **MUST** keep the `current_active_sl`.
              * **Execution Decision:**
                   1. Compare NEW `take_profit` and `stop_loss` with `current_active_tp` and `current_active_sl`.
@@ -242,13 +229,10 @@ You must rank these stocks as if you own **NONE** of them.
                        * If TP/SL are within 0.5% -> Issue `HOLD`.
                        * Else -> Issue `UPDATE_EXISTING`.
         
-
         * **CASE 2: PROBATION (Flash Drop?):** `previous_rank` was **Zone A or B**.
             * *Action:* **HOLD.**
             * *Reason:* "Do not panic sell on a wick. Maintain existing stop. Verify breakdown next session."
 
-   
-   
     * **IF NEW (`shares_held == 0`):** **HOLD.** (Reason: "Do not catch the falling knife"). Set TP/SL to 0.0.
 								   
 
