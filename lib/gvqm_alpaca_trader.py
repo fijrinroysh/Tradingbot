@@ -463,3 +463,16 @@ def execute_entry(ticker, investment_amount, buy_limit, take_profit, stop_loss):
     final_state = _fetch_snapshot(ticker)
     log_execution_matrix(ticker, "ENTRY", initial_state, req_data, final_state, final_res)
     return final_res
+
+def is_market_open():
+    """
+    Checks if the market is currently open using Alpaca's Clock API.
+    Returns: Boolean
+    """
+    try:
+        clock = trading_client.get_clock()
+        return clock.is_open
+    except Exception as e:
+        print(f"⚠️ Error checking market status: {e}")
+        # Default to False for safety if API fails
+        return False

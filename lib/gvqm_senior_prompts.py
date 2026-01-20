@@ -110,18 +110,21 @@ You must rank these stocks as if you own **NONE** of them.
     * **Rank 1 (The Alpha):** The stock showing the most undeniable evidence of Institutional Buying (Volume + Structure + Momentum).
     * **Rank Lower:** Stocks moving up on weak volume or retail hype.
     * *Tie-Breaker:* If two stocks have equal conviction, prioritize the one with the cleanest path to upside resistance.
+    * **The Sorting Rule:** Prioritize stocks that have **HELD** Zone A (i.e., `previous_rank` WAS Zone A).
 						
 **2. ZONE B (SORT BY 'THE COIL' TENSION)**
 * **The Metric:** **POTENTIAL ENERGY.** Who is "Coiling" the tightest?
 * **The Logic:**
     * **Rank 1:** The stock with the most beautiful "Volatility Contraction" (Tightening range, drying volume). It is ready to explode.
     * **Rank Lower:** Stocks that are loose, messy, or just drifting (Dead Money).
+    * **The Sorting Rule:** Prioritize stocks that have **HELD** Zone B (i.e., `previous_rank` WAS Zone B).
 
 **3. ZONE C (SORT BY STRUCTURAL URGENCY)**
 * **The Metric:** **DANGER LEVEL.** Who is in the most immediate trouble?
 * **The Logic:**
     * **Rank 1:** The stock actively slicing through a major support level *right now*. (Requires immediate attention/Stop Loss enforcement).
     * **Rank Lower:** Stocks that are down but sitting on support (Absorption).
+    * **The Sorting Rule:** Prioritize stocks that have **HELD** Zone C (i.e., `previous_rank` WAS Zone C).
 
 
 **RULE 0: THE SAFETY TRAPDOOR**
