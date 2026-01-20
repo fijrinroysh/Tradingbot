@@ -90,7 +90,7 @@ Return a single JSON object (no markdown):
   "intel": "Key Risks vs Rewards context (5 sentences min).",
   
   "execution": {{
-	  "buy_limit": "NUMBER ONLY (Float). Target a strategic entry. Do not pay retail. Ideally slightly below Current Price to capture a 'Bargain'.",
+	  "buy_limit": "NUMBER ONLY (Float). Target the STRUCTURAL FLOOR. Where is the support level? Do not just guess a % below price.",
       "take_profit": "NUMBER ONLY (Float). Set this at your estimated **FAIR VALUE**. This is the price where the stock is no longer undervalued and the 'Gap' is closed.",
       "stop_loss": "NUMBER ONLY (Float). Set this at the **THESIS INVALIDATION POINT**. If price drops below this, your 'Safe' verdict was wrong."
   }}
