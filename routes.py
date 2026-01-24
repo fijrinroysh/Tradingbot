@@ -7,6 +7,7 @@ import datetime
 import copy
 import json
 import re
+import random  # <--- NEW: Required for shuffling
 
 # Setup Paths
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -21,6 +22,7 @@ import lib.gvqm_junior_history as junior_history
 import lib.gvqm_senior_agent as senior_agent
 import lib.gvqm_senior_history as senior_history
 import lib.gvqm_email_notifier as notifier
+import lib.gvqm_driver_fox as driver_fox  # <--- NEW: Import Fox Driver
 
 main_routes = Blueprint('main_routes', __name__)
 
@@ -109,7 +111,7 @@ def run_junior_phase():
         log_pipeline(f"Scanner found {len(candidates)} raw candidates.")
         
         limit = getattr(config, 'DAILY_SCAN_LIMIT', 20)
-																	   
+                                                                       
         
         # --- FIX: EXPLICITLY HANDLE 0 LIMIT ---
         if limit == 0:
@@ -182,14 +184,14 @@ def filter_candidates(live_tickers):
         
         # Clean report
         r = copy.deepcopy(raw_report)
-		
-					  
-		
-																				  
+        
+                      
+        
+                                                                                  
         keys_to_remove = [
             'recommended_action', 'audit_reason', 'sector', 'junior_targets' ,'catalyst'
         ]
-		
+        
         for k in keys_to_remove:
             if k in r: del r[k]
 
@@ -229,24 +231,24 @@ def enrich_and_sort_candidates(candidates):
 
     # [NEW] 1. Extract List of Tickers & Bulk Fetch via Trader
     all_tickers = [c['ticker'] for c in candidates]
-    price_map, atr_map = trader.get_bulk_market_data(all_tickers)															  
-												   
-				 
+    price_map, atr_map = trader.get_bulk_market_data(all_tickers)                                                              
+                                                   
+                 
 
     # 1. Enrich Data
     for c in candidates:
         ticker = c['ticker']
-		
-		  
+        
+          
         # [NEW] Assign from Bulk Data
         c['current_price'] = price_map.get(ticker, 0.0)
         c['daily_volatility'] = atr_map.get(ticker, 0.0) # Inject ATR
-																	 
+                                                                     
   
         # Inject Previous Rank for Ladder Logic
         c['previous_rank'] = previous_ranks.get(ticker, "Unranked")
         
-					 
+                     
         if hasattr(trader, 'get_position_details'):
             details = trader.get_position_details(ticker)
             
@@ -265,24 +267,28 @@ def enrich_and_sort_candidates(candidates):
             holdings_map[ticker] = c['shares_held']
 
     # ------------------------------------------------------------------
-    # NEW STEP 4.5: PRE-SORTING (CRITICAL FIX FOR ATTENTION SPAN)
+    # STEP 4.5: THE SHUFFLE (Removing Bias)
     # ------------------------------------------------------------------
-    log_pipeline("   🔢 Pre-Sorting Candidates (Veterans vs Recruits)...")
+    # We remove the "Veterans vs Recruits" sorting.
+    # We SHUFFLE the deck so the Senior Manager doesn't just pick the top stocks.
     
-    active_holdings = [c for c in candidates if c.get('shares_held', 0) > 0]
-    new_candidates = [c for c in candidates if c.get('shares_held', 0) == 0]
-
-    # 1. Sort Veterans by Previous Rank (A1 < A2 < B1) to preserve stability
-    active_holdings.sort(key=lambda x: parse_rank_score(x.get('previous_rank')))
-
-    # 2. Sort Recruits by Junior Score (Desc) to ensure Meritocracy
-    new_candidates.sort(key=lambda x: int(float(x.get('conviction_score') or 0)), reverse=True)
-
-    # 3. Merge: Veterans at the Top, Best Recruits next, Weakest Recruits last
-    sorted_list = active_holdings + new_candidates
-    log_pipeline(f"   📊 Sorted List Prepared: {len(active_holdings)} Veterans + {len(new_candidates)} Recruits.")
+    log_pipeline("   🎲 Shuffling Candidates to prevent Order Bias...")
+    random.shuffle(candidates)
     
-    return sorted_list, holdings_map
+	
+	
+
+	
+  
+
+	
+  
+
+   
+  
+    log_pipeline(f"   📊 List Randomized: {len(candidates)} candidates ready for review.")
+    
+    return candidates, holdings_map
 
 def execute_decisions(decision):
     """Parses JSON decision and executes trades."""
@@ -351,44 +357,85 @@ def run_senior_phase():
         for c in blinded_candidates:
             c['avg_entry_price'] = "HIDDEN"
             c['days_held'] = "HIDDEN"
+            c['previous_rank'] = "HIDDEN"  # <--- NEW: Hides Previous Rank to prevent Confirmation Bias
         # -----------------------------------------------
 
 
 # --- CONVERSATIONAL RISK TRANSLATOR (DYNAMIC INJECTION) ---
         raw_risk = getattr(config, 'RISK_FACTOR', 1.0)
         
+
         if raw_risk == 1.0:
-            risk_instruction = "Neutral. I trust your standard judgment. Proceed with your normal, expert judgment.\n"
-            risk_instruction += "**OPERATIONAL RULES (BALANCED):**\n"
-            risk_instruction += "* **ENTRY:** **High Probability.** Focus on 'Quality' over 'Speed'. Ensure the setup has genuine follow-through potential.\n"
-            risk_instruction += "* **EXIT:** **Standard.** Respect the structural trend. Do not choke the trade, but do not let profits evaporate."
+            # THE FOX (Balance)
+            risk_instruction = driver_fox.FOX_DRIVER_PROMPT
+			 
+					
+							
+	
 
         elif raw_risk < 1.0:
+            # THE TURTLE (Defense)
             pct = int(round((1.0 - raw_risk) * 100))
-            risk_instruction = f"You are taking too much risk for my taste. Play it safe, tighten your standards by {pct}% from your normal expert judgement.\n\n"
-            risk_instruction += "**OPERATIONAL RULES (CONSERVATIVE):**\n"
-            risk_instruction += "* **ENTRY:** **The Auditor.** **Skepticism is your shield.** Assume every rally is a 'Dead Cat Bounce' until proven otherwise. Demand undeniable structural proof (e.g. key level reclamation) before committing capital.\n"
-            risk_instruction += "* **EXIT:** **The Accountant.** **Capital Preservation is King.** Treat stagnation as a threat. If the momentum fades, cash out immediately. We prefer a small win to a break-even."
-            
+            risk_instruction = (
+                f"AUTHORIZATION: BE THE TURTLE.\n"
+                f"The CEO is worried (Risk reduced by {pct}%).\n"
+                "INSTRUCTION: Hide in your shell! Do not lose money. If the deal isn't perfect, walk away. WAITING is better than LOSING."
+            )
+
         else:
+            # THE CHEETAH (Offense)
             pct = int(round((raw_risk - 1.0) * 100))
-            risk_instruction = f"You are being too conservative for my taste. Go for growth, loosen your standards by {pct}% from your normal expert judgement.\n\n"
-            risk_instruction += "**OPERATIONAL RULES (AGGRESSIVE):**\n"
-            risk_instruction += "* **ENTRY:** **Momentum Hunter.** **Speed is your weapon.** We are here to catch the reversal *before* the crowd. If you see signs of institutional accumulation or a shift in character, execute. Do not wait for a perfect confirmed trend.\n"
-            risk_instruction += "* **EXIT:** **Trend Rider.** **Volatility is the price of admission.** Give the stock wide latitude to breathe. We are hunting for the 'Home Run', so ignore minor intraday noise and wick-outs."
-        
-        log_pipeline(f"   ⚖️ Risk Mandate: {risk_instruction[:100]}...")
+            risk_instruction = (
+                f"AUTHORIZATION: BE THE CHEETAH.\n"
+                f"The CEO wants growth (Aggression increased by {pct}%).\n"
+                "INSTRUCTION: Run fast! The market is hot. Don't worry about small scratches. Chase the big prize before it gets away."
+            )
+ 
+        log_pipeline(f"   ⚖️ Risk Mandate: {risk_instruction[:10]}...")
         # -------------------------------------------
 
-        # 4. AI Decision													  
+        # 4. AI Decision                                                      
         log_pipeline("Calling Senior Agent AI for ranking ...")
-        context = senior_history.get_last_strategy()
-		
+        
+        # --- NEW: CONTEXT FROM INDIVIDUAL TICKERS ---
+        # 1. Fetch Granular Decisions (Ticker + Reason + Date)
+        previous_decisions = senior_history.fetch_latest_decisions() 
+        
+        # 2. Extract Date (Take from the first record if available)
+        prev_date = 'Unknown Date'
+        # Try finding date in any capitalization (Date/date)
+        if previous_decisions and len(previous_decisions) > 0:
+            first = previous_decisions[0]
+            prev_date = first.get('Date') or first.get('date') or 'Unknown Date'
+
+        context_lines = []
+        if previous_decisions:
+            for d in previous_decisions:
+                # Robust extraction (Capitalized or Lowercase keys)
+                t = d.get('ticker') or d.get('Ticker') or 'UNKNOWN'
+                # REMOVED RANK extraction per user instruction
+                
+                # [FIXED] Extraction using 'Reasoning' column header
+                why = d.get('Reasoning') or d.get('reasoning') or 'No reason provided.'
+                
+                # Format: [Ticker]: Reason
+                context_lines.append(f"[{t}]: {why}")
+        
+        combined_context = "\n".join(context_lines) if context_lines else "No previous ticker context available."
+        
+        # 3. Construct Context Dictionary
+        # CRITICAL: Keys must match what senior_agent expects ('prev_report', NOT 'ceo_report')
+        context = {
+            'date': prev_date,
+            'prev_report': combined_context 
+        }
+        # --------------------------------------------
+        
         # [UPDATED] We now pass 'blinded_candidates' instead of 'sorted_candidates'
         decision = senior_agent.rank_portfolio(
             blinded_candidates, 
             top_n=getattr(config, 'SENIOR_TOP_PICKS', 5),
-											
+                                            
             risk_factor = risk_instruction,
             prev_context=context
         )
@@ -427,10 +474,12 @@ def run_pipeline():
     log_pipeline("🚀 STARTING DAILY TRADING PIPELINE (PRODUCTION)")
     print("="*60)
     
-    # 1. MARKET CHECK
-    if not trader.is_market_open():
-        log_pipeline("💤 Market Closed. Aborting.")
-        return
+    if getattr(config, 'DEBUG_MODE', False) == False:
+        log_pipeline("⚠️ DEBUG MODE ACTIVE: No real trades will be executed.")
+        # 1. MARKET CHECK
+        if not trader.is_market_open():
+            log_pipeline("💤 Market Closed. Aborting.")
+            return
 
     run_junior_phase()
     run_senior_phase()

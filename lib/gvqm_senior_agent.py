@@ -143,7 +143,7 @@ def visualize_decision(candidates, decision):
 def rank_portfolio(candidates_list, top_n=5, risk_factor=1.0, lookback_days=10, prev_context=None):
     log_debug(f"Starting analysis for {len(candidates_list)} candidates using model: {MODEL_NAME}")
     
-    if not prev_context: prev_context = {"date": "None", "top_tickers": "None"}
+    if not prev_context: prev_context = {"date": "None", "prev_report": "None"}
     
 
 
@@ -155,7 +155,7 @@ def rank_portfolio(candidates_list, top_n=5, risk_factor=1.0, lookback_days=10, 
             risk_factor=risk_factor, 
             lookback=lookback_days,
             prev_date=prev_context.get('date'),	
-            prev_report=prev_context.get('ceo_report', 'None'),
+            prev_report=prev_context.get('prev_report', 'None'),
             candidates_data=json.dumps(candidates_list, indent=2)
         )
 

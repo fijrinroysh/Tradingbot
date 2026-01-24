@@ -315,3 +315,46 @@ def fetch_latest_ranks():
             print(f"   ⚠️ Memory Fetch Error: {e}")
             time.sleep(1)
     return {}
+
+def fetch_latest_decisions():
+    """
+    Fetches the full decision rows (Ticker, Rank, Reason, Date)
+    from the MOST RECENT entry in 'Senior Decisions'.
+    Uses robust sorting (Newest First) to isolate the latest batch.
+    """
+    for attempt in range(3):
+        try:
+            client = get_client()
+            if not client: return []
+            try: sheet = client.open(SHEET_NAME).worksheet(SENIOR_DECISIONS_TAB)
+            except: return []
+            
+            records = safe_read_sheet(sheet)
+            if not records: return []
+            
+            # 1. Sort by Date Descending (Newest first)
+            # Use robust_parse_date to handle string formats correctly
+            sorted_records = sorted(records, key=lambda x: robust_parse_date(x.get('Date', '')), reverse=True)
+            
+            if not sorted_records: return []
+
+            # 2. Identify the Timestamp of the "Previous Run"
+            # The first record is guaranteed to be from the latest batch due to sorting
+            latest_run_date = sorted_records[0].get('Date')
+            
+            decisions = []
+            for r in sorted_records:
+                # 3. STRICT BARRIER: Stop if we hit an older batch
+                # This prevents mixing data from different trading sessions
+                if r.get('Date') != latest_run_date:
+                    break
+                
+                decisions.append(r)
+
+            print(f"   ✅ [HISTORY] Fetched {len(decisions)} granular decisions from {latest_run_date}")
+            return decisions
+
+        except Exception as e:
+            print(f"   ⚠️ History Fetch Error (Attempt {attempt+1}/3): {e}")
+            time.sleep(1)
+    return []
