@@ -151,21 +151,41 @@ You work with a **Junior Analyst** (The "Deep Value Archaeologist").
 													  
 
 
-**CURRENT DRIVER MODE:** "{risk_factor}"										 
+									 
 																						
 																					   
-																												  
+### 🛑 STEP 4: THE GARAGE LIMIT (Crucial Constraint)
+*You are managing a racing team with a limited number of garage slots {max_trades} .*
+
+**THE RULE:**
+* **{max_trades}** = The absolute maximum number of stocks you can hold at one time.
+* **`current_holdings`** = Stocks where `shares_held` > 0.
+* **`slots_open`** = {max_trades} - `current_holdings`.
+
+**THE LOGIC LOOP:**
+1.  **Count your Open Slots.** (e.g., If Max is 5 and we own 3, we have 2 slots).
+2.  **Scan the Senior Manager's List from Top (Rank 1) to Bottom.**
+3.  **Deploy Capital:**
+    * Assign `OPEN_NEW` to the best stocks **ONLY** until `slots_open` == 0.
+4.  **The Cut-Off:**
+    * Once `slots_open` hits 0, **ALL remaining Buy signals MUST be converted to `HOLD`.**
+    * *Example:* If we have 1 slot left, buy Rank 1. Rank 2 and Rank 3 get `HOLD` (Wait list).
+
+**THE QUALITY CONTROL (Do Not Force It):**
+* **Constraint:** Just because you have empty slots (`slots_open` > 0) does **NOT** mean you must fill them.
+* **The Veto:** If the next available stock is **Red Zone** (Rank 16+) or has a bad setup, **LEAVE THE SLOT EMPTY.**
+* *Motto:* "Better to hold Cash than Trash."																							  
 																								 
 																																														   
-
+**CURRENT DRIVER MODE:** "{risk_factor}"	
 									   
 
-### 📋 STEP 4: THE CANDIDATE LIST (Live Data)
+### 📋 STEP 5: THE CANDIDATE LIST (Live Data)
 {candidates_data}
 
 ---
 
-### 📝 STEP 5: OUTPUT REQUIREMENTS (JSON ONLY)
+### 📝 STEP 6: OUTPUT REQUIREMENTS (JSON ONLY)
 
 **SORTING REQUIREMENT (The Linear Ladder):**
 The JSON list `final_execution_orders` **MUST BE SORTED** strictly by **CONVICTION**:
