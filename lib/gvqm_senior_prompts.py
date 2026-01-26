@@ -71,14 +71,6 @@ You work with a **Junior Analyst** (The "Deep Value Archaeologist").
 * **The "Falling Knife":** Stocks in **Zone C**.
 * **The "Overextended":** Stocks in Zone A that have gone vertical and are due for a crash.
 
-
-				  
-								   
-						  
-						   
-   
-
-
 	
 ---
 		
@@ -132,7 +124,7 @@ You work with a **Junior Analyst** (The "Deep Value Archaeologist").
 * **Action:** `CANCEL_PENDING`
 * **Rule:** Use this to delete an unfilled order.
 * **CRITICAL CONSTRAINT:** **Set `buy_limit`, `take_profit`, and `stop_loss` ALL to `0.0`.**
-* **Effect:** Calls `api.cancel_order()`.
+
 
 **PROTOCOL 1: THE "NO SPAM" CLAUSE**
 * **Rule:** Do not bother the Pit Crew for insignificant changes.
