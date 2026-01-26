@@ -474,12 +474,12 @@ def run_pipeline():
     log_pipeline("🚀 STARTING DAILY TRADING PIPELINE (PRODUCTION)")
     print("="*60)
     
-    if getattr(config, 'DEBUG_MODE', False) == False:
-        log_pipeline("⚠️ DEBUG MODE ACTIVE: No real trades will be executed.")
-        # 1. MARKET CHECK
-        if not trader.is_market_open():
-            log_pipeline("💤 Market Closed. Aborting.")
-            return
+    #if getattr(config, 'DEBUG_MODE', False) == False:
+    #    log_pipeline("⚠️ DEBUG MODE ACTIVE: No real trades will be executed.")
+    #    # 1. MARKET CHECK
+    #    if not trader.is_market_open():
+    #        log_pipeline("💤 Market Closed. Aborting.")
+    #        return
 
     run_junior_phase()
     run_senior_phase()

@@ -76,7 +76,7 @@ DAILY_SCAN_LIMIT = int(os.getenv("DAILY_SCAN_LIMIT", 5))
 #DAILY_SCAN_LIMIT = 10
 COOLDOWN_DAYS = int(os.getenv("COOLDOWN_DAYS", 10)) # <--- NEW: Default 10 Days
 
-JUNIOR_SCORE_THRESHOLD = int(os.getenv("JUNIOR_SCORE_THRESHOLD", 91)) 
+JUNIOR_SCORE_THRESHOLD = int(os.getenv("JUNIOR_SCORE_THRESHOLD", 92)) 
 
 # Dollar amount to invest in each "High Conviction" Buy
 INVEST_PER_TRADE = int(os.getenv("INVEST_PER_TRADE"))
