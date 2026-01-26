@@ -74,7 +74,6 @@ GEMINI_SENIOR_MODEL = "gemini-3-pro-preview"
 # This ensures you cover the 200-stock universe in chunks (e.g., 20/day = 10 days).
 DAILY_SCAN_LIMIT = int(os.getenv("DAILY_SCAN_LIMIT", 5))
 #DAILY_SCAN_LIMIT = 10
-COOLDOWN_DAYS = int(os.getenv("COOLDOWN_DAYS", 10)) # <--- NEW: Default 10 Days
 
 JUNIOR_SCORE_THRESHOLD = int(os.getenv("JUNIOR_SCORE_THRESHOLD", 91)) 
 
@@ -87,8 +86,7 @@ SENIOR_TOP_PICKS = int(os.getenv("SENIOR_TOP_PICKS", 5))
 # <--- Lookback period for Senior Manager to review past picks is usally aligned with cooldown period 
 # because within the cool down period the junior analyst will not analyze the same stocks twice 
 # and most likely would have covered all the stocks in her list
-SENIOR_LOOKBACK_DAYS = int(os.getenv("COOLDOWN_DAYS", 10)) 
-
+SENIOR_LOOKBACK_DAYS = int(os.getenv("SENIOR_LOOKBACK_DAYS", 10)) 
 
 
 GOOGLE_SHEET_STRATEGY_TAB = os.getenv("GOOGLE_SHEET_STRATEGY_TAB","Executive_Briefs") 

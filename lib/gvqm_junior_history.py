@@ -97,6 +97,11 @@ def log_report(ticker, analysis):
     print(f"❌ [JUNIOR] Failed to log {ticker} after 3 attempts.")
 
 def filter_candidates(candidates, limit=20):
+    """
+    Prioritizes stocks that have NEVER been analyzed, followed by those analyzed longest ago.
+    Removes strict cooldown to allow re-analysis if the list is short.
+    """
+    # 1. Fetch History
     for attempt in range(3):
         try:
             client = get_client()
@@ -105,11 +110,11 @@ def filter_candidates(candidates, limit=20):
             sheet = client.open(SHEET_NAME).sheet1
             records = sheet.get_all_values()
             
-            # No splitting needed anymore, using standard format
+																
             history_map = {}
             for r in records[1:]:
                 if len(r) > 1:
-													   
+                    # Map Ticker -> Date String
                     history_map[r[1]] = r[0]
             break
         except Exception as e:
@@ -117,19 +122,34 @@ def filter_candidates(candidates, limit=20):
             time.sleep(5)
             if attempt == 2: return candidates[:limit]
 
-    valid = []
+    # 2. Score Candidates by "Staleness"
+    scored_candidates = []
     now = datetime.now()
     
     for t in candidates:
+        days_since = 9999 # Default: High priority for "Never Analyzed"
+        
         if t in history_map:
             try:
                 # Parse YYYY-MM-DD HH:MM
                 last_seen = datetime.strptime(history_map[t], "%Y-%m-%d %H:%M")
-                if (now - last_seen).days < config.COOLDOWN_DAYS: 
-                    continue
-            except: pass
-        valid.append(t)
-        if len(valid) >= limit: break
+                days_since = (now - last_seen).days
+							
+            except: 
+                pass # Keep as 9999 if parse fails
+
+        # We do NOT filter by cooldown anymore. 
+        # We just add everything and let the sort handle the priority.
+        scored_candidates.append((t, days_since))
+
+    # 3. The Sort (Highest Days -> Lowest Days)
+    # This puts 9999 (New) at the top, followed by 365 (Old), with 0 (Yesterday) at the bottom.
+    scored_candidates.sort(key=lambda x: x[1], reverse=True)
+
+    # 4. Extract Top N
+    # If limit is 20, we take the 20 "stalest" stocks. 
+    # Recently analyzed stocks naturally fall off the list unless we run out of candidates.
+    valid = [x[0] for x in scored_candidates[:limit]]
         
-    print(f"✅ [HISTORY] Approved {len(valid)} fresh tickers for today.")
+    print(f"✅ [HISTORY] Prioritized {len(valid)} stalest candidates (Limit: {limit}).")
     return valid
