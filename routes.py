@@ -189,7 +189,7 @@ def filter_candidates(live_tickers):
         
                                                                                   
         keys_to_remove = [
-            'recommended_action', 'audit_reason', 'sector', 'junior_targets' ,'catalyst'
+            'recommended_action', 'audit_reason', 'sector', 'junior_targets' ,'catalyst','conviction_score'
         ]
         
         for k in keys_to_remove:
