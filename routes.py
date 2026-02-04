@@ -189,7 +189,7 @@ def filter_candidates(live_tickers):
         
                                                                                   
         keys_to_remove = [
-            'recommended_action', 'audit_reason', 'sector', 'junior_targets' ,'catalyst','conviction_score'
+            'recommended_action', 'audit_reason', 'sector', 'junior_targets' ,'catalyst'
         ]
         
         for k in keys_to_remove:
@@ -357,7 +357,7 @@ def run_senior_phase():
         for c in blinded_candidates:
             c['avg_entry_price'] = "HIDDEN"
             c['days_held'] = "HIDDEN"
-            c['previous_rank'] = "HIDDEN"  # <--- NEW: Hides Previous Rank to prevent Confirmation Bias
+            # c['previous_rank'] = "HIDDEN"  # <--- NEW: Hides Previous Rank to prevent Confirmation Bias
         # -----------------------------------------------
 
 

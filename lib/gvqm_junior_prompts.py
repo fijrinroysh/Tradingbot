@@ -76,12 +76,12 @@ Return a single JSON object (no markdown):
   "upside_magnitude": "HUGE" or "MODERATE" or "LOW",
   "upside_rationale": "THE GAP: Quantify the Mispricing. Ignore speed. Focus on the difference between Price and Value.",
   
-  "catalyst": "THE TRIGGER: Identify HARD FACTS that unlock value (e.g., 'CEO bought $1M shares', 'Buyback authorized', 'Spin-off confirmed'). Avoid speculative earnings guesses.",
+  "catalyst": "THE TRIGGER: Identify HARD FACTS that unlock value (e.g., 'CEO bought $1M shares', 'Buyback authorized', 'Spin-off confirmed', 'Institutional Accumulation' ). Avoid speculative earnings guesses.",
   
   "conviction_score": 0-100 (Integer. **CALCULATION RULE:** Weight the pillars as follows: Safe=50%, Bargain=30%, Upside=20%. **CRITICAL:** Use the full range of integers to express nuance. Do not default to round numbers like 85 or 90. If it is slightly better than an 85, give it an 87. If it is nearly perfect, give it a 93 or 94. Manager ignores < 70.),
   "action": "BUY" or "AVOID" or "WATCH",
   
-  "intel": "Key Risks vs Rewards context (5 sentences min). Highlight Insider Activity if available.",
+  "intel": "Key Risks vs Rewards context (5 sentences min). ",
   
   "execution": {{
       "buy_limit": "NUMBER ONLY (Float). Target the STRUCTURAL FLOOR. Where is the support level? Do not just guess a % below price.",
