@@ -75,7 +75,7 @@ GEMINI_SENIOR_MODEL = "gemini-3-pro-preview"
 DAILY_SCAN_LIMIT = int(os.getenv("DAILY_SCAN_LIMIT", 5))
 #DAILY_SCAN_LIMIT = 10
 
-JUNIOR_SCORE_THRESHOLD = int(91) 
+JUNIOR_SCORE_THRESHOLD = int(93)  # Minimum Conviction Score to pass to Senior
 
 # Dollar amount to invest in each "High Conviction" Buy
 INVEST_PER_TRADE = int(os.getenv("INVEST_PER_TRADE"))

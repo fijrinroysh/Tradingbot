@@ -100,6 +100,60 @@ def calculate_days_held(ticker, details):
     # Default to 0 (New/Unknown)
     return 0
 
+    # ... inside routes.py, under the HELPER FUNCTIONS section ...
+
+def hydrate_decisions_with_junior_data(decision_payload, candidate_source):
+    """
+    Merges original Junior Analyst text back into the Senior Manager's decision.
+    DEBUG MODE ENABLED: Prints keys found to console.
+    """
+    if not decision_payload or 'final_execution_orders' not in decision_payload:
+        return
+
+    # 1. Create Lookup Map (Key=Ticker)
+    junior_map = {c['ticker']: c for c in candidate_source}
+
+    print(f"\n🔍 [DEBUG] Hydration Started. Source Candidates: {len(junior_map)}")
+    
+    # 2. Inject Data
+    count = 0
+    for order in decision_payload['final_execution_orders']:
+        ticker = order.get('ticker')
+        
+        if ticker in junior_map:
+            jr = junior_map[ticker]
+            
+            # --- DEBUG: Print keys for the first stock found ---
+            if count == 0:
+                print(f"   ℹ️ [DEBUG] Keys available for {ticker}: {list(jr.keys())}")
+                # Check specific keys we care about
+                print(f"   ℹ️ [DEBUG] status_reason: {jr.get('status_reason', 'MISSING')}")
+                print(f"   ℹ️ [DEBUG] valuation_reason: {jr.get('valuation_reason', 'MISSING')}")
+                print(f"   ℹ️ [DEBUG] upside_rationale: {jr.get('upside_rationale', 'MISSING')}")
+            
+            # --- MAPPING FIX (Sheet Column Names -> Python Keys) ---
+            # 1. SAFE -> 'status_reason'
+            val_safe = jr.get('status_reason', 'N/A')
+            order['justification_safe'] = f"JUNIOR: {val_safe}"
+            
+            # 2. BARGAIN -> 'valuation_reason'
+            val_bargain = jr.get('valuation_reason', 'N/A')
+            order['justification_bargain'] = f"JUNIOR: {val_bargain}"
+            
+            # 3. REBOUND -> 'upside_rationale'
+            val_rebound = jr.get('upside_rationale', 'N/A')
+            order['justification_rebound'] = f"JUNIOR: {val_rebound}"
+            
+            count += 1
+            
+        else:
+            # Fallback if ticker not found
+            order['justification_safe'] = "JUNIOR: Data missing."
+            order['justification_bargain'] = "JUNIOR: Data missing."
+            order['justification_rebound'] = "JUNIOR: Data missing."
+
+    print(f"   💧 [PIPELINE] Hydrated {count} decisions. (Check logs above for 'MISSING' warnings).")
+
 # ==========================================
 # 🕵️ PHASE 1: JUNIOR ANALYST
 # ==========================================
@@ -161,19 +215,28 @@ def get_live_context():
     return live_tickers
 
 def filter_candidates(live_tickers):
-    """Fetches reports and filters them based on Score and SMA rules."""
     lookback = getattr(config, 'SENIOR_LOOKBACK_DAYS', 5)
     score_threshold = getattr(config, 'JUNIOR_SCORE_THRESHOLD', 88)
     
-    # --- STEP 2: FETCH REPORTS (DUAL METHOD) ---
+    # 1. FETCH REPORTS
     portfolio_reports = senior_history.fetch_portfolio_reports(live_tickers)
     market_reports = senior_history.fetch_market_reports(lookback)
-    reports = portfolio_reports + market_reports
     
-    log_pipeline(f"fetched {len(portfolio_reports)} portfolio reports + {len(market_reports)} market reports. Total: {len(reports)}")
-    log_pipeline(f"Applying filters: Score > {score_threshold} AND Price < 250 SMA (Unless Held)...")
+    # Merge & Deduplicate
+    combined_map = {r['ticker']: r for r in market_reports}
+    for r in portfolio_reports:
+        combined_map[r['ticker']] = r
+    
+    reports = list(combined_map.values())
+    
+    log_pipeline(f"🔍 [FILTER] Processing {len(reports)} unique reports. (Threshold: {score_threshold})")
+																									 
 
-    # --- STEP 3: FILTER CANDIDATES ---
+    # 2. BULK DATA FETCH (The Stability Fix)
+    # Fetch ALL prices in 1 call. If it works for one, it works for all.
+    all_tickers = [r['ticker'] for r in reports]
+    price_map, _ = trader.get_bulk_market_data(all_tickers)
+    
     final_candidates = []
     seen_tickers = set()
 
@@ -182,44 +245,63 @@ def filter_candidates(live_tickers):
         score = get_safe_score(raw_report)
         is_held = ticker in live_tickers
         
-        # Clean report
+        # --- CLEANING ---
         r = copy.deepcopy(raw_report)
-        
-                      
-        
-                                                                                  
+		
+					  
+		
+																				  
         keys_to_remove = [
-            'recommended_action', 'audit_reason', 'sector', 'junior_targets' ,'catalyst'
+            'recommended_action', 'audit_reason', 'sector', 'junior_targets',
+            'catalyst', 'valuation_reason', 'valuation_rationale',
+            'upside_rationale', 'status_reason', 'status_rationale',
+            'conviction_score', 'intel', 'upside_magnitude', 
+            'valuation', 'status'
         ]
-        
+		
         for k in keys_to_remove:
             if k in r: del r[k]
 
-        # CRITERIA 1: ACTIVE HOLDINGS (Always Include)
+        # --- GATE 1: ACTIVE HOLDINGS (Auto-Include) ---
         if is_held:
             if ticker not in seen_tickers:
+                # Update price immediately
+                if ticker in price_map: r['current_price'] = price_map[ticker]
                 final_candidates.append(r)
                 seen_tickers.add(ticker)
-                log_pipeline(f"   ✅ Auto-Included {ticker} (Portfolio Review)")
+                log_pipeline(f"   ✅ {ticker}: Auto-Included (Portfolio Asset).")
             continue 
 
-        # CRITERIA 2: SCORE FILTER
-        if score <= score_threshold: continue 
+        # --- GATE 2: SCORE FILTER ---
+        if score < score_threshold:
+            # log_pipeline(f"   📉 {ticker}: Score {score} below threshold {score_threshold}")
+            continue 
+
+        # --- GATE 3: PRICE & SMA CHECK ---
+        # Use the BULK fetched price (Stable)
+        current_price = price_map.get(ticker)
+        
+        if not current_price:
+            log_pipeline(f"   ⚠️ Skipping {ticker}: No Price Data from Bulk Fetch.")
+            continue
             
-        # CRITERIA 3: 250 SMA CHECK
-        current_price = trader.get_current_price(ticker)
+        # Update the record now (Efficiency)
+        r['current_price'] = current_price
+
+        # Fetch SMA (Still individual, but fewer calls now that we passed Gate 2)
         sma_250 = trader.get_simple_moving_average(ticker, window=250)
         
-        if current_price and sma_250:
+        if sma_250:
             if current_price < sma_250:
                 if ticker not in seen_tickers:
                     final_candidates.append(r)
                     seen_tickers.add(ticker)
             else:
-                log_pipeline(f"   📉 Rejecting {ticker}: Price ${current_price} is ABOVE 250 SMA.")
+                 pass # Silent drop for Price > SMA
         else:
-            log_pipeline(f"   ⚠️ Skipping {ticker}: Could not verify SMA compliance.")
+            log_pipeline(f"   ⚠️ Skipping {ticker}: SMA Missing.")
 
+    log_pipeline(f"✅ Filtered to {len(final_candidates)} candidates ready for Senior Agent.")
     return final_candidates
 
 def enrich_and_sort_candidates(candidates):
@@ -274,17 +356,6 @@ def enrich_and_sort_candidates(candidates):
     
     log_pipeline("   🎲 Shuffling Candidates to prevent Order Bias...")
     random.shuffle(candidates)
-    
-	
-	
-
-	
-  
-
-	
-  
-
-   
   
     log_pipeline(f"   📊 List Randomized: {len(candidates)} candidates ready for review.")
     
@@ -357,7 +428,7 @@ def run_senior_phase():
         for c in blinded_candidates:
             c['avg_entry_price'] = "HIDDEN"
             c['days_held'] = "HIDDEN"
-            # c['previous_rank'] = "HIDDEN"  # <--- NEW: Hides Previous Rank to prevent Confirmation Bias
+            c['previous_rank'] = "HIDDEN"  # <--- NEW: Hides Previous Rank to prevent Confirmation Bias
         # -----------------------------------------------
 
 
@@ -435,32 +506,47 @@ def run_senior_phase():
         decision = senior_agent.rank_portfolio(
             blinded_candidates, 
             top_n=getattr(config, 'SENIOR_TOP_PICKS', 5),
-                                            
+
             risk_factor = risk_instruction,
             prev_context=context
         )
         
-        if decision:
-            senior_history.log_strategy(decision)
-            senior_history.log_detailed_decisions(decision, holdings_map)
-            
-            print("\n" + "="*80)
-            print("📢  EXECUTIVE STRATEGY BRIEF  📢")
-            print("="*80)
-            print(decision.get('ceo_report'))
-            
-            # 5. Execute
-            execute_decisions(decision)
-            
-            # 7. SEND EMAIL
-            log_pipeline("\n📧 PHASE 4: NOTIFICATION")
-            try:
-                account_info = trader.trading_client.get_account()
-                portfolio = trader.trading_client.get_all_positions()
-                notifier.send_executive_brief(decision, account_info, sorted_candidates, portfolio)
-                log_pipeline("✅ Executive Brief email dispatched.")
-            except Exception as e:
-                log_pipeline(f"❌ Failed to send email: {e}")
+        # --- ERROR CHECKING BLOCK ---
+        if not decision:
+            log_pipeline("❌ Senior Agent returned None. Aborting.")
+            return
+        # ----------------------------
+
+        # ✅ SUCCESS LOGIC (Now correctly un-indented)
+        
+        # ==============================================================================
+        # 🔄 HYDRATION STEP (The Token Saver)
+        # ==============================================================================
+        # [FIX] Use 'decision', not 'decision_payload'
+        #hydrate_decisions_with_junior_data(decision, sorted_candidates)
+        # ==============================================================================
+
+        # 5. LOGGING
+        senior_history.log_strategy(decision)
+        senior_history.log_detailed_decisions(decision, holdings_map)
+        
+        print("\n" + "="*80)
+        print("📢  EXECUTIVE STRATEGY BRIEF  📢")
+        print("="*80)
+        print(decision.get('ceo_report'))
+        
+        # 6. EXECUTE
+        execute_decisions(decision)
+        
+        # 7. SEND EMAIL
+        log_pipeline("\n📧 PHASE 4: NOTIFICATION")
+        try:
+            account_info = trader.trading_client.get_account()
+            portfolio = trader.trading_client.get_all_positions()
+            notifier.send_executive_brief(decision, account_info, sorted_candidates, portfolio)
+            log_pipeline("✅ Executive Brief email dispatched.")
+        except Exception as e:
+            log_pipeline(f"❌ Failed to send email: {e}")
 
     except Exception as e:
         log_pipeline(f"❌ CRITICAL ERROR in Senior Phase: {e}")

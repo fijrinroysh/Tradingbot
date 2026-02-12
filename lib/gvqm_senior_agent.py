@@ -190,24 +190,59 @@ def rank_portfolio(candidates_list, top_n=5, risk_factor=1.0, lookback_days=10, 
     payload = {
         "contents": [{"parts": [{"text": prompt}]}], 
         "tools": [{"googleSearch": {}}],
-        "safetySettings": safety_settings
+        "safetySettings": safety_settings,
+        "generationConfig": {
+            "temperature": 1.0,
+            #"maxOutputTokens": 15000 
+        }
     }
     
     # --- RETRY LOOP ---
+	
+    #[CORRECTION] Use your existing URL construction
+    url = f"{BASE_URL}?key={API_KEY}"
+    headers = {'Content-Type': 'application/json'}						
     for attempt in range(3):
         try:
             log_debug(f"Attempt {attempt+1}/3: Sending request to Google AI...")
-            start_time = time.time()
+		 
             
-            response = requests.post(f"{BASE_URL}?key={API_KEY}", headers={'Content-Type': 'application/json'}, data=json.dumps(payload))
+            # Request
+            response = requests.post(url, headers=headers, data=json.dumps(payload))
             
-            elapsed = round(time.time() - start_time, 2)
-            log_debug(f"Response received in {elapsed}s. Status Code: {response.status_code}")
-            
+			  
+						 
+   
             if response.status_code == 200:
+																   
                 try:
-                    text = response.json()['candidates'][0]['content']['parts'][0]['text']
+                    response_json = response.json()
                     
+                    # 1. Safety/Empty Check
+                    if not response_json.get('candidates'):
+                        log_debug(f"❌ Error: No candidates returned. Raw: {response.text}")
+                        return None
+                    
+                    first_candidate = response_json['candidates'][0]
+                    finish_reason = first_candidate.get('finishReason', 'UNKNOWN')
+
+                    # 2. Check for Content Blocking (The Zombie Check)
+                    # If 'content' is missing OR 'parts' is missing, it's a block.
+                    if 'content' not in first_candidate:
+																					  
+                        log_debug(f"❌ Error: Content BLOCKED. Finish Reason: {finish_reason}")
+                        return None
+                        
+										
+                    parts = first_candidate['content'].get('parts', [])
+                    if not parts:
+                         log_debug(f"❌ Error: Content exists but 'parts' is empty. Finish Reason: {finish_reason}")
+                         # Debug: Dump the full candidate to see what went wrong
+                         log_debug(f"   ⚠️ Dump: {json.dumps(first_candidate)}")
+                         return None
+                         
+                    text = parts[0].get('text', "")
+
                     # [NEW] WRITE RAW RESPONSE TO FILE FOR DEBUGGING
                     if getattr(config, 'DEBUG_MODE', False):
                         debug_filename = "senior_response_debug.txt"
@@ -221,19 +256,22 @@ def rank_portfolio(candidates_list, top_n=5, risk_factor=1.0, lookback_days=10, 
                     visualize_decision(candidates_list, decision_data)
 
                     return decision_data
+
                 except Exception as e:
                     log_debug(f"❌ Senior Parsing Error: {e}")
+																  
                     if getattr(config, 'DEBUG_MODE', False):
                         with open("senior_response_ERROR_debug.txt", "w", encoding="utf-8") as f:
-                            f.write(text)
+                            f.write(response.text) 
                     return None
+
             elif response.status_code in [429, 503]:
                 time.sleep((attempt + 1) * 10)
                 continue
             else:
                 log_debug(f"❌ Senior API Error ({response.status_code}): {response.text}")
                 return None
+                
         except Exception as e:
             log_debug(f"❌ Senior Connection Error: {e}")
             return None
-    return None

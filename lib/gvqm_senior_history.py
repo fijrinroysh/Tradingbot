@@ -177,7 +177,6 @@ def log_strategy(decision):
             except: 
                 sheet = sh.add_worksheet(title=STRATEGY_TAB_NAME, rows=1000, cols=10)
                 sheet.append_row(["Date", "Total", "Top_Count", "Report"])
-            
             trades = decision.get('final_execution_orders', [])
             trades_summary = ", ".join([f"{t.get('action')} {t.get('ticker')}" for t in trades])
             timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -190,30 +189,73 @@ def log_strategy(decision):
 
 def log_detailed_decisions(decision_data, holdings_map=None):
     if holdings_map is None: holdings_map = {}
+    
     for attempt in range(3):
         try:
             client = get_client()
             if not client: return
             sh = client.open(SHEET_NAME)
-            headers = ["Date", "Ticker", "Rank", "Action", "Reason", "Buy_Limit", "Take_Profit", "Stop_Loss", "Shares_Held", "Justification_Safe", "Justification_Bargain", "Justification_Rebound"]
+            
+            # [UPDATED] Headers: 'Rank' is gone. 'Conviction_Score' is now Column #3.
+            headers = [
+                "Date", "Ticker", "Conviction_Score", "Action", "Reason", 
+                "Buy_Limit", "Take_Profit", "Stop_Loss", "Shares_Held", 
+                "Priority_1_Safety", 
+                "Priority_2_Turnaround", 
+                "Priority_3_SmartMoney", 
+                "Priority_4_TechHeat", 
+                "Priority_5_Valuation", 
+                "Priority_6_AdjValuation", 
+                "Priority_7_Upside"
+            ]
+            
             try: sheet = sh.worksheet(SENIOR_DECISIONS_TAB)
             except: 
-                sheet = sh.add_worksheet(title=SENIOR_DECISIONS_TAB, rows=2000, cols=15)
+                sheet = sh.add_worksheet(title=SENIOR_DECISIONS_TAB, rows=2000, cols=20)
                 sheet.append_row(headers)
+            
+            if sheet.row_count < 1 or not sheet.row_values(1):
+                 sheet.append_row(headers)
+
             orders = decision_data.get('final_execution_orders', [])
             timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+            
+            rows_to_append = []
+            
             for order in orders:
                 ticker = order.get('ticker')
                 p = order.get('confirmed_params', {})
+                
+                # [UPDATED] Row Mapping
                 row = [
-                    timestamp, ticker, order.get('rank', 0), order.get('action', 'HOLD'), order.get('reason', 'N/A'),
-                    p.get('buy_limit', 0), p.get('take_profit', 0), p.get('stop_loss', 0),
+                    timestamp, 
+                    ticker, 
+                    # THE SCORE IS NOW THE KEY METRIC
+                    order.get('conviction_score', 0), 
+                    order.get('action', 'HOLD'), 
+                    order.get('reason', 'N/A'),
+                    p.get('buy_limit', 0), 
+                    p.get('take_profit', 0), 
+                    p.get('stop_loss', 0),
                     holdings_map.get(ticker, 0),
-                    order.get('justification_safe', '-'), order.get('justification_bargain', '-'), order.get('justification_rebound', '-')
+                    
+                    # Expanded Priorities
+                    order.get('Priority_1_Justification', '-'),
+                    order.get('Priority_2_Justification', '-'),
+                    order.get('Priority_3_Justification', '-'),
+                    order.get('Priority_4_Justification', '-'),
+                    order.get('Priority_5_Justification', '-'),
+                    order.get('Priority_6_Justification', '-'),
+                    order.get('Priority_7_Justification', '-')
                 ]
-                sheet.append_row(row)
-            print(f"   ✅ [SENIOR] Detailed Ledger Updated ({len(orders)} rows).")
+                rows_to_append.append(row)
+            
+            if rows_to_append:
+                sheet.append_rows(rows_to_append)
+                
+            print(f"   ✅ [SENIOR] Ledger Updated. Rank replaced by Conviction Score.")
             return
+            
         except Exception as e:
             print(f"   ⚠️ Ledger Log Error (Attempt {attempt+1}/3): {e}")
             time.sleep(2)

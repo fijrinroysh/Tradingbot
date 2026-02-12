@@ -5,11 +5,10 @@ import re
 
 def send_executive_brief(decision, account_info, junior_reports, portfolio):
     """
-    Sends the "Mirror Protocol" Dashboard v6.0
+    Sends the "Mirror Protocol" Dashboard v7.0
     Updates:
-    - Support for Alphanumeric Ranks (A1, B1).
-    - Risk Factor Display.
-    - Zone-based Badging.
+    - Replaced 'Rank' with 'Conviction Score'.
+    - Aggregates Priority Justifications (1-7).
     """
     if not getattr(config, 'RESEND_API_KEY', None):
         print("⚠️ [NOTIFIER] Resend API Key missing. Skipping Brief.")
@@ -24,7 +23,7 @@ def send_executive_brief(decision, account_info, junior_reports, portfolio):
     # Get Config Context
     risk_factor = getattr(config, 'RISK_FACTOR', 1.0)
     
-    # [FIX] Filter Active Actions for Subject Line Count
+    # Filter Active Actions for Subject Line Count
     active_moves = [t for t in trades if t.get('action') != 'HOLD']
     subject = f"🔔 GVQM Signal: {len(active_moves)} Actions | {today}"
 
@@ -37,20 +36,26 @@ def send_executive_brief(decision, account_info, junior_reports, portfolio):
     CARD_HEADER = "padding: 10px 15px; border-bottom: 1px solid #eee;"
     CARD_BODY = "padding: 15px; background-color: #ffffff;"
     
-    # IMPROVED PILLAR BOX CSS
-    PILLAR_BOX = "background-color: #f9f9f9; padding: 10px; border-radius: 4px; margin-bottom: 8px; font-size: 12px; color: #444; white-space: pre-line; line-height: 1.4;"
-    PILLAR_TITLE = "font-weight: bold; color: #555; font-size: 10px; text-transform: uppercase; display: block; margin-bottom: 4px;"
+    # PILLAR BOX CSS
+    PILLAR_BOX = "background-color: #f9f9f9; padding: 8px; border-radius: 4px; margin-bottom: 6px; font-size: 11px; color: #444; line-height: 1.4; border-left: 3px solid #ccc;"
+    PILLAR_TITLE = "font-weight: bold; color: #333; font-size: 10px; text-transform: uppercase; display: block; margin-bottom: 2px;"
     
     # --- BADGE HELPERS ---
-    BADGE_ZONE_A = "background: #8e44ad; color: #fff; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 10px; border: 1px solid #9b59b6;" # Purple
-    BADGE_ZONE_B = "background: #2980b9; color: #fff; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 10px; border: 1px solid #3498db;" # Blue
-    BADGE_ZONE_C = "background: #c0392b; color: #fff; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 10px; border: 1px solid #e74c3c;" # Red
-    BADGE_DEFAULT = "background: #7f8c8d; color: #fff; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 10px;"
+    BADGE_ELITE = "background: #8e44ad; color: #fff; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 10px; border: 1px solid #9b59b6;" # Purple (>94)
+    BADGE_GOOD = "background: #27ae60; color: #fff; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 10px; border: 1px solid #2ecc71;" # Green (85-94)
+    BADGE_WEAK = "background: #95a5a6; color: #fff; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 10px;" # Grey (<85)
 
     def format_migration(val_old, val_new, prefix="$"):
         if val_old is None or val_old == val_new or val_old == 'N/A':
             return f"<b>{prefix}{val_new}</b>"
         return f"<span style='color:#999; text-decoration:line-through; font-size:10px;'>{prefix}{val_old}</span> &rarr; <b>{prefix}{val_new}</b>"
+
+    def parse_score(val):
+        try:
+            # Handle "95/100", "95", 95
+            return int(str(val).split('/')[0].strip())
+        except:
+            return 0
 
     html_content = f"""
     <html>
@@ -71,7 +76,6 @@ def send_executive_brief(decision, account_info, junior_reports, portfolio):
     """
 
     # --- 1. INTELLIGENCE CARDS (Detailed Thesis - ACTIVE ONLY) ---
-												
     html_content += """
         <h3 style="margin-bottom: 10px; color: #2c3e50; border-bottom: 2px solid #2c3e50; padding-bottom: 5px;">
             🚨 Intelligence Briefing
@@ -88,25 +92,18 @@ def send_executive_brief(decision, account_info, junior_reports, portfolio):
             
             action = order.get('action', 'HOLD')
             ticker = order.get('ticker')
-            rank = str(order.get('rank', 'N/A')).upper()
+            score = parse_score(order.get('conviction_score', 0))
             reason = order.get('reason', 'Automated Technical Structure')
             
-            # Badge Logic (Zone Detection)
-            if rank.startswith('A'):
-									
-								  
-                rank_style = BADGE_ZONE_A
-            elif rank.startswith('B'):
-									
-                rank_style = BADGE_ZONE_B
-            elif rank.startswith('C'):
-					  
-                rank_style = BADGE_ZONE_C
+            # Badge Logic
+            if score >= 94:
+                rank_style = BADGE_ELITE
+            elif score >= 85:
+                rank_style = BADGE_GOOD
             else:
-				   
-                rank_style = BADGE_DEFAULT
+                rank_style = BADGE_WEAK
             
-            rank_label = f"RANK {rank}"
+            score_label = f"SCORE: {score}"
 
             # Action Styling
             if action == "OPEN_NEW":
@@ -126,9 +123,33 @@ def send_executive_brief(decision, account_info, junior_reports, portfolio):
             disp_tp = format_migration(old_p.get('take_profit'), new_p.get('take_profit', '-'))
             disp_sl = format_migration(old_p.get('stop_loss'), new_p.get('stop_loss', '-'))
             
-            safe_txt = order.get('justification_safe') or 'N/A'
-            bargain_txt = order.get('justification_bargain') or 'N/A'
-            rebound_txt = order.get('justification_rebound') or 'N/A'
+            # --- AGGREGATE JUSTIFICATIONS (Priorities 1-7) ---
+            justifications_html = ""
+            priority_names = [
+                "Safety Check", "Turnaround Plan", "Smart Money", 
+                "Technical Heat", "Valuation", "Adjusted Val", "Upside Quality"
+            ]
+            
+            for i in range(1, 8):
+                key = f"Priority_{i}_Justification"
+                txt = order.get(key)
+                if txt and txt != "-" and str(txt).lower() != "n/a":
+                    # Color coding border based on priority index
+                    border_color = "#ccc"
+                    if i == 1: border_color = "#27ae60" # Green for Safety
+                    if i == 5: border_color = "#f1c40f" # Yellow for Valuation
+                    if i == 7: border_color = "#e67e22" # Orange for Upside
+                    
+                    # Safety check for index out of bounds (though fixed at 7)
+                    p_name = priority_names[i-1] if i <= len(priority_names) else f"Priority {i}"
+                    title = f"P{i}: {p_name}"
+                    
+                    justifications_html += f"""
+                    <div style="{PILLAR_BOX} border-left: 3px solid {border_color};">
+                        <span style="{PILLAR_TITLE}">{title}</span>
+                        {txt}
+                    </div>
+                    """
 
             # Build Card
             html_content += f"""
@@ -137,7 +158,7 @@ def send_executive_brief(decision, account_info, junior_reports, portfolio):
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                         <div>
                             <span style="font-size: 18px; font-weight: bold; color: #333;">{ticker}</span>
-                            <span style="{rank_style} margin-left: 6px;">{rank_label}</span>
+                            <span style="{rank_style} margin-left: 6px;">{score_label}</span>
                             <span style="font-size: 10px; font-weight: bold; color: {action_color}; border: 1px solid {action_color}; padding: 1px 4px; border-radius: 3px; margin-left: 6px;">
                                 {action_txt}
                             </span>
@@ -159,23 +180,12 @@ def send_executive_brief(decision, account_info, junior_reports, portfolio):
                         <div><span style="font-size:11px; color:#7f8c8d;">STOP:</span> <span style="color:#c0392b;">{disp_sl}</span></div>
                     </div>
 
-                    <div style="{PILLAR_BOX} border-left: 3px solid #27ae60;">
-                        <span style="{PILLAR_TITLE}">🛡️ Safety Check</span>
-                        {safe_txt}
-                    </div>
-                    <div style="{PILLAR_BOX} border-left: 3px solid #f1c40f;">
-                        <span style="{PILLAR_TITLE}">💰 Valuation</span>
-                        {bargain_txt}
-                    </div>
-                    <div style="{PILLAR_BOX} border-left: 3px solid #e67e22;">
-                        <span style="{PILLAR_TITLE}">📈 Catalyst</span>
-                        {rebound_txt}
-                    </div>
+                    {justifications_html}
                 </div>
             </div>
             """
 
-    # --- 2. SENIOR DECISION MATRIX (SORTED BY RANK) ---
+    # --- 2. SENIOR DECISION MATRIX (SORTED BY SCORE) ---
     html_content += """
         <br>
         <h3 style="margin-bottom: 10px; color: #2c3e50; border-bottom: 2px solid #2c3e50; padding-bottom: 5px;">
@@ -184,7 +194,7 @@ def send_executive_brief(decision, account_info, junior_reports, portfolio):
         <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 11px;">
             <thead>
                 <tr style="background-color: #f8f9fa;">
-                    <th style="{TH_STYLE}">Rank</th>
+                    <th style="{TH_STYLE}">Score</th>
                     <th style="{TH_STYLE}">Ticker</th>
                     <th style="{TH_STYLE}">Action</th>
                     <th style="{TH_STYLE}">Limit</th>
@@ -198,20 +208,12 @@ def send_executive_brief(decision, account_info, junior_reports, portfolio):
     if not trades:
         html_content += f"<tr><td colspan='6' style='{TD_STYLE} text-align: center; color: #999;'>No active decisions generated.</td></tr>"
     else:
-        # [FIXED] Alphanumeric Sorting Logic (A1 < A2 < B1 < C1)
-        def rank_key(order):
-            r = str(order.get('rank', 'Z99')).upper()
-            # Extract Zone letter and Rank number (A1 -> 'A', 1)
-            match = re.match(r"([A-Z])(\d+)", r)
-            if match:
-                return (match.group(1), int(match.group(2)))
-            return ('Z', 99) # Fallback for unknown formats
-
-        sorted_trades = sorted(trades, key=rank_key)
+        # Sort by Conviction Score Descending
+        sorted_trades = sorted(trades, key=lambda x: parse_score(x.get('conviction_score', 0)), reverse=True)
         
         for order in sorted_trades:
             ticker = order.get('ticker')
-            rank = order.get('rank', 'N/A')
+            score = parse_score(order.get('conviction_score', 0))
             action = order.get('action', 'HOLD')
             
             p = order.get('confirmed_params', {})
@@ -225,9 +227,12 @@ def send_executive_brief(decision, account_info, junior_reports, portfolio):
             elif action == "UPDATE_EXISTING": act_color = "#2980b9"
             elif action == "HOLD": act_color = "#95a5a6"
 
+            # Bold score if high
+            score_fmt = f"<b>{score}</b>" if score >= 85 else f"{score}"
+
             html_content += f"""
             <tr>
-                <td style="{TD_STYLE}"><b>{rank}</b></td>
+                <td style="{TD_STYLE}">{score_fmt}</td>
                 <td style="{TD_STYLE} font-weight:bold;">{ticker}</td>
                 <td style="{TD_STYLE} color:{act_color}; font-weight:bold;">{action}</td>
                 <td style="{TD_STYLE}">${limit}</td>
@@ -301,7 +306,7 @@ def send_executive_brief(decision, account_info, junior_reports, portfolio):
             </p>
         </div>
         <p style="font-size: 10px; color: #999; text-align: center; margin-top: 20px;">
-            GVQM Protocol v6.0 | {datetime.datetime.now().strftime("%H:%M EST")}
+            GVQM Protocol v7.0 | {datetime.datetime.now().strftime("%H:%M EST")}
         </p>
     </body>
     </html>
