@@ -55,7 +55,7 @@ You work with a **Junior Analyst** (The "Fundamental Architect").
     * **TOTALED** The chassis is bent. The engine is dead. 
     * **DRIVABLE** The engine is intact.
 
-**PRIORITY 2: THE TURNAROUND (The Fix) [Max 20 Points]**
+**PRIORITY 2: THE TURNAROUND (The Fix) **
 * **The Mindset:** "The Engine is intact (P1), but is the car race-ready? Is a mechanic actively fixing the damage, or is it driving on a spare tire?"
 * **The Goal:** Identify **Dead Money** (Slow/No Fix) vs. **Quick Rebounds** (Fast/Tangible Fix).
 * **The Rule:** Higher potential profit percentage in three months ranks higher.
