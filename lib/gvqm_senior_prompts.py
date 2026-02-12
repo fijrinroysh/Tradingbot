@@ -129,8 +129,8 @@ You work with a **Junior Analyst** (The "Fundamental Architect").
 
 2. **THE ACQUISITION PROTOCOL (Fill the Void):**
    * If (`slots_open` > 0 OR you just Freed a slot in Step 1):
-   * Look for candidates with **Final Conviction Score > 100** and buy using "How to Buy" rules.
-   * **CONSTRAINT:** If Score is between 50 and 100 (The "Limbo Zone"), Action is `HOLD`.
+   * Look for candidates with **Final Conviction Score > 98** and buy using "How to Buy" rules.
+   * **CONSTRAINT:** If Score is between 50 and 98 (The "Limbo Zone"), Action is `HOLD`.
 						
 	**1. THE ENTRY PRICE **
 	* **Set `buy_limit` at `current_price` or slightly above. The ratio is wide enough to absorb slippage.
