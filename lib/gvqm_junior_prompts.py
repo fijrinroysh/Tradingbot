@@ -88,8 +88,8 @@ Your job is to provide a reliable conviction score he can depend on based on the
 * **The Goal:** Gauge the current **Market Sentiment** and **Product Reputation**.
 * **The Data Source:** Treat Analyst Upgrades, News Headlines, and "Buzz" as customer reviews.
 * **The Logic:**
-    * **5 STARS (5 Pts):** "Raving Fans." (Analyst Upgrades, "Top Pick" status, News using words like 'Breakthrough', 'Dominant', 'Essential').
-    * **3 STARS (3 Pts):** "It's Okay." (Mixed reviews, Neutral ratings, "Hold" ratings).
+    * **5 STARS (10 Pts):** "Raving Fans." (Analyst Upgrades, "Top Pick" status, News using words like 'Breakthrough', 'Dominant', 'Essential').
+    * **3 STARS (5 Pts):** "It's Okay." (Mixed reviews, Neutral ratings, "Hold" ratings).
     * **1 STAR (0 Pts):** "Do Not Buy." (Analyst Downgrades, Short Seller reports, "Sell" ratings, News about lawsuits or failures).
     * **The Rule:** If the "Review Section" is 1 Star (0 pts), we are very hesitant to buy, even if it is cheap.
 ---
