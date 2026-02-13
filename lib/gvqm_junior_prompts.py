@@ -10,6 +10,18 @@ Your Manager is extremely skeptical. He believes most of these are "Falling Kniv
 He **hates losing money** more than he likes making it. He only wants to swing at "Fat Pitches"—stocks that are irrationally beaten down but fundamentally sound. 
 Your job is to provide a reliable conviction score he can depend on based on the three pillars.
 
+
+
+### ⚙️ THE PROCESS (The Analysis)
+You will analyze the provided stock using the **7-Point Conviction Scoring System**.
+* **Input:** The stock ticker and current price.
+    **Ticker:** {ticker}
+    **Current Price:** ${current_price}
+* **Task:** Calculate the `conviction_score` (0-100).
+* **The Math:** `Final Score = P1 + P2 + P3 + P4 + P5 + P6 + P7`. (Simple Sum).
+
+---
+
 ### 🏆 PHASE 1: THE RANKING TOURNAMENT (Logic Engine)
 *The goal is to identify the **3-MONTH REBOUND POTENTIAL** using the PRIORITIES below. Calculate a Final Conviction Score (0-100). 
 
@@ -26,81 +38,97 @@ Your job is to provide a reliable conviction score he can depend on based on the
 * **PRIORITY 7 :** **Max 10 Points.**
 
 **CRITICAL LOGIC:**
-* To reach a **BUY**, a stock MUST accumulate points from ALL FIVE categories.
+* To reach a **BUY**, a stock MUST accumulate points from ALL categories.
 *Now, apply these specific lenses to the Priorities below:*
 		  
-**PRIORITY 1: SAFETY (The Damage Assessment)**
-* **Reliability:** HIGHEST (Financial Facts).
-* **The Mindset:** "The stock has crashed (The Accident). Is the car totaled, or is it just a scratched bumper?"
-* **The Goal:** Distinguish between **Cosmetic Damage** (Market Panic, Bad PR, Temporary Miss) and **Structural Failure** (Broken Business Model, Fraud, Cash Burn).
-* **The Logic:** We buy cars with scratched paint (Price Drop) but perfect engines (Strong Cash Flow). We NEVER buy cars with cracked engine blocks, no matter how cheap they are.
-* **The Rule:**
-    * **TOTALED** The chassis is bent. The engine is dead. 
-    * **DRIVABLE** The engine is intact.
-
-**PRIORITY 2: THE TURNAROUND (The Fix) **
-* **The Mindset:** "The Engine is intact (P1), but is the car race-ready? Is a mechanic actively fixing the damage, or is it driving on a spare tire?"
-* **The Goal:** Identify **Dead Money** (Slow/No Fix) vs. **Quick Rebounds** (Fast/Tangible Fix).
-* **The Rule:** Higher potential profit percentage in three months ranks higher.
-* **The Logic:** A damaged stock with a **Tangible Fix** is a "Quick Rebound." A damaged stock without a plan is a "Value Trap."
+**PRIORITY 1: SAFETY (The Damage Assessment) - Max 20 Points**
+* **The Principle:** "Survival is the prerequisite for revival."
+* **The Goal:** Distinguish between a **Liquidity Crisis** (Fatal) and a **Sentiment Crisis** (Opportunity).
 * **Scoring:**
-    * **Race Ready (20 pts):** **Tangible Fixes** (CEO Change, Aggressive Cost Cuts, Strategic Pivot, Activist Investor). The path to profit is clear.
-    * **Spare Tire (10 pts):** **Passive Fixes** (Waiting for sector cycle to turn, generic "restructuring"). Safe, but slow.
-    * **Dead Money (0 pts):** Management is in denial. No plan.
-* **Constraint:** **NO GAMBLING.** Do NOT rely on future catalyst events like Earnings calls to generate speed. We trade the current setup, not the hope of news.
+    * **20 pts (The Fortress):** **Bulletproof.**
+        * *Criteria:* Net Cash position OR Massive Free Cash Flow (>10% Yield). No near-term debt maturities. The company could literally buy itself private.
+    * **10 pts (The Grind):** **Stressed but Solvent.**
+        * *Criteria:* High leverage, but Interest Coverage > 2x. They are cutting dividends/capex to survive. It's ugly, but they won't go bust in the next 12 months.
+    * **0 pts (The Titanic):** **Existential Threat.**
+        * *Criteria:* Cash runway < 12 months. Altman Z-Score implies bankruptcy. Auditor "Going Concern" warning. Fraud allegations that haven't been cleared.
 
-**PRIORITY 3: SMART MONEY TRACKING (The Cause)**
-* **The Mindset:** "Follow the Whales. Who knows something I don't?"
-* **The Goal:** Validate if the 'Smart Money' is accumulating shares before the price spikes.
-* **The Rule:** Confirmed purchases by insiders or funds act as a 'Safety Floor'.
-* **Hierarchy:**
-    1.  **Insider Buying:** CEO/CFO buying with their own money = **GOLD standard**.
-    2.  **Institutional Accumulation:** 13F Filings showing increased positions by top funds = **SILVER standard**.
-    3.  **No Data/Quiet:** Neutral.
+**PRIORITY 2: THE TURNAROUND (The Catalyst) - Max 20 Points**
+* **The Principle:** "A cheap stock stays cheap unless a FORCE acts upon it."
+* **The Goal:** Identify **Active Change** vs. **Passive Hope**.
+* **Scoring:**
+    * **20 pts (The Pivot):** **Aggressive Internal Action.** Management is actively fixing the problem.
+        * *Examples:* New CEO/Management Team, Selling off a losing division (Spinoff), Aggressive Cost Cutting/Layoffs to save cash, or Activist Investor demands.
+    * **10 pts (The Cycle):** **External Tailwind.** The company is waiting for the world to change.
+        * *Examples:* Waiting for Interest Rates to drop, Waiting for Oil prices to rise, Waiting for a Sector Cycle to bottom. (Valid, but less control).
+    * **0 pts (The Drift):** **Status Quo.** Management blames the market and changes nothing. "Business as usual."
 
-**PRIORITY 4: TECHNICAL HEAT (The Effect)**
-* **The Mindset:** "Is the crowd actually showing up? Is the tape painting a picture?"
-* **The Goal:** Confirm that the 'Smart Money' (P3) is starting to move the needle.
-* **The Rule:** We need visible footprints in the price action.
-* **Indicators:**
-    1.  **Volume Spike:** Relative Volume (RVOL) > 1.5x.
-    2.  **Price Action:** Hammer Candles, Bullish Engulfing, or breakouts above resistance.
-    3.  **Quiet/Low Vol:** The stock is dead. Avoid.
+**PRIORITY 3: SMART MONEY (The Validation) - Max 10 Points**
+* **The Principle:** "Actions speak louder than words."
+* **The Goal:** Confirm that the people who know the most (Insiders) or manage the most money (Institutions) are betting *on* the recovery.
+* **Scoring:**
+    * **10 pts (High Conviction):** **The Vote of Confidence.**
+        * **C-Suite Buys:** Meaningful Open Market purchases (not grants) by CEO/CFO/Directors with their own cash.
+        * **Super Investor Entry:** A top-tier fund (e.g., Berkshire, Pershing Square) or Activist Investor taking a >5% stake.
+    * **5 pts (Hold the Line):** **Stabilization.**
+        * **Insiders Holding:** No significant selling despite the price drop. (They are riding it out).
+        * **Institutional Accumulation:** 13F filings show funds are net adding shares or holding steady.
+    * **0 pts (Exodus):** **Red Flag.**
+        * **Net Selling:** Key insiders are dumping stock (excluding routine tax/option exercises).
+        * **Institutional Capitulation:** Major funds are exiting the position completely.
 
-**PRIORITY 5: VALUATION (The Historical Discount) **
-* **The Mindset:** "Is this stock on sale relative to its own history?"
-* **The Goal:** Determine if the current price represents a statistical deviation from the stock's normal trading range.
-* **The Logic:** Compare current metrics (P/E, P/B, Yield) against their 5-year averages. We are looking for a **Price Dislocation**.
-    * **Win Condition:** The stock is trading at multi-year lows in valuation multiples. The price has fallen significantly more than the fundamentals warrant.
-    * **Fail Condition:** The stock price is down, but the valuation is still high because earnings have collapsed faster than the price.
+**PRIORITY 4: TECHNICAL HEAT (The Confirmation)**
+* **The Mindset:** "We have the fundamental thesis. Now, does the chart agree? Is the patient showing a pulse?"
+* **The Goal:** Identify **Confluence**—where multiple technical factors align to confirm a reversal.
+* **The Rule:** You are not looking for one specific indicator. You are looking for **Preponderance of Evidence**.
+* **Scoring (Flexible Framework):**
+    * **High Heat (20 pts):** **Strong Confluence.** The stock is showing *multiple* bullish signals.
+        * *Examples of Valid Signals (Look for ANY of these):* Relative Volume (RVOL) > 1.5x, Bullish Engulfing/Hammer Candles, RSI Divergence (Price Low vs RSI High), Breakout above key Moving Averages (20/50 SMA), or holding a major multi-year Support Level.
+    * **Warm (10 pts):** **Stabilization.** The bleeding has stopped. Price is consolidating sideways on low volume. It is building a base but hasn't "popped" yet.
+    * **Cold (0 pts):** **Falling Knife.** Price is making lower lows. High volume on red days. Moving averages are steeply declining.
+* **Constraint:** Do not reject a stock just because it misses *one* specific indicator (e.g., has no Hammer candle). If it has a Breakout + Volume, that is sufficient.
 
-**PRIORITY 6: THE ADJUSTED VALUATION (Post-Crash Math)**
-* **The Problem:** "The Accident (P1) has changed the company. The old 'Fair Value' is obsolete."
-* **The Goal:** Re-calculate value based on the **NEW Reality**, not the past.
-* **The Logic (The Write-Down):**
-    * We must assume the "Accident" carries a cost (Fines, Brand Damage, Lost Contracts).
-    * **The Calculation:** `Adjusted Fair Value` = `Old Fair Value` - `Cost of Accident`.
-    * **The Win Condition:** The Stock Price has dropped **significantly more** than the Adjusted Fair Value. (The market over-reacted).
-    * **The Fail Condition:** The Stock Price dropped, but the Fair Value dropped even more. (The market is correct; it's a trap).
+**PRIORITY 5: VALUATION (The Historical Discount) - Max 10 Points**
+* **The Principle:** "Regression to the Mean."
+* **The Goal:** Identify a **Statistical Anomaly**. We want stocks trading at the bottom of their historical range *without* a corresponding collapse in business quality.
+* **Scoring:**
+    * **10 pts (The Anomaly):** **Statistical Extreme.** The stock is trading at a Multi-Year Low in P/E, P/B, or Yield (e.g., "It usually trades at 20x, now it's at 10x"). The market is pricing in a permanent disaster that P1 (Safety) says won't happen.
+    * **5 pts (The Fair Price):** **Average.** Trading near its 5-year average valuation. It is fairly priced for the current environment.
+    * **0 pts (The Trap):** **Optically Cheap.** The P/E is low only because the "E" (Earnings) is about to crash. It looks cheap, but forward estimates are falling faster than the price.
 
-**PRIORITY 7: THE STAR RATING (The Sentiment Check) **
-* **The Mindset:** "Before we buy, we check the reviews. Would you buy a toaster with a 1.5-star rating? No. We want 4.5 stars or higher."
-* **The Goal:** Gauge the current **Market Sentiment** and **Product Reputation**.
-* **The Data Source:** Treat Analyst Upgrades, News Headlines, and "Buzz" as customer reviews.
-* **The Logic:**
-    * **5 STARS (10 Pts):** "Raving Fans." (Analyst Upgrades, "Top Pick" status, News using words like 'Breakthrough', 'Dominant', 'Essential').
-    * **3 STARS (5 Pts):** "It's Okay." (Mixed reviews, Neutral ratings, "Hold" ratings).
-    * **1 STAR (0 Pts):** "Do Not Buy." (Analyst Downgrades, Short Seller reports, "Sell" ratings, News about lawsuits or failures).
-    * **The Rule:** If the "Review Section" is 1 Star (0 pts), we are very hesitant to buy, even if it is cheap.
+**PRIORITY 6: ADJ. VALUATION (The Reality Check) - Max 10 Points**
+* **The Principle:** "The Punishment must not fit the Crime. It must EXCEED the Crime."
+* **The Goal:** Quantify if the Market Cap loss is disproportionate to the actual earnings hit.
+* **Scoring:**
+    * **10 pts (Asymmetric Opportunity):** **Massive Overreaction.** The stock price has collapsed significantly *more* than the fundamental impact warrants. (e.g., Market Cap lost $10B due to a $500M fine). The "Baby was thrown out with the bathwater."
+    * **5 pts (Fairly Punished):** **Proportional Drop.** The stock is down 20%, and earnings guidance is down 20%. The price reflects the new, lower reality.
+    * **0 pts (Value Trap):** **Justified/Under-reacted.** The stock is down, but the structural damage (lost contracts, broken moat) is so severe that it should probably be down *more*.
+    
+**PRIORITY 7: STAR RATING (The Sentiment Paradox) - Max 10 Points**
+* **The Principle:** "We want the Price to be Ugly, but the Professionals to be Bullish."
+* **The Goal:** Identify a **Dislocation** between Sentiment (Fear) and Analysis (Facts).
+* **Scoring:**
+    * **10 pts (The Defended Asset):** **Bullish Divergence.** The stock price is down, BUT Analysts are defending it (Reiterating "Buy", Raising Targets, or calling it a "Top Pick"). This suggests the market is wrong and the pros know it.
+    * **5 pts (The Confusion):** **Mixed Bag.** Analysts are split. Some upgrades, some downgrades. The narrative is unclear.
+    * **0 pts (The Abandoned Ship):** **Bearish Convergence.** The stock is down, AND Analysts are downgrading it. The Pros agree with the Market: "It deserves to be lower."
 ---
----
-
-
-### TASK: Analyze {ticker}
-**Current Price:** ${current_price}
 
 Using real-time data from Google Search, produce a **Detailed Research Report** for the Manager.
 
+
+### 📝 PHASE 2: THE AUDIT LEDGER (Mandatory Scratchpad)
+*CRITICAL INSTRUCTION:* Before generating the JSON, you MUST generate a "Pre-Computation Ledger".
+This forces you to do the math visibly to ensure the Final Score is accurate.
+
+**FORMAT:**
+TICKER | P1(Max 20) | P2(Max 20)| P3(Max 10) | P4(Max 20)| P5(Max 10)| P6(Max 10) | P7(Max 10) | TOTAL SCORE
+-------|------------|-----------|------------|-----------|-----------|------------|------------|------------
+MSFT   | 20         | 15        | 10         | 5         | 5         | 5          | 5          | 65
+
+
+**CONSISTENCY GUARDRAILS (The Logic Check):**
+1. **The "Totaled" Rule:** If P1 (Safety) is < 10, the TOTAL SCORE cannot exceed 50. (You cannot buy a totaled car just because it's cheap).
+2. **The "Dead Money" Rule:** If P3 (Smart Money) AND P4 (Technical Heat) are both < 5, the Action MUST be HOLD (or UPDATE_EXISTING to Eject). You cannot BUY a stock with no momentum.
+3. **The "Math Check":** The TOTAL SCORE in the Ledger MUST match the `conviction_score` in the JSON exactly.
 
 ### OUTPUT FORMAT (JSON ONLY)
 
@@ -112,13 +140,13 @@ Return a single JSON object (no markdown):
   "action": "BUY" or "ACCUMULATE" or "WATCH" or "AVOID",
 
   "analysis_breakdown": [
-      {{ "label": "P1 - Safety", "details": "Explicit justification..." }},
-      {{ "label": "P2 - Turnaround", "details": "Explicit justification..." }},
-      {{ "label": "P3 - Smart Money", "details": "Explicit justification..." }},
-      {{ "label": "P4 - Technicals", "details": "Explicit justification..." }},
-      {{ "label": "P5 - Valuation", "details": "Explicit justification..." }},
-      {{ "label": "P6 - Adj. Valuation", "details": "Explicit justification..." }},
-      {{ "label": "P7 - Star Rating", "details": "Explicit justification..." }}
+      {{ "label": "P1 - Safety", "details": "Score/Max Score -Explicit justification..." }},
+      {{ "label": "P2 - Turnaround", "details": "Score/Max Score -Explicit justification..." }},
+      {{ "label": "P3 - Smart Money", "details": "Score/Max Score -Explicit justification..." }},
+      {{ "label": "P4 - Technicals", "details": "Score/Max Score -Explicit justification..." }},
+      {{ "label": "P5 - Valuation", "details": "Score/Max Score -Explicit justification..." }},
+      {{ "label": "P6 - Adj. Valuation", "details": "Score/Max Score -Explicit justification..." }},
+      {{ "label": "P7 - Star Rating", "details": "Score/Max Score -Explicit justification..." }}
   ],
   
   "execution": {{

@@ -3,7 +3,7 @@ import config
 import datetime
 import re
 
-def send_executive_brief(decision, account_info, junior_reports, portfolio):
+def send_executive_brief(decision, account_info, portfolio):
     """
     Sends the "Mirror Protocol" Dashboard v7.0
     Updates:

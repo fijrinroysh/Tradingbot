@@ -8,8 +8,8 @@ import time
 
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
 SHEET_NAME = getattr(config, 'GOOGLE_SHEET_NAME', "TradingBot_History")
-STRATEGY_TAB_NAME = getattr(config, 'GOOGLE_SHEET_STRATEGY_TAB', "Strategy_Brief")
 SENIOR_DECISIONS_TAB = getattr(config, 'GOOGLE_SHEET_SENIOR_DECISIONS_TAB', "Senior_Decisions")
+STRATEGY_TAB_NAME = getattr(config, 'GOOGLE_SHEET_STRATEGY_TAB', "Strategy_Brief")
 
 def get_client():
     creds_json = os.getenv("GOOGLE_SHEETS_CREDENTIALS")
@@ -26,166 +26,83 @@ def get_client():
         print(f"⚠️ [SENIOR HISTORY] Auth Error: {e}")
         return None
 
-def clean_score(value):
-    try: return int(float(str(value).replace('%', '').strip())) if value else 0
-    except: return 0
+# ==========================================
+# 📥 READING (JUNIOR REPORTS)
+# ==========================================
 
-def safe_read_sheet(worksheet):
+def fetch_market_reports(lookback_days=3):
+    """
+    Fetches Junior reports using STRICT New Headers.
+    Headers: Date, Ticker, Sector, Action, Score, Detailed_Analysis
+    """
+    client = get_client()
+    if not client: return []
+    
     try:
-        raw_data = worksheet.get_all_values()
-        if not raw_data: return []
-        headers = raw_data[0]
-        clean_headers = []
-        counts = {}
-        for h in headers:
-            h_str = str(h).strip()
-            if not h_str: h_str = "Unknown"
-            if h_str in counts:
-                counts[h_str] += 1
-                clean_headers.append(f"{h_str}_{counts[h_str]}")
-            else:
-                counts[h_str] = 0
-                clean_headers.append(h_str)
-        records = []
-        for row in raw_data[1:]:
-            if len(row) < len(clean_headers): row += [''] * (len(clean_headers) - len(row))
-            records.append(dict(zip(clean_headers, row)))
-        return records
+        # We read SHEET1 (Junior Logs)
+        sheet = client.open(SHEET_NAME).sheet1
+        rows = sheet.get_all_records() # Returns dicts with headers as keys
+        
+        if not rows: return []
+        
+        reports = []
+        cutoff_date = datetime.datetime.now() - datetime.timedelta(days=lookback_days)
+        
+        for row in rows:
+            try:
+                # 1. Date Filter
+                date_str = str(row.get('Date', ''))
+                if not date_str: continue
+                
+                try:
+                    row_date = datetime.datetime.strptime(date_str, "%Y-%m-%d %H:%M")
+                    if row_date < cutoff_date: continue
+                except: continue
+
+                # 2. Strict Extraction
+                report = {
+                    "ticker": row.get('Ticker'),
+                    "date": date_str,
+                    "conviction_score": row.get('Score', 0),
+                    "action": row.get('Action', 'WATCH'),
+                    "Detailed_Analysis": row.get('Detailed_Analysis', 'N/A')
+                }
+                
+                # Cleanup Score
+                try: report['conviction_score'] = int(report['conviction_score'])
+                except: report['conviction_score'] = 0
+                
+                if report['ticker']:
+                    reports.append(report)
+                    
+            except Exception: continue
+
+        print(f"   ✅ [HISTORY] Fetched {len(reports)} valid market reports.")
+        return reports
+
     except Exception as e:
-        print(f"⚠️ Safe Read Error: {e}")
+        print(f"   ⚠️ Market Fetch Error: {e}")
         return []
 
-def robust_parse_date(date_str):
-    date_str = str(date_str).strip()
-    if not date_str: return datetime.datetime(1900, 1, 1)
-    formats = ["%Y-%m-%d %H:%M", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d", "%m/%d/%Y %H:%M", "%m/%d/%Y"]
-    for fmt in formats:
-        try: return datetime.datetime.strptime(date_str, fmt)
-        except ValueError: continue
-    return datetime.datetime(1900, 1, 1)
-
-# =======================================================
-#  NEW SEPARATED FETCH LOGIC
-# =======================================================
-
-def _fetch_all_raw_reports():
-    """Internal Helper: Fetches and sorts all raw rows from the sheet."""
-    for attempt in range(3):
-        try:
-            client = get_client()
-            if not client: return []
-            sheet = client.open(SHEET_NAME).sheet1
-            raw_records = safe_read_sheet(sheet)
-            # Return sorted by Date (Newest First)
-            return sorted(raw_records, key=lambda x: robust_parse_date(x.get('Date', '')), reverse=True)
-        except Exception as e:
-            print(f"   ⚠️ Sheet Fetch Error (Attempt {attempt+1}/3): {e}")
-            time.sleep(2)
-    return []
-
-def _parse_report(row):
-    """Internal Helper: Formats a raw row into a clean report object."""
-    # [STRICT] Now assumes Google Sheet headers match the new Schema
-    return {
-        "ticker": row.get('Ticker', '').upper().strip(),
-        "report_date": robust_parse_date(row.get('Date', '')).strftime("%Y-%m-%d %H:%M"),
-        "conviction_score": clean_score(row.get('Score', 0)),
-        "sector": row.get('Sector', ''),
-        "recommended_action": row.get('Action', ''),
-        "status": row.get('Status', ''),
-        "status_reason": row.get('Status_Reason', ''),
-        "valuation": row.get('Valuation', ''),
-        "valuation_reason": row.get('Valuation_Reason', ''),
-        
-        # LOOKING FOR NEW COLUMN NAMES
-        "upside_magnitude": row.get('Upside_Magnitude', ''), 
-        "upside_rationale": row.get('Upside_Rationale', ''),
-        
-        "catalyst": row.get('Catalyst', ''),
-        "intel": row.get('Intel', ''),
-        "junior_targets": {
-            "buy_limit": row.get('Buy_Limit', 0),
-            "take_profit": row.get('Take_Profit', 0),
-            "stop_loss": row.get('Stop_Loss', 0)
-        }
-    }
-
-def fetch_portfolio_reports(priority_tickers):
+def fetch_portfolio_reports(portfolio_tickers):
     """
-    Fetches reports ONLY for the specific tickers provided (Your Portfolio).
-    RULE: IGNORES Date Expiration and Score Thresholds.
+    Fetches latest Junior Analysis for stocks we currently own.
     """
-    if not priority_tickers: return []
-    priority_tickers = set(priority_tickers) if isinstance(priority_tickers, list) else priority_tickers
+    if not portfolio_tickers: return []
     
-    raw_records = _fetch_all_raw_reports()
-    clean_reports = []
-    seen = set()
-
-    for row in raw_records:
-        ticker = row.get('Ticker', '').upper().strip()
-        
-        # FILTER: Must be in our priority list
-        if ticker not in priority_tickers: continue
-        
-        # Deduplicate (Taking newest due to sort)
-        if ticker in seen: continue
-
-        clean_reports.append(_parse_report(row))
-        seen.add(ticker)
+    # We re-use the market fetch logic but filter for our specific tickers
+    # This is efficient because get_all_records is one API call.
+    all_reports = fetch_market_reports(lookback_days=7)
     
-    print(f"   ✅ [HISTORY] Retrieved {len(clean_reports)} reports for Active Portfolio.")
-    return clean_reports
+    # Filter for our portfolio
+    relevant_reports = [r for r in all_reports if r['ticker'] in portfolio_tickers]
+    
+    print(f"   ✅ [HISTORY] Found {len(relevant_reports)} recent reports for active holdings.")
+    return relevant_reports
 
-def fetch_market_reports(lookback_days=10):
-    """
-    Fetches reports for the General Market.
-    RULE: APPLIES Strict Date Expiration and Score Filters.
-    """
-    raw_records = _fetch_all_raw_reports()
-    clean_reports = []
-    seen = set()
-    limit_date = datetime.datetime.now() - datetime.timedelta(days=lookback_days)
-
-    for row in raw_records:
-        ticker = row.get('Ticker', '').upper().strip()
-        if not ticker: continue
-        if ticker in seen: continue
-
-        date_obj = robust_parse_date(row.get('Date', ''))
-        score = clean_score(row.get('Score', 0))
-
-        # FILTER: Must be recent AND have a score
-        if date_obj < limit_date: continue
-        if score == 0: continue
-
-        clean_reports.append(_parse_report(row))
-        seen.add(ticker)
-
-    print(f"   ✅ [HISTORY] Retrieved {len(clean_reports)} valid market reports (Last {lookback_days} days).")
-    return clean_reports
-
-# =======================================================
-
-def log_strategy(decision):
-    for attempt in range(3):
-        try:
-            client = get_client()
-            if not client: return
-            sh = client.open(SHEET_NAME)
-            try: sheet = sh.worksheet(STRATEGY_TAB_NAME)
-            except: 
-                sheet = sh.add_worksheet(title=STRATEGY_TAB_NAME, rows=1000, cols=10)
-                sheet.append_row(["Date", "Total", "Top_Count", "Report"])
-            trades = decision.get('final_execution_orders', [])
-            trades_summary = ", ".join([f"{t.get('action')} {t.get('ticker')}" for t in trades])
-            timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-            sheet.append_row([timestamp, len(trades), trades_summary, decision.get('ceo_report', 'N/A')])
-            print(f"   ✅ [SENIOR] Strategy Brief Logged to '{STRATEGY_TAB_NAME}'.")
-            return
-        except Exception as e:
-            print(f"   ⚠️ Strategy Log Error (Attempt {attempt+1}/3): {e}")
-            time.sleep(2)
+# ==========================================
+# 📤 WRITING (SENIOR DECISIONS)
+# ==========================================
 
 def log_detailed_decisions(decision_data, holdings_map=None):
     if holdings_map is None: holdings_map = {}
@@ -196,17 +113,16 @@ def log_detailed_decisions(decision_data, holdings_map=None):
             if not client: return
             sh = client.open(SHEET_NAME)
             
-            # [SCALABLE] New Headers
-            # We replaced the 7 individual priority columns with one "Detailed_Analysis" column
+            # --- NEW STRICT HEADERS ---
             headers = [
                 "Date", "Ticker", "Conviction_Score", "Action", "Reason", 
                 "Buy_Limit", "Take_Profit", "Stop_Loss", "Shares_Held", 
-                "Detailed_Analysis"  # <--- The Aggregated Column
+                "Detailed_Analysis" # Single Consolidated Column
             ]
             
             try: sheet = sh.worksheet(SENIOR_DECISIONS_TAB)
             except: 
-                sheet = sh.add_worksheet(title=SENIOR_DECISIONS_TAB, rows=2000, cols=20)
+                sheet = sh.add_worksheet(title=SENIOR_DECISIONS_TAB, rows=2000, cols=15)
                 sheet.append_row(headers)
             
             if sheet.row_count < 1 or not sheet.row_values(1):
@@ -221,8 +137,7 @@ def log_detailed_decisions(decision_data, holdings_map=None):
                 ticker = order.get('ticker')
                 p = order.get('confirmed_params', {})
                 
-                # --- AGGREGATION LOGIC ---
-                # Loop through the dynamic list and build a string
+                # Flatten the Analysis List into a String for the Sheet
                 breakdown = order.get('analysis_breakdown', [])
                 analysis_text = ""
                 
@@ -246,157 +161,36 @@ def log_detailed_decisions(decision_data, holdings_map=None):
                     p.get('take_profit', 0), 
                     p.get('stop_loss', 0),
                     holdings_map.get(ticker, 0),
-                    analysis_text # <--- Writes the full block here
+                    analysis_text # <--- The Consolidated Block
                 ]
                 rows_to_append.append(row)
             
             if rows_to_append:
                 sheet.append_rows(rows_to_append)
                 
-            print(f"   ✅ [SENIOR] Ledger Updated with Scalable Analysis.")
+            print(f"   ✅ [SENIOR] Ledger Updated.")
             return
             
         except Exception as e:
             print(f"   ⚠️ Ledger Log Error (Attempt {attempt+1}/3): {e}")
             time.sleep(2)
 
-def log_trade_event(ticker, event_type, details):
-    for attempt in range(3):
-        try:
-            client = get_client()
-            if not client: return
-            sh = client.open(SHEET_NAME)
-            try: sheet = sh.worksheet("Trade_Log")
-            except:
-                sheet = sh.add_worksheet(title="Trade_Log", rows=1000, cols=10)
-                sheet.append_row(["Timestamp", "Ticker", "Event", "Qty", "Price", "Stop_Loss", "Take_Profit", "Details"])
-            now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-            price = details.get('price') or details.get('buy_limit') or details.get('limit_price') or '-'
-            row = [now, ticker, event_type, details.get('qty', '-'), price, details.get('stop_loss', '-'), details.get('take_profit', '-'), details.get('info', '')]
-            sheet.append_row(row)
-            print(f"   ✅ [HISTORY] Trade Event Logged: {event_type} for {ticker}")
-            return
-        except Exception as e:
-            print(f"   ⚠️ Trade Log Error (Attempt {attempt+1}/3): {e}")
-            time.sleep(2)
+def log_strategy(decision_payload):
+    """Logs the CEO Report / Executive Summary."""
+    try:
+        client = get_client()
+        if not client: return
+        sh = client.open(SHEET_NAME)
+        
+        try: sheet = sh.worksheet(STRATEGY_TAB_NAME)
+        except: 
+            sheet = sh.add_worksheet(title=STRATEGY_TAB_NAME, rows=1000, cols=5)
+            sheet.append_row(["Date", "CEO_Report"])
 
-def get_last_strategy():
-    for attempt in range(3):
-        try:
-            client = get_client()
-            if not client: return None
-            try: sheet = client.open(SHEET_NAME).worksheet(STRATEGY_TAB_NAME)
-            except: return None 
-            records = safe_read_sheet(sheet)
-            if not records: return None
-            sorted_records = sorted(records, key=lambda x: robust_parse_date(x.get('Date', '')), reverse=True)
-            for record in sorted_records:
-                report_val = record.get('Report')
-                if not report_val:
-                    for key, val in record.items():
-                        if "ceo" in str(key).lower() or "report" in str(key).lower():
-                            report_val = val
-                            break
-                if report_val and len(str(report_val).strip()) > 10 and "N/A" not in str(report_val):
-                    print(f"   ✅ [MEMORY] Found valid strategy from {record.get('Date', 'Unknown')}")
-                    return {
-                        "date": record.get("Date", "Unknown"),
-                        "top_tickers": record.get("Top_Count", "None"),
-                        "ceo_report": report_val
-                    }
-            return None
-        except Exception as e:
-            if attempt == 2: print(f"   ⚠️ Memory Recall Error: {e}")
-            time.sleep(2)
-    return None
-
-
-def fetch_latest_ranks():
-    """
-    Fetches ranks STRICTLY from the most recent strategy run.
-    Ignores older runs to ensure 'dropped' stocks reset to Unranked.
-    Supports Alphanumeric ranks (A1, B10).
-    """
-    for attempt in range(3):
-        try:
-            client = get_client()
-            if not client: return {}
-            try: sheet = client.open(SHEET_NAME).worksheet(SENIOR_DECISIONS_TAB)
-            except: return {} 
-            
-            records = safe_read_sheet(sheet)
-            if not records: return {}
-            
-            # 1. Sort by Date Descending (Newest first)
-            sorted_records = sorted(records, key=lambda x: robust_parse_date(x.get('Date', '')), reverse=True)
-            
-            if not sorted_records: return {}
-
-            # 2. Identify the Timestamp of the "Previous Run"
-            # We assume the first record represents the latest batch.
-            latest_run_date = sorted_records[0].get('Date')
-            
-            rank_map = {}
-            for r in sorted_records:
-                # 3. STRICT BARRIER: Stop if we hit an older batch
-                # This ensures we don't accidentally pull a rank from 2 days ago for a stock that was dropped yesterday.
-                if r.get('Date') != latest_run_date:
-                    break 
-
-                ticker = r.get('Ticker')
-                rank = r.get('Rank') # Keep as String (e.g., "A1", "B10")
-                
-                if ticker and ticker not in rank_map:
-                    # Do NOT cast to int. We need "A1".
-                    rank_map[ticker] = rank
-
-            print(f"   ✅ [MEMORY] Loaded Context from {latest_run_date}: {len(rank_map)} ranked tickers.")
-            return rank_map
-
-        except Exception as e:
-            print(f"   ⚠️ Memory Fetch Error: {e}")
-            time.sleep(1)
-    return {}
-
-def fetch_latest_decisions():
-    """
-    Fetches the full decision rows (Ticker, Rank, Reason, Date)
-    from the MOST RECENT entry in 'Senior Decisions'.
-    Uses robust sorting (Newest First) to isolate the latest batch.
-    """
-    for attempt in range(3):
-        try:
-            client = get_client()
-            if not client: return []
-            try: sheet = client.open(SHEET_NAME).worksheet(SENIOR_DECISIONS_TAB)
-            except: return []
-            
-            records = safe_read_sheet(sheet)
-            if not records: return []
-            
-            # 1. Sort by Date Descending (Newest first)
-            # Use robust_parse_date to handle string formats correctly
-            sorted_records = sorted(records, key=lambda x: robust_parse_date(x.get('Date', '')), reverse=True)
-            
-            if not sorted_records: return []
-
-            # 2. Identify the Timestamp of the "Previous Run"
-            # The first record is guaranteed to be from the latest batch due to sorting
-            latest_run_date = sorted_records[0].get('Date')
-            
-            decisions = []
-            for r in sorted_records:
-                # 3. STRICT BARRIER: Stop if we hit an older batch
-                # This prevents mixing data from different trading sessions
-                if r.get('Date') != latest_run_date:
-                    break
-                
-                decisions.append(r)
-
-            print(f"   ✅ [HISTORY] Fetched {len(decisions)} granular decisions from {latest_run_date}")
-            return decisions
-
-        except Exception as e:
-            print(f"   ⚠️ History Fetch Error (Attempt {attempt+1}/3): {e}")
-            time.sleep(1)
-    return []
+        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+        report = decision_payload.get('ceo_report', 'No report.')
+        
+        sheet.append_row([timestamp, report])
+        print("   ✅ [SENIOR] CEO Strategy Logged.")
+    except Exception as e:
+        print(f"   ⚠️ Strategy Log Error: {e}")
