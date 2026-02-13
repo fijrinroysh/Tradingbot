@@ -196,17 +196,12 @@ def log_detailed_decisions(decision_data, holdings_map=None):
             if not client: return
             sh = client.open(SHEET_NAME)
             
-            # [UPDATED] Headers: 'Rank' is gone. 'Conviction_Score' is now Column #3.
+            # [SCALABLE] New Headers
+            # We replaced the 7 individual priority columns with one "Detailed_Analysis" column
             headers = [
                 "Date", "Ticker", "Conviction_Score", "Action", "Reason", 
                 "Buy_Limit", "Take_Profit", "Stop_Loss", "Shares_Held", 
-                "Priority_1_Safety", 
-                "Priority_2_Turnaround", 
-                "Priority_3_SmartMoney", 
-                "Priority_4_TechHeat", 
-                "Priority_5_Valuation", 
-                "Priority_6_AdjValuation", 
-                "Priority_7_Upside"
+                "Detailed_Analysis"  # <--- The Aggregated Column
             ]
             
             try: sheet = sh.worksheet(SENIOR_DECISIONS_TAB)
@@ -226,11 +221,24 @@ def log_detailed_decisions(decision_data, holdings_map=None):
                 ticker = order.get('ticker')
                 p = order.get('confirmed_params', {})
                 
-                # [UPDATED] Row Mapping
+                # --- AGGREGATION LOGIC ---
+                # Loop through the dynamic list and build a string
+                breakdown = order.get('analysis_breakdown', [])
+                analysis_text = ""
+                
+                if isinstance(breakdown, list):
+                    lines = []
+                    for item in breakdown:
+                        lbl = item.get('label', 'Unknown')
+                        det = item.get('details', 'N/A')
+                        lines.append(f"🔹 [{lbl}]: {det}")
+                    analysis_text = "\n".join(lines)
+                else:
+                    analysis_text = str(breakdown)
+
                 row = [
                     timestamp, 
                     ticker, 
-                    # THE SCORE IS NOW THE KEY METRIC
                     order.get('conviction_score', 0), 
                     order.get('action', 'HOLD'), 
                     order.get('reason', 'N/A'),
@@ -238,22 +246,14 @@ def log_detailed_decisions(decision_data, holdings_map=None):
                     p.get('take_profit', 0), 
                     p.get('stop_loss', 0),
                     holdings_map.get(ticker, 0),
-                    
-                    # Expanded Priorities
-                    order.get('Priority_1_Justification', '-'),
-                    order.get('Priority_2_Justification', '-'),
-                    order.get('Priority_3_Justification', '-'),
-                    order.get('Priority_4_Justification', '-'),
-                    order.get('Priority_5_Justification', '-'),
-                    order.get('Priority_6_Justification', '-'),
-                    order.get('Priority_7_Justification', '-')
+                    analysis_text # <--- Writes the full block here
                 ]
                 rows_to_append.append(row)
             
             if rows_to_append:
                 sheet.append_rows(rows_to_append)
                 
-            print(f"   ✅ [SENIOR] Ledger Updated. Rank replaced by Conviction Score.")
+            print(f"   ✅ [SENIOR] Ledger Updated with Scalable Analysis.")
             return
             
         except Exception as e:

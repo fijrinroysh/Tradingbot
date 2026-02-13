@@ -61,8 +61,8 @@ MAX_SENTIMENT_SCORE = -0.4 # How negative the news must be to sell
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") # <-- This is now safe
 # --- GEMINI SETTINGS (Pro Model) ---
 ## JUNIOR ANALYST: High volume, initial filtering. 
-# Default: "gemini-2.0-flash" (Free/Cheap). Can switch to "gemini-3-pro-preview" if needed.
-GEMINI_JUNIOR_MODEL = "gemini-3-pro-preview"
+# Default: "gemini-3-flash-preview" (Free/Cheap). Can switch to "gemini-3-pro-preview" if needed.
+GEMINI_JUNIOR_MODEL = "gemini-3-flash-preview"
 
 # SENIOR MANAGER: High reasoning, final decision.
 # Default: "gemini-3-pro-preview" (Smartest).
@@ -75,7 +75,7 @@ GEMINI_SENIOR_MODEL = "gemini-3-pro-preview"
 DAILY_SCAN_LIMIT = int(os.getenv("DAILY_SCAN_LIMIT", 5))
 #DAILY_SCAN_LIMIT = 10
 
-JUNIOR_SCORE_THRESHOLD = int(93)  # Minimum Conviction Score to pass to Senior
+JUNIOR_SCORE_THRESHOLD = int(95)  # Minimum Conviction Score to pass to Senior
 
 # Dollar amount to invest in each "High Conviction" Buy
 INVEST_PER_TRADE = int(os.getenv("INVEST_PER_TRADE"))

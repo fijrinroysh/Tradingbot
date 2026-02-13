@@ -44,6 +44,39 @@ def get_safe_score(report):
     except (ValueError, TypeError):
         return 0
 
+def get_safe_score(report):
+    """
+    Robustly extracts score. 
+    Checks 'conviction_score' (Internal) AND 'Score' (Google Sheet Header).
+    """
+    try:
+        # Priority 1: Check internal key. Priority 2: Check Sheet Header.
+        val = report.get('conviction_score', report.get('Score', 0))
+        
+        if isinstance(val, (int, float)): return int(val)
+        
+        # Regex to find number in string "95/100" or "Score: 95"
+        match = re.search(r'(\d+)', str(val))
+        if match: return int(match.group(1))
+    except: pass
+    return 0
+
+def refresh_portfolio_data(portfolio_objects):
+    """Manually updates Alpaca 'Position' objects with REAL-TIME data for the email."""
+    if not portfolio_objects: return
+    try:
+        tickers = [p.symbol for p in portfolio_objects]
+        live_prices, _ = trader.get_bulk_market_data(tickers)
+        for p in portfolio_objects:
+            if p.symbol in live_prices:
+                real_price = float(live_prices[p.symbol])
+                p.current_price = real_price 
+                try:
+                    entry = float(p.avg_entry_price)
+                    qty = float(p.qty)
+                    p.unrealized_pl = (real_price - entry) * qty
+                except: pass
+    except Exception: pass
 def parse_rank_score(rank_str):
     """
     Helper to convert alphanumeric ranks (A1, B10) into sortable integers.
@@ -405,12 +438,10 @@ def execute_decisions(decision):
                 senior_history.log_trade_event(ticker, event.get('event'), event)
 
 def run_senior_phase():
-    log_pipeline("\n👨‍💼 PHASE 2: SENIOR MANAGER STRATEGY")
+    log_pipeline("\n👨‍💼 PHASE 2: SENIOR MANAGER STRATEGY (SERIAL MODE)")
     try:
-        # 1. Fetch Context
+        # 1. Fetch Context & Candidates
         live_tickers = get_live_context()
-
-        # 2. Filter Candidates
         final_candidates = filter_candidates(live_tickers)
         log_pipeline(f"Senior Agent will review {len(final_candidates)} candidates.")
         
@@ -418,139 +449,91 @@ def run_senior_phase():
             log_pipeline("📉 No candidates found. Stopping Senior Phase.")
             return
 
-        # 3. Enrich & Sort
+        # 2. Enrich & Sort
         sorted_candidates, holdings_map = enrich_and_sort_candidates(final_candidates)
 
-        # --- NEW: DATA SANITIZATION (BLIND PROTOCOL) ---
-        # We perform a deep copy to sanitize the data sent to the AI, 
-        # protecting it from Profit Bias (Entry Price) and Tenure Bias (Days Held).
+        # 3. Blind Data (Prevent Bias)
         blinded_candidates = copy.deepcopy(sorted_candidates)
         for c in blinded_candidates:
             c['avg_entry_price'] = "HIDDEN"
             c['days_held'] = "HIDDEN"
-            c['previous_rank'] = "HIDDEN"  # <--- NEW: Hides Previous Rank to prevent Confirmation Bias
-        # -----------------------------------------------
+            c['previous_rank'] = "HIDDEN"
 
-
-# --- CONVERSATIONAL RISK TRANSLATOR (DYNAMIC INJECTION) ---
+        # 4. Risk Context
         raw_risk = getattr(config, 'RISK_FACTOR', 1.0)
+        if raw_risk == 1.0: risk_instruction = driver_fox.FOX_DRIVER_PROMPT
+        elif raw_risk < 1.0: risk_instruction = "AUTHORIZATION: BE THE TURTLE. Defense first."
+        else: risk_instruction = "AUTHORIZATION: BE THE CHEETAH. Aggression authorized."
+
+        # ==============================================================================
+        # 🔄 SERIAL LOOP (One-by-One Analysis)
+        # ==============================================================================
+        log_pipeline(f"🤖 Starting SERIAL analysis of {len(blinded_candidates)} candidates...")
         
-
-        if raw_risk == 1.0:
-            # THE FOX (Balance)
-            risk_instruction = driver_fox.FOX_DRIVER_PROMPT
-			 
-					
-							
-	
-
-        elif raw_risk < 1.0:
-            # THE TURTLE (Defense)
-            pct = int(round((1.0 - raw_risk) * 100))
-            risk_instruction = (
-                f"AUTHORIZATION: BE THE TURTLE.\n"
-                f"The CEO is worried (Risk reduced by {pct}%).\n"
-                "INSTRUCTION: Hide in your shell! Do not lose money. If the deal isn't perfect, walk away. WAITING is better than LOSING."
+        all_orders = []
+        
+        for i, candidate in enumerate(blinded_candidates):
+            ticker = candidate.get('ticker')
+            log_pipeline(f"   👉 [{i+1}/{len(blinded_candidates)}] Analyzing {ticker}...")
+            
+            # CALL SINGLE TICKER FUNCTION
+            result = senior_agent.analyze_single_ticker(
+                candidate, 
+                risk_factor=risk_instruction
             )
-
-        else:
-            # THE CHEETAH (Offense)
-            pct = int(round((raw_risk - 1.0) * 100))
-            risk_instruction = (
-                f"AUTHORIZATION: BE THE CHEETAH.\n"
-                f"The CEO wants growth (Aggression increased by {pct}%).\n"
-                "INSTRUCTION: Run fast! The market is hot. Don't worry about small scratches. Chase the big prize before it gets away."
-            )
- 
-        log_pipeline(f"   ⚖️ Risk Mandate: {risk_instruction[:10]}...")
-        # -------------------------------------------
-
-        # 4. AI Decision                                                      
-        log_pipeline("Calling Senior Agent AI for ranking ...")
-        
-        # --- NEW: CONTEXT FROM INDIVIDUAL TICKERS ---
-        # 1. Fetch Granular Decisions (Ticker + Reason + Date)
-        previous_decisions = senior_history.fetch_latest_decisions() 
-        
-        # 2. Extract Date (Take from the first record if available)
-        prev_date = 'Unknown Date'
-        # Try finding date in any capitalization (Date/date)
-        if previous_decisions and len(previous_decisions) > 0:
-            first = previous_decisions[0]
-            prev_date = first.get('Date') or first.get('date') or 'Unknown Date'
-
-        context_lines = []
-        if previous_decisions:
-            for d in previous_decisions:
-                # Robust extraction (Capitalized or Lowercase keys)
-                t = d.get('ticker') or d.get('Ticker') or 'UNKNOWN'
-                # REMOVED RANK extraction per user instruction
+            
+            if result and 'final_execution_orders' in result:
+                orders = result['final_execution_orders']
+                all_orders.extend(orders)
+            else:
+                log_pipeline(f"   ⚠️ Failed to analyze {ticker}. Skipping.")
                 
-                # [FIXED] Extraction using 'Reasoning' column header
-                why = d.get('Reasoning') or d.get('reasoning') or 'No reason provided.'
-                
-                # Format: [Ticker]: Reason
-                context_lines.append(f"[{t}]: {why}")
-        
-        combined_context = "\n".join(context_lines) if context_lines else "No previous ticker context available."
-        
-        # 3. Construct Context Dictionary
-        # CRITICAL: Keys must match what senior_agent expects ('prev_report', NOT 'ceo_report')
-        context = {
-            'date': prev_date,
-            'prev_report': combined_context 
-        }
-        # --------------------------------------------
-        
-        # [UPDATED] We now pass 'blinded_candidates' instead of 'sorted_candidates'
-        decision = senior_agent.rank_portfolio(
-            blinded_candidates, 
-            top_n=getattr(config, 'SENIOR_TOP_PICKS', 5),
-
-            risk_factor = risk_instruction,
-            prev_context=context
-        )
-        
-        # --- ERROR CHECKING BLOCK ---
-        if not decision:
-            log_pipeline("❌ Senior Agent returned None. Aborting.")
+            time.sleep(1) # Rate limit safety
+            
+        if not all_orders:
+            log_pipeline("❌ Senior Agent returned NO valid orders. Aborting.")
             return
-        # ----------------------------
 
-        # ✅ SUCCESS LOGIC (Now correctly un-indented)
+        # 5. Sort Results (High Score First)
+        def parse_score_safe(x):
+            try: return int(x.get('conviction_score', 0))
+            except: return 0
+        all_orders.sort(key=parse_score_safe, reverse=True)
         
-        # ==============================================================================
-        # 🔄 HYDRATION STEP (The Token Saver)
-        # ==============================================================================
-        # [FIX] Use 'decision', not 'decision_payload'
-        #hydrate_decisions_with_junior_data(decision, sorted_candidates)
-        # ==============================================================================
+        # 6. Create Consolidated Payload
+        top_pick = all_orders[0]['ticker'] if all_orders else "None"
+        buy_count = len([o for o in all_orders if o['action'] == 'OPEN_NEW'])
+        
+        consolidated_decision = {
+            "ceo_report": f"Session Complete. Analyzed {len(blinded_candidates)} assets individually. Identified {buy_count} potential buys. Top conviction leader is {top_pick}.",
+            "final_execution_orders": all_orders
+        }
 
-        # 5. LOGGING
-        senior_history.log_strategy(decision)
-        senior_history.log_detailed_decisions(decision, holdings_map)
+        # 7. Logging & Execution
+        senior_history.log_strategy(consolidated_decision)
+        senior_history.log_detailed_decisions(consolidated_decision, holdings_map)
         
         print("\n" + "="*80)
-        print("📢  EXECUTIVE STRATEGY BRIEF  📢")
+        print("📢  EXECUTIVE STRATEGY BRIEF (CONSOLIDATED)  📢")
         print("="*80)
-        print(decision.get('ceo_report'))
+        print(consolidated_decision.get('ceo_report'))
         
-        # 6. EXECUTE
-        execute_decisions(decision)
+        execute_decisions(consolidated_decision)
         
-        # 7. SEND EMAIL
+        # 8. Send Email
         log_pipeline("\n📧 PHASE 4: NOTIFICATION")
         try:
             account_info = trader.trading_client.get_account()
             portfolio = trader.trading_client.get_all_positions()
-            notifier.send_executive_brief(decision, account_info, sorted_candidates, portfolio)
-            log_pipeline("✅ Executive Brief email dispatched.")
+            refresh_portfolio_data(portfolio) # Update prices for email
+            
+            notifier.send_executive_brief(consolidated_decision, account_info, sorted_candidates, portfolio)
+            log_pipeline("✅ Consolidated Executive Brief email dispatched.")
         except Exception as e:
             log_pipeline(f"❌ Failed to send email: {e}")
 
     except Exception as e:
         log_pipeline(f"❌ CRITICAL ERROR in Senior Phase: {e}")
-
 # ==========================================
 # 🚀 MAIN PIPELINE
 # ==========================================

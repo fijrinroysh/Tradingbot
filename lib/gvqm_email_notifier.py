@@ -123,34 +123,41 @@ def send_executive_brief(decision, account_info, junior_reports, portfolio):
             disp_tp = format_migration(old_p.get('take_profit'), new_p.get('take_profit', '-'))
             disp_sl = format_migration(old_p.get('stop_loss'), new_p.get('stop_loss', '-'))
             
-            # --- AGGREGATE JUSTIFICATIONS (Priorities 1-7) ---
+            # --- SCALABLE JUSTIFICATIONS (Dynamic Loop) ---
             justifications_html = ""
-            priority_names = [
-                "Safety Check", "Turnaround Plan", "Smart Money", 
-                "Technical Heat", "Valuation", "Adjusted Val", "Upside Quality"
-            ]
+							  
+																  
+																			   
+			 
             
-            for i in range(1, 8):
-                key = f"Priority_{i}_Justification"
-                txt = order.get(key)
-                if txt and txt != "-" and str(txt).lower() != "n/a":
-                    # Color coding border based on priority index
-                    border_color = "#ccc"
-                    if i == 1: border_color = "#27ae60" # Green for Safety
-                    if i == 5: border_color = "#f1c40f" # Yellow for Valuation
-                    if i == 7: border_color = "#e67e22" # Orange for Upside
+            # 1. Get the list (Default to empty list if missing)
+            breakdown = order.get('analysis_breakdown', [])
+            
+            # 2. Iterate dynamically (Works for 3 priorities or 20)
+            if isinstance(breakdown, list):
+                for item in breakdown:
+                    label = item.get('label', 'Priority')
+                    text = item.get('details', '-')
+																		   
                     
-                    # Safety check for index out of bounds (though fixed at 7)
-                    p_name = priority_names[i-1] if i <= len(priority_names) else f"Priority {i}"
-                    title = f"P{i}: {p_name}"
+                    # 3. Dynamic Color Logic (Based on keywords in the label)
+                    border_color = "#ccc" # Default Grey
+                    label_lower = str(label).lower()
                     
+                    if "safety" in label_lower: border_color = "#27ae60"    # Green
+                    elif "valuation" in label_lower: border_color = "#f1c40f" # Yellow
+                    elif "upside" in label_lower: border_color = "#e67e22"    # Orange
+                    elif "technical" in label_lower: border_color = "#3498db" # Blue
+                    elif "smart" in label_lower: border_color = "#9b59b6"     # Purple
+                    elif "turnaround" in label_lower: border_color = "#1abc9c" # Teal
+
                     justifications_html += f"""
                     <div style="{PILLAR_BOX} border-left: 3px solid {border_color};">
-                        <span style="{PILLAR_TITLE}">{title}</span>
-                        {txt}
+                        <span style="{PILLAR_TITLE}">{label}</span>
+                        {text}
                     </div>
                     """
-
+            
             # Build Card
             html_content += f"""
             <div style="{CARD_CONTAINER}">
@@ -184,7 +191,6 @@ def send_executive_brief(decision, account_info, junior_reports, portfolio):
                 </div>
             </div>
             """
-
     # --- 2. SENIOR DECISION MATRIX (SORTED BY SCORE) ---
     html_content += """
         <br>

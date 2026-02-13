@@ -33,6 +33,8 @@ def get_client():
         print(f"⚠️ [JUNIOR HISTORY] Auth Error: {e}")
         return None
 
+
+
 def log_report(ticker, analysis):
     # --- RETRY LOOP ---
     for attempt in range(3):
@@ -43,52 +45,46 @@ def log_report(ticker, analysis):
             sh = client.open(SHEET_NAME)
             sheet = sh.sheet1
             
-            # --- DEBUG: PRINT URL ---
-														   
-            if attempt == 0:
-                print(f"   📝 Writing to Sheet: {sh.title} (ID: {sh.id})")
-																					 
-
-            # --- CLEAN HEADERS (Updated for Upside Magnitude) ---
+            # --- CLEANER HEADERS (Removed deleted fields) ---
             if sheet.row_count < 1 or not sheet.row_values(1):
                  headers = [
                      "Date", "Ticker", "Sector", "Action", "Score", 
-                     "Status", "Status_Reason", 
-                     "Valuation", "Valuation_Reason", 
-                     "Upside_Magnitude", "Upside_Rationale", # <--- UPDATED NAMES
-                     "Catalyst", 
-                     "Buy_Limit", "Take_Profit", "Stop_Loss",
-                     "Intel"
+                     "Detailed_Analysis", # <--- The Main Justification Column
+                     "Buy_Limit", "Take_Profit", "Stop_Loss"
                  ]
                  sheet.append_row(headers)
 
             exec_plan = analysis.get('execution', {})
             
-            # [STRICT] Directly accessing the new keys. No fallbacks.
+            # --- FORMAT BREAKDOWN ---
+            breakdown = analysis.get('analysis_breakdown', [])
+            analysis_text = ""
+            if isinstance(breakdown, list):
+                lines = []
+                for item in breakdown:
+                    lbl = item.get('label', 'Unknown')
+                    det = item.get('details', 'N/A')
+                    lines.append(f"🔹 [{lbl}]: {det}")
+                analysis_text = "\n".join(lines)
+            else:
+                analysis_text = str(breakdown)
+
+            # --- BUILD ROW ---
             row = [
                 datetime.now().strftime("%Y-%m-%d %H:%M"),
                 ticker, 
                 analysis.get('sector'), 
                 analysis.get('action'), 
                 analysis.get('conviction_score'),
-                analysis.get('status'), 
-                analysis.get('status_rationale'),
-                analysis.get('valuation'), 
-                analysis.get('valuation_rationale'),
-                analysis.get('upside_magnitude'), # Strict Key
-                analysis.get('upside_rationale'), # Strict Key
-                analysis.get('catalyst'),
-	
-			 
+                analysis_text, # <--- Consolidated Analysis
                 exec_plan.get('buy_limit', 0), 
                 exec_plan.get('take_profit', 0), 
-                exec_plan.get('stop_loss', 0),
-	
-                analysis.get('intel')
+                exec_plan.get('stop_loss', 0)
             ]
+            
             sheet.append_row(row)
-            print(f"✅ [JUNIOR] Report filed for {ticker}.")
-            return # Success
+            print(f"✅ [JUNIOR] Lean Report filed for {ticker}.")
+            return 
 
         except Exception as e:
             print(f"⚠️ Log Error (Attempt {attempt+1}/3): {e}")

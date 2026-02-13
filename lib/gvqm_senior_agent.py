@@ -275,3 +275,44 @@ def rank_portfolio(candidates_list, top_n=5, risk_factor=1.0, lookback_days=10, 
         except Exception as e:
             log_debug(f"❌ Senior Connection Error: {e}")
             return None
+        
+def analyze_single_ticker(candidate, risk_factor="Neutral", prev_context=None):
+    """
+    Analyzes ONE stock in isolation.
+    Returns a partial decision object (list of 1 order).
+    """
+    ticker = candidate.get('ticker')
+    print(f"🤖 [SENIOR AGENT] Analyzing Single Ticker: {ticker}...")
+    
+    # 1. Format Single Data Block
+    # We pass the full candidate dict as a formatted string
+    candidate_str = json.dumps(candidate, indent=2)
+    
+    # 2. Prepare Prompt
+    prompt = prompts.SENIOR_MANAGER_PROMPT.format(
+        risk_factor=risk_factor,
+        candidate_data=candidate_str,
+        ticker=ticker
+    )
+    
+    # 3. Call AI
+    try:
+        response = requests.post(
+            BASE_URL + f"?key={API_KEY}",
+            headers={'Content-Type': 'application/json'},
+            json={
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {"response_mime_type": "application/json"}
+            }
+        )
+        
+        if response.status_code == 200:
+            cleaned = clean_json_text(response.json()['candidates'][0]['content']['parts'][0]['text'])
+            return json.loads(cleaned)
+        else:
+            print(f"❌ Error {response.status_code}: {response.text}")
+            return None
+            
+    except Exception as e:
+        print(f"❌ Exception analyzing {ticker}: {e}")
+        return None

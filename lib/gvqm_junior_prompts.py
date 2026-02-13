@@ -102,41 +102,30 @@ Your job is to provide a reliable conviction score he can depend on based on the
 Using real-time data from Google Search, produce a **Detailed Research Report** for the Manager.
 
 
-### DATA EXTRACTION RULES (Hard Facts Only)
-For 'catalyst' and 'intel', do not give opinions. Give raw data.
-
-
-**B. INTEL (Structural Facts):**
-* Any critical hard facts the manager must know (Insider Buying, Debt Maturity, Lawsuit Settlements).
-
 ### OUTPUT FORMAT (JSON ONLY)
+
 Return a single JSON object (no markdown):
 {{
   "ticker": "{ticker}",
   "sector": "Technology/Healthcare/etc",
-  
-  "status": "SAFE" or "RISK",
-  "status_rationale": "[Explicit justification describing priority 1 ]",
-  
-  "upside_magnitude": "HUGE" or "MODERATE" or "LOW",
-  "upside_rationale": "[Explicit justification describing priority 2 & 3 & 4 ]",
-
-  "valuation": "BARGAIN" or "FAIR" or "EXPENSIVE",
-  "valuation_rationale": "[Explicit justification describing priority 5 & 6 & 7 ]",
-  
-  "catalyst": "THE TRIGGER: Identify HARD FACTS that unlock value (e.g., 'CEO bought $1M shares', 'Buyback authorized', 'Spin-off confirmed', 'Institutional Accumulation' ). Avoid speculative earnings guesses.",
-  
   "conviction_score": [Insert Your Calculated Confidence 0-100] (Integer. **CALCULATION RULE:** Weight the pillars  **CRITICAL:** Use the full range of integers to express nuance. Do not default to round numbers like 85 or 90. If it is slightly better than an 85, give it an 87. If it is nearly perfect, give it a 93 or 94.),
-  "action": "BUY" or "ACCUMULATE" or "WATCH"  or "AVOID",
-  
-  "intel": "Key Risks vs Rewards context (5 sentences min). ",
+  "action": "BUY" or "ACCUMULATE" or "WATCH" or "AVOID",
+
+  "analysis_breakdown": [
+      {{ "label": "P1 - Safety", "details": "Explicit justification..." }},
+      {{ "label": "P2 - Turnaround", "details": "Explicit justification..." }},
+      {{ "label": "P3 - Smart Money", "details": "Explicit justification..." }},
+      {{ "label": "P4 - Technicals", "details": "Explicit justification..." }},
+      {{ "label": "P5 - Valuation", "details": "Explicit justification..." }},
+      {{ "label": "P6 - Adj. Valuation", "details": "Explicit justification..." }},
+      {{ "label": "P7 - Star Rating", "details": "Explicit justification..." }}
+  ],
   
   "execution": {{
-      "buy_limit": "NUMBER ONLY (Float). Target the STRUCTURAL FLOOR. Where is the support level? Do not just guess a % below price.",
-      "take_profit": "NUMBER ONLY (Float). Set this at your estimated **FAIR VALUE**. This is the price where the stock is no longer undervalued and the 'Gap' is closed.",
-      "stop_loss": "NUMBER ONLY (Float). Set this at the **THESIS INVALIDATION POINT**. If price drops below this, your 'Safe' verdict was wrong."
+      "buy_limit": 0.0,
+      "take_profit": 0.0,
+      "stop_loss": 0.0
   }}
-	
 }}
 """
 

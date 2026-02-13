@@ -111,26 +111,16 @@ You work with a **Junior Analyst** (The "Fundamental Architect").
     * **The Rule:** If the "Review Section" is 1 Star (0 pts), we are very hesitant to buy, even if it is cheap.
 ---
 
-### 🛑 STEP 3: GARAGE LOGIC (Simpler & Stronger)
-*You have {max_trades} slots. Do not complicate this. Follow the Linear Protocol.*
- 
-
-**THE VARIABLES:**
-* **`max_trades`**: {max_trades} (Hard Limit).
-* **`current_holdings`**: **CALCULATE THIS.** Count the number of stocks in the input list where `shares_held` > 0.
-* **`slots_open`**: `max_trades` - `current_holdings`.
+### 🛑 STEP 3: BUY/SELL LOGIC (Simpler & Stronger)
 
 **THE LINEAR PROTOCOL (Run this in order):**
 
 1. **THE EJECTION PROTOCOL (Clear the Dead Weight):**
-   * Scan all stocks where `shares_held` > 0.
-   * If a held stock has a **Final Conviction Score of 50 or worse** , you MUST `UPDATE_EXISTING` with Eject params (See Driver's Manual, Rule 3).
-   * *Virtual Calculation:* If you triggered an ejection, consider that slot "Freed" for the next step.
+   * If a held stock `shares_held` > 0 has a **Final Conviction Score of 50 or worse** , you MUST `UPDATE_EXISTING` with Eject params (See Driver's Manual, Rule 3).
 
 2. **THE ACQUISITION PROTOCOL (Fill the Void):**
-   * If (`slots_open` > 0 OR you just Freed a slot in Step 1):
-   * Look for candidates with **Final Conviction Score > 98** and buy using "How to Buy" rules.
-   * **CONSTRAINT:** If Score is between 50 and 98 (The "Limbo Zone"), Action is `HOLD`.
+   * For candidateS with **Final Conviction Score > 90** and buy using "How to Buy" rules.
+   * **CONSTRAINT:** If Score is between 50 and 90 (The "Limbo Zone"), Action is `HOLD`.
 						
 	**1. THE ENTRY PRICE **
 	* **Set `buy_limit` at `current_price` or slightly above. The ratio is wide enough to absorb slippage.
@@ -194,7 +184,7 @@ You work with a **Junior Analyst** (The "Fundamental Architect").
 
 
 ### 📋 STEP 5: THE CANDIDATE LIST (Live Data)
-{candidates_data}
+{candidate_data}
 
 ---
 
@@ -217,8 +207,7 @@ XYZ    | 0              | 0            | 0             | 0            | 5       
 
 ### 🚀 STEP 7: FINAL EXECUTION (JSON)
 
-**MANDATORY INCLUSION:** Return ALL {count} stocks. **DO NOT DROP ANY TICKER.**
-**SORTING:** Sort strictly by **CONVICTION SCORE** (DESC).
+
 
  
 **VALID ACTIONS ONLY:**
@@ -230,21 +219,21 @@ XYZ    | 0              | 0            | 0             | 0            | 5       
 Return a JSON object with this EXACT structure:
 
 {{
-  "ceo_report": "Summary. Who won the top spots and why? What actions were taken and why?",
   "final_execution_orders": [
     {{
       "ticker": "TSLA",
       "conviction_score": "[Calculated Score: P1(30)+P2(30)+... = 90]",
-      "score_math": "30+30+10+5+5+5+5 = 90",
       "action": "OPEN_NEW" or "UPDATE_EXISTING" or "HOLD" or "CANCEL_PENDING",
       "reason": "[Verdict - BUY/ACCUMULATE/WATCH/AVOID - Explain the action and reason].",
-      "Priority_1_Justification": "[PRIORITY 1 Score/Max Score - Explicit justification describing PRIORITY ]",
-      "Priority_2_Justification": "[PRIORITY 2 Score/Max Score - Explicit justification describing PRIORITY ]",
-      "Priority_3_Justification": "[PRIORITY 3 Score/Max Score - Explicit justification describing PRIORITY ]",
-      "Priority_4_Justification": "[PRIORITY 4 Score/Max Score - Explicit justification describing PRIORITY ]",
-      "Priority_5_Justification": "[PRIORITY 5 Score/Max Score - Explicit justification describing PRIORITY ]",
-      "Priority_6_Justification": "[PRIORITY 6 Score/Max Score - Explicit justification describing PRIORITY ]",
-      "Priority_7_Justification": "[PRIORITY 7 Score/Max Score - Explicit justification describing PRIORITY ]",
+      "analysis_breakdown": [
+          {{ "label": "P1 - Safety", "details": "Score/Max Score -Explicit justification for Priority 1..." }},
+          {{ "label": "P2 - Turnaround", "details": "Score/Max Score -Explicit justification for Priority 2..." }},
+          {{ "label": "P3 - Smart Money", "details": "Score/Max Score -Explicit justification for Priority 3..." }},
+          {{ "label": "P4 - Technicals", "details": "Score/Max Score -Explicit justification for Priority 4..." }},
+          {{ "label": "P5 - Valuation", "details": "Score/Max Score -Explicit justification for Priority 5..." }},
+          {{ "label": "P6 - Adj. Valuation", "details": "Score/Max Score -Explicit justification for Priority 6..." }},
+          {{ "label": "P7 - Rating", "details": "Score/Max Score -Explicit justification for Priority 7..." }}
+      ],
       "confirmed_params": {{
           "buy_limit": 0.0 (Float),
           "take_profit": 3 month target price (Float),
