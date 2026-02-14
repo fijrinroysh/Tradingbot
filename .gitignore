@@ -15,4 +15,4 @@ google_credentials.json
 backtesting/cache/
 # ---
 
-*debug.txt
+*debug*
