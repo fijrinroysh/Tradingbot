@@ -32,16 +32,14 @@ def get_client():
 
 def fetch_market_reports(lookback_days=3):
     """
-    Fetches Junior reports using STRICT New Headers.
-    Headers: Date, Ticker, Sector, Action, Score, Detailed_Analysis
+    Fetches Junior reports including the 'Strategy' column.
     """
     client = get_client()
     if not client: return []
     
     try:
-        # We read SHEET1 (Junior Logs)
         sheet = client.open(SHEET_NAME).sheet1
-        rows = sheet.get_all_records() # Returns dicts with headers as keys
+        rows = sheet.get_all_records()
         
         if not rows: return []
         
@@ -50,7 +48,6 @@ def fetch_market_reports(lookback_days=3):
         
         for row in rows:
             try:
-                # 1. Date Filter
                 date_str = str(row.get('Date', ''))
                 if not date_str: continue
                 
@@ -59,16 +56,16 @@ def fetch_market_reports(lookback_days=3):
                     if row_date < cutoff_date: continue
                 except: continue
 
-                # 2. Strict Extraction
                 report = {
                     "ticker": row.get('Ticker'),
                     "date": date_str,
+                    # ✅ NEW: Fetch Strategy Column
+                    "strategy": row.get('Strategy', 'Standard'), 
                     "conviction_score": row.get('Score', 0),
                     "action": row.get('Action', 'WATCH'),
                     "Detailed_Analysis": row.get('Detailed_Analysis', 'N/A')
                 }
                 
-                # Cleanup Score
                 try: report['conviction_score'] = int(report['conviction_score'])
                 except: report['conviction_score'] = 0
                 
@@ -85,18 +82,9 @@ def fetch_market_reports(lookback_days=3):
         return []
 
 def fetch_portfolio_reports(portfolio_tickers):
-    """
-    Fetches latest Junior Analysis for stocks we currently own.
-    """
     if not portfolio_tickers: return []
-    
-    # We re-use the market fetch logic but filter for our specific tickers
-    # This is efficient because get_all_records is one API call.
     all_reports = fetch_market_reports(lookback_days=7)
-    
-    # Filter for our portfolio
     relevant_reports = [r for r in all_reports if r['ticker'] in portfolio_tickers]
-    
     print(f"   ✅ [HISTORY] Found {len(relevant_reports)} recent reports for active holdings.")
     return relevant_reports
 
@@ -105,6 +93,10 @@ def fetch_portfolio_reports(portfolio_tickers):
 # ==========================================
 
 def log_detailed_decisions(decision_data, holdings_map=None):
+    """
+    Logs the Senior Manager's Dual Analysis (Position + Swing) to Google Sheets.
+    Writes 2 rows per ticker.
+    """
     if holdings_map is None: holdings_map = {}
     
     for attempt in range(3):
@@ -113,11 +105,11 @@ def log_detailed_decisions(decision_data, holdings_map=None):
             if not client: return
             sh = client.open(SHEET_NAME)
             
-            # --- NEW STRICT HEADERS ---
+            # --- UPDATED HEADERS ---
             headers = [
-                "Date", "Ticker", "Conviction_Score", "Action", "Reason", 
-                "Buy_Limit", "Take_Profit", "Stop_Loss", "Shares_Held", 
-                "Detailed_Analysis" # Single Consolidated Column
+                "Date", "Ticker", "Strategy", "Action", "Score", 
+                "Reason", "Buy_Limit", "Take_Profit", "Stop_Loss", 
+                "Shares_Held", "Detailed_Analysis"
             ]
             
             try: sheet = sh.worksheet(SENIOR_DECISIONS_TAB)
@@ -128,6 +120,7 @@ def log_detailed_decisions(decision_data, holdings_map=None):
             if sheet.row_count < 1 or not sheet.row_values(1):
                  sheet.append_row(headers)
 
+            # Orders are now complex Dual Objects, so we iterate them differently
             orders = decision_data.get('final_execution_orders', [])
             timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
             
@@ -135,40 +128,58 @@ def log_detailed_decisions(decision_data, holdings_map=None):
             
             for order in orders:
                 ticker = order.get('ticker')
-                p = order.get('confirmed_params', {})
+                shares_held = holdings_map.get(ticker, 0)
                 
-                # Flatten the Analysis List into a String for the Sheet
-                breakdown = order.get('analysis_breakdown', [])
-                analysis_text = ""
-                
-                if isinstance(breakdown, list):
-                    lines = []
-                    for item in breakdown:
-                        lbl = item.get('label', 'Unknown')
-                        det = item.get('details', 'N/A')
-                        lines.append(f"🔹 [{lbl}]: {det}")
-                    analysis_text = "\n".join(lines)
-                else:
-                    analysis_text = str(breakdown)
+                # --- 1. LOG POSITION STRATEGY ---
+                if 'position_trade_analysis' in order:
+                    pos = order['position_trade_analysis']
+                    p_exec = pos.get('execution_plan', {})
+                    
+                    # Format Breakdown
+                    breakdown = pos.get('analysis_breakdown', [])
+                    p_text = "\n".join([f"🔹 [{i.get('label')}]: {i.get('details')}" for i in breakdown]) if isinstance(breakdown, list) else str(breakdown)
 
-                row = [
-                    timestamp, 
-                    ticker, 
-                    order.get('conviction_score', 0), 
-                    order.get('action', 'HOLD'), 
-                    order.get('reason', 'N/A'),
-                    p.get('buy_limit', 0), 
-                    p.get('take_profit', 0), 
-                    p.get('stop_loss', 0),
-                    holdings_map.get(ticker, 0),
-                    analysis_text # <--- The Consolidated Block
-                ]
-                rows_to_append.append(row)
-            
+                    rows_to_append.append([
+                        timestamp,
+                        ticker,
+                        "Position Trading",     # Strategy Column
+                        pos.get('verdict', 'N/A'),
+                        pos.get('score', 0),
+                        pos.get('rationale', 'N/A'),
+                        p_exec.get('entry_price', 0), # Using entry as Limit
+                        p_exec.get('take_profit', 0),
+                        p_exec.get('stop_loss', 0),
+                        shares_held,
+                        p_text
+                    ])
+
+                # --- 2. LOG SWING STRATEGY ---
+                if 'swing_trade_analysis' in order:
+                    swing = order['swing_trade_analysis']
+                    s_exec = swing.get('execution_plan', {})
+                    
+                    # Format Breakdown
+                    breakdown = swing.get('analysis_breakdown', [])
+                    s_text = "\n".join([f"🔹 [{i.get('label')}]: {i.get('details')}" for i in breakdown]) if isinstance(breakdown, list) else str(breakdown)
+
+                    rows_to_append.append([
+                        timestamp,
+                        ticker,
+                        "Swing Trading",        # Strategy Column
+                        swing.get('verdict', 'N/A'),
+                        swing.get('score', 0),
+                        swing.get('rationale', 'N/A'),
+                        s_exec.get('entry_price', 0),
+                        s_exec.get('take_profit', 0),
+                        s_exec.get('stop_loss', 0),
+                        shares_held,
+                        s_text
+                    ])
+
             if rows_to_append:
                 sheet.append_rows(rows_to_append)
                 
-            print(f"   ✅ [SENIOR] Ledger Updated.")
+            print(f"   ✅ [SENIOR] Ledger Updated ({len(rows_to_append)} rows).")
             return
             
         except Exception as e:
@@ -176,7 +187,7 @@ def log_detailed_decisions(decision_data, holdings_map=None):
             time.sleep(2)
 
 def log_strategy(decision_payload):
-    """Logs the CEO Report / Executive Summary."""
+    """Logs the CEO Report."""
     try:
         client = get_client()
         if not client: return
