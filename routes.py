@@ -438,18 +438,36 @@ def run_senior_phase():
         
         all_dual_orders = []
         
+        # ... inside run_senior_phase in routes.py ...
+
         for i, candidate in enumerate(blinded_candidates):
             ticker = candidate.get('ticker')
             log_pipeline(f"   👉 [{i+1}/{len(blinded_candidates)}] Analyzing {ticker}...")
             
-            # CALL SINGLE TICKER FUNCTION (Returns the Dual Object)
+            # CALL SINGLE TICKER FUNCTION
             result = senior_agent.analyze_single_ticker(
                 candidate, 
                 risk_factor=risk_instruction
             )
             
-            if result:
-                all_dual_orders.append(result)
+            # ✅ FIX: UNWRAP THE AI RESPONSE
+            # The AI returns: { "final_execution_orders": [ {TARGET DATA} ] }
+            # We need to grab {TARGET DATA} and throw away the wrapper.
+            
+            if result and 'final_execution_orders' in result:
+                inner_orders = result['final_execution_orders']
+                
+                if isinstance(inner_orders, list) and len(inner_orders) > 0:
+                    # Take the first (and only) item from the list
+                    clean_order = inner_orders[0]
+                    
+                    # Double check it has the keys we need
+                    if 'ticker' in clean_order:
+                        all_dual_orders.append(clean_order)
+                    else:
+                        log_pipeline(f"   ⚠️ Result for {ticker} missing 'ticker' key.")
+                else:
+                     log_pipeline(f"   ⚠️ Result for {ticker} had empty order list.")
             else:
                 log_pipeline(f"   ⚠️ Failed to analyze {ticker}. Skipping.")
                 

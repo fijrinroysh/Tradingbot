@@ -200,7 +200,7 @@ Return a single JSON object with two distinct sections.
 	  "position_trade_analysis": {{
 		  "strategy_name": "Position Trading",
 		  "score": [0-100],
-		  "verdict": "BUY / HOLD / AVOID",
+		  "verdict": "BUY / WATCH / AVOID",
 		  "rationale": "Summary of the business case...",
 		  "analysis_breakdown": [
 			  {{ "label": "P1 - Financial Safety", "details": "[Score/Max] - [Explanation]" }},
