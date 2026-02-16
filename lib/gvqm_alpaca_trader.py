@@ -5,7 +5,7 @@ import time
 import pandas as pd 
   
 from alpaca.trading.client import TradingClient
-from alpaca.trading.requests import LimitOrderRequest, TakeProfitRequest, StopLossRequest, GetOrdersRequest
+from alpaca.trading.requests import LimitOrderRequest, TakeProfitRequest, StopLossRequest, GetOrdersRequest, MarketOrderRequest
 from alpaca.trading.enums import OrderSide, TimeInForce, OrderClass, QueryOrderStatus, OrderType
 from alpaca.data.historical import StockHistoricalDataClient
 					 
@@ -476,3 +476,39 @@ def is_market_open():
         print(f"⚠️ Error checking market status: {e}")
         # Default to False for safety if API fails
         return False
+    
+def close_full_position(ticker):
+    """
+    IMMEDIATE EJECT: Cancels all open orders and sells shares at Market Price.
+    Used for the 'Kill Switch'.
+    """
+    timestamp = datetime.datetime.now().strftime("%H:%M:%S")
+    print(f"[{timestamp}] [TRADER] 🚨 EXECUTING KILL SWITCH FOR {ticker}...")
+    
+    try:
+        # 1. Cancel Pending Orders (Stops/Limits)
+        trading_client.cancel_orders(symbols=[ticker])
+        print(f"[{timestamp}] [TRADER]    All pending orders cancelled.")
+        
+        # 2. Get Open Position to know Qty
+        try:
+            pos = trading_client.get_open_position(ticker)
+            qty = float(pos.qty)
+            side = OrderSide.SELL if qty > 0 else OrderSide.BUY
+            
+            # 3. Market Sell
+            print(f"[{timestamp}] [TRADER]    Selling {qty} shares at Market...")
+            market_order = MarketOrderRequest(
+                symbol=ticker,
+                qty=abs(qty),
+                side=side,
+                time_in_force=TimeInForce.DAY
+            )
+            trading_client.submit_order(market_order)
+            print(f"[{timestamp}] [TRADER]    ✅ POSITION CLOSED.")
+            
+        except Exception as e:
+            print(f"[{timestamp}] [TRADER]    ⚠️ No open position found to close (Safe).")
+            
+    except Exception as e:
+        print(f"[{timestamp}] [TRADER]    ❌ KILL SWITCH FAILED: {e}")

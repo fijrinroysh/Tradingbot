@@ -22,7 +22,7 @@ Your goal is
 ### 🔑 DECODE THE DATA (The Terminology)
 
 
-* **"DRIVING" (`shares_held` > 0):** We own this inventory. We must sell it before it expires (Stops out) or when the sale ends (Target).
+* **"DRIVING" (`shares_held` > 0):** We own this inventory.
 * **"WATCHING" (`shares_held` == 0 AND `pending_buy_limit` is None):** We are browsing the aisle.
 * **`pending_buy_limit` exists**: We are TRYING to buy this. (Status: Pending).
 * **`avg_entry_price`**: **HIDDEN.** Blinded to prevent bias.
@@ -31,6 +31,7 @@ Your goal is
 * **`current_price`**: Real-Time Price. **TRUST THIS.**
 * **`previous_rank`**: **HIDDEN.**
 * **`daily_volatility`**: ATR.
+* **`current_active_strategy`**: Why did we buy it? (Position vs Swing).
 
 ### 🏛️ PHASE 1: THE BUSINESS OWNER AUDIT (Long Term Value)
 *The Logic: "If I buy this company and close the stock market for 5 years, will I be happy?"*
@@ -155,19 +156,29 @@ Your goal is
 **1. HOW TO BUY A STOCK (The Launch)**
 * **Action:** `OPEN_NEW`
 * **Rule:** Use this ONLY if `shares_held` == 0 and `pending_buy_limit` is None.
-* **Constraint:** Only permitted if `slots_open` > 0.
+* **Scenario A (Safe Bet):** You like the Long Term story. Set Recommendation to `POSITION_ONLY`. (Bot invests 70%).
+* **Scenario B (Hot Hand):** You only like the Short Term chart. Set Recommendation to `SWING_ONLY`. (Bot invests 30%).
+* **Scenario C (Perfect Storm):** You love BOTH. Set Recommendation to `HYBRID`. (Bot invests 100%).
+
 
 **2. HOW TO UPDATE STOP LOSS and TAKE PROFIT (Managing Speed)**
 * **Action:** `UPDATE_EXISTING`
-* **Rule:** Update `stop_loss` or `take_profit`.
+* **Rule:** Use this if `shares_held` > 0 and the trade is still valid.
+* **Logic:** Update the Stop Loss (SL) and Take Profit (TP) to reflect new data.
+* **Memory Rule:** Look at `current_active_strategy` in the JSON.
+    * If it is **"Position Trading"**, do NOT tighten stops to "Swing" levels unless the thesis is broken.
+    * If it is **"Swing Trading"**, you MAY promote it to "Position Trading" (Widen Stops) if fundamentals are great.
+* **Trailing Stop:** If price went UP, move SL UP to lock profit.
 * **CRITICAL CONSTRAINT:** **Set `buy_limit` to `0.0`.**
 
-**3. HOW TO EJECT (Hard Exit / Emergency / Upgrade)**
-* **Action:** `UPDATE_EXISTING`
-* **Technique:** Squeeze the price.
-    * Set `stop_loss` very close *below* the `current_price` (e.g., -0.2%).
-    * Set `take_profit` very close *above* the `current_price` (e.g., +0.2%).
-* **Why:** Forces an immediate exit. Use for **Red Zone Ejections**, **Upgrade Swaps**, or **Toxic Assets**.
+**3. HOW TO EJECT (Hard Exit / Emergency )**
+* **Action:** `CLOSE_POSITION`
+* **Rule:** Use this ONLY if `shares_held` > 0 and you need to **IMMEDIATELY EJECT**.
+* **Trigger 1 (Fraud):** News of accounting irregularities, SEC investigations, or lawsuits.
+* **Trigger 2 (Thesis Break):** The original reason for buying is gone (e.g., Merger cancelled).
+* **Trigger 3 (Low Score):** Your confidence score drops **below 40/100**.
+* **Result:** The bot will Market Sell everything immediately.
+* **Why:** Forces an immediate exit. Use for **Red Zone Ejections** or **Toxic Assets**.
 
 **4. HOW TO CHASE THE PACK (Adjusting Entry)**
 * **Action:** `UPDATE_EXISTING`
@@ -183,6 +194,7 @@ Your goal is
 **6. HOW TO ABORT (The Cancel Button)**
 * **Action:** `CANCEL_PENDING`
 * **Condition:** We have a pending order but we no longer want to chase.
+* **Rule:** Use this if `shares_held` == 0, but we have an open order that hasn't filled, and you changed your mind.
 * **CRITICAL CONSTRAINT:** **Set `buy_limit`, `take_profit`, and `stop_loss` ALL to `0.0`.**
 
 
@@ -195,7 +207,7 @@ Return a single JSON object with two distinct sections.
     {{
 	  "ticker": "{ticker}",
 	  "final_recommendation": "HYBRID / POSITION_ONLY / SWING_ONLY / AVOID",
-	  "action": "OPEN_NEW" or "UPDATE_EXISTING" or "HOLD" or "CANCEL_PENDING",
+	  "action": "OPEN_NEW" or "UPDATE_EXISTING" or "HOLD" or "CANCEL_PENDING" or "CLOSE_POSITION",
 	  
 	  "position_trade_analysis": {{
 		  "strategy_name": "Position Trading",
@@ -211,7 +223,7 @@ Return a single JSON object with two distinct sections.
 			  {{ "label": "P6 - Reality Check", "details": "[Score/Max] - [Explanation]" }}
 		  ],
 		  "execution_plan": {{
-			  "entry_price": "[Current Price]",
+			  "entry_price": "[Slightly above Current Price]",
 			  "stop_loss": "[Price Level - Wide]",
 			  "take_profit": "[Price Level - Fair Value]"
 		  }}
@@ -220,7 +232,7 @@ Return a single JSON object with two distinct sections.
 	  "swing_trade_analysis": {{
 		  "strategy_name": "Swing Trading",
 		  "score": [0-100],
-		  "verdict": "ENTER / WATCH / AVOID",
+		  "verdict": "BUY / WATCH / AVOID",
 		  "rationale": "Summary of the momentum case...",
 		  "analysis_breakdown": [
 			  {{ "label": "C1 - Price Tightening", "details": "[Score/Max] - [Explanation]" }},
@@ -228,7 +240,7 @@ Return a single JSON object with two distinct sections.
 			  {{ "label": "C3 - Emotional Extremes", "details": "[Score/Max] - [Explanation]" }}
 		  ],
 		  "execution_plan": {{
-			  "entry_price": "[Current Price]",
+			  "entry_price": "[Slightly above Current Price]",
 			  "stop_loss": "[Price Level - Tight]",
 			  "take_profit": "[Price Level - Resistance]"
           }}

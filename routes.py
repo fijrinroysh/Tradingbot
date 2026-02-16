@@ -207,12 +207,17 @@ def filter_candidates(live_tickers):
     return final_candidates
 
 def enrich_and_sort_candidates(candidates):
-    """Adds active position details and sorts candidates."""
+    """Adds active position details, market data, and STRATEGY MEMORY."""
     holdings_map = {} 
     
     # Bulk Fetch Data
     all_tickers = [c['ticker'] for c in candidates]
     price_map, atr_map = trader.get_bulk_market_data(all_tickers)
+    
+    # --- 1. FETCH STRATEGY MEMORY (NEW) ---
+    # This calls the helper in senior_history to see what we decided last time.
+    # Returns: {'AAPL': 'Position Trading', 'TSLA': 'Swing Trading'}
+    strategy_map = senior_history.fetch_active_strategies(all_tickers)
 
     enriched = []
     for c in candidates:
@@ -230,12 +235,20 @@ def enrich_and_sort_candidates(candidates):
             c['current_active_tp'] = details['active_tp']
             c['current_active_sl'] = details['active_sl']
             c['pending_buy_limit'] = details['pending_buy_limit']
-            c['days_held'] = calculate_days_held(ticker, details)
+            # Assuming calculate_days_held is available in scope
+            c['days_held'] = calculate_days_held(ticker, details) 
             holdings_map[ticker] = details['shares_held']
         else:
             c['shares_held'] = 0
             c['days_held'] = 0
             holdings_map[ticker] = 0
+
+        # --- 2. INJECT MEMORY INTO CANDIDATE (NEW) ---
+        # The Prompt reads 'current_active_strategy' from this exact key.
+        if ticker in strategy_map:
+            c['current_active_strategy'] = strategy_map[ticker]
+        else:
+            c['current_active_strategy'] = "NONE"
 
         enriched.append(c)
 
@@ -359,6 +372,12 @@ def execute_decisions(decision_payload):
             elif action == "CANCEL_PENDING":
                 trader.execute_cancel(ticker)
                 
+
+
+            elif action == "CLOSE_POSITION":
+                log_pipeline(f"      🚨 EJECTING {ticker} (Score too low).")
+                trader.close_full_position(ticker)
+
             elif action == "HOLD":
                 log_pipeline(f"      ⏸️ Holding {ticker}. No changes.")
 
@@ -497,11 +516,25 @@ def run_senior_phase():
         
         execute_decisions(consolidated_decision)
         
-        # Email Notification (Needs updating to handle Dual Format? It might look messy but will send)
-        # Note: notifier.py expects 'confirmed_params' which is missing now. 
-        # It might crash if we don't update notifier.py too.
-        # But user didn't ask to update notifier. I'll flag it or patch it if needed.
-        # For safety, let's wrap email in try-catch (already done).
+        # =========================================================
+        # 📧 EMAIL BLOCK (Make sure this exists!)
+        # =========================================================
+        try:
+            print("   📧 Preparing Email Notification...") # <--- Added debug print
+            
+            # Fetch fresh account data for the email
+            account_info = trader.get_account()
+            portfolio_objects = trader.get_portfolio()
+            refresh_portfolio_data(portfolio_objects) # Get live prices
+            
+            # SEND IT
+            notifier.send_executive_brief(consolidated_decision, account_info, portfolio_objects)
+            log_pipeline("✅ Consolidated Executive Brief email dispatched.")
+            
+        except Exception as e:
+            log_pipeline(f"❌ Failed to send email: {e}")
+            import traceback
+            traceback.print_exc()
 
     except Exception as e:
         log_pipeline(f"❌ CRITICAL ERROR in Senior Phase: {e}")

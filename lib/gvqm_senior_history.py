@@ -105,9 +105,9 @@ def log_detailed_decisions(decision_data, holdings_map=None):
             if not client: return
             sh = client.open(SHEET_NAME)
             
-            # --- UPDATED HEADERS ---
+            # --- UPDATED HEADERS (Added Overall_Rec) ---
             headers = [
-                "Date", "Ticker", "Strategy", "Action", "Score", 
+                "Date", "Ticker", "Overall_Rec", "Strategy", "Action", "Score", 
                 "Reason", "Buy_Limit", "Take_Profit", "Stop_Loss", 
                 "Shares_Held", "Detailed_Analysis"
             ]
@@ -117,10 +117,11 @@ def log_detailed_decisions(decision_data, holdings_map=None):
                 sheet = sh.add_worksheet(title=SENIOR_DECISIONS_TAB, rows=2000, cols=15)
                 sheet.append_row(headers)
             
+            # Check if headers exist, if not add them
             if sheet.row_count < 1 or not sheet.row_values(1):
                  sheet.append_row(headers)
 
-            # Orders are now complex Dual Objects, so we iterate them differently
+            # Orders are now complex Dual Objects
             orders = decision_data.get('final_execution_orders', [])
             timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
             
@@ -129,6 +130,9 @@ def log_detailed_decisions(decision_data, holdings_map=None):
             for order in orders:
                 ticker = order.get('ticker')
                 shares_held = holdings_map.get(ticker, 0)
+                
+                # ✅ NEW: Extract Overall Recommendation (High Level Decision)
+                overall_rec = order.get('final_recommendation', 'N/A')
                 
                 # --- 1. LOG POSITION STRATEGY ---
                 if 'position_trade_analysis' in order:
@@ -142,11 +146,12 @@ def log_detailed_decisions(decision_data, holdings_map=None):
                     rows_to_append.append([
                         timestamp,
                         ticker,
+                        overall_rec,            # <--- ADDED HERE
                         "Position Trading",     # Strategy Column
                         pos.get('verdict', 'N/A'),
                         pos.get('score', 0),
                         pos.get('rationale', 'N/A'),
-                        p_exec.get('entry_price', 0), # Using entry as Limit
+                        p_exec.get('entry_price', 0),
                         p_exec.get('take_profit', 0),
                         p_exec.get('stop_loss', 0),
                         shares_held,
@@ -165,6 +170,7 @@ def log_detailed_decisions(decision_data, holdings_map=None):
                     rows_to_append.append([
                         timestamp,
                         ticker,
+                        overall_rec,            # <--- ADDED HERE
                         "Swing Trading",        # Strategy Column
                         swing.get('verdict', 'N/A'),
                         swing.get('score', 0),
@@ -205,3 +211,37 @@ def log_strategy(decision_payload):
         print("   ✅ [SENIOR] CEO Strategy Logged.")
     except Exception as e:
         print(f"   ⚠️ Strategy Log Error: {e}")
+
+
+def fetch_active_strategies(active_tickers):
+    """
+    Scans the 'Senior_Decisions' ledger to find the LAST Overall Recommendation.
+    Returns a map like: {'AAPL': 'HYBRID', 'TSLA': 'SWING_ONLY'}
+    """
+    if not active_tickers: return {}
+    
+    client = get_client()
+    if not client: return {}
+
+    try:
+        sheet = client.open(SHEET_NAME).worksheet(SENIOR_DECISIONS_TAB)
+        data = sheet.get_all_records()
+        
+        strategy_map = {}
+        
+        # Iterate through history (Oldest to Newest)
+        # We want the LAST entry for each ticker
+        for row in data:
+            t = row.get('Ticker')
+            # Look for our new specific column
+            rec = row.get('Overall_Rec') 
+            
+            if t in active_tickers and rec:
+                strategy_map[t] = rec
+                
+        print(f"   🧠 [MEMORY] Retrieved strategies for {len(strategy_map)} active holdings.")
+        return strategy_map
+        
+    except Exception as e:
+        print(f"   ⚠️ Memory Read Error: {e}")
+        return {}
