@@ -64,10 +64,14 @@ def visualize_decision(candidates, decision):
     print("="*80 + "\n")
 
 # ... (analyze_single_ticker stays the same) ...
+						
+
+						
+
 def analyze_single_ticker(candidate, risk_factor="Neutral", prev_context=None):
-    """
-    Analyzes ONE stock in isolation using Google Search & Retry Logic.
-    """
+	   
+																	  
+	   
     ticker = candidate.get('ticker')
     log_debug(f"🤖 [SENIOR AGENT] Analyzing Single Ticker: {ticker}...")
     
@@ -76,10 +80,20 @@ def analyze_single_ticker(candidate, risk_factor="Neutral", prev_context=None):
     try:
         prompt = prompts.SENIOR_MANAGER_PROMPT.format(
             risk_factor=risk_factor,
-            candidate_data=candidate_str,
+										 
             ticker=ticker,
-            count="1"
+            candidate_data=candidate_str 
         )
+        
+        # --- 📝 DEBUG: Write Senior Prompt ---
+        if getattr(config, 'DEBUG_MODE', False):
+            try:
+                with open("senior_prompt_debug.txt", "w", encoding="utf-8") as f:
+                    f.write(f"--- DEBUG FOR {ticker} ---\n")
+                    f.write(prompt)
+            except Exception as e:
+                log_debug(f"⚠️ Failed to write prompt debug: {e}")
+
     except Exception as e:
         log_debug(f"❌ PROMPT FORMAT ERROR: {e}")
         return None
@@ -100,6 +114,16 @@ def analyze_single_ticker(candidate, risk_factor="Neutral", prev_context=None):
             
             if response.status_code == 200:
                 raw_text = response.json()['candidates'][0]['content']['parts'][0]['text']
+                
+                # --- 📝 DEBUG: Write Senior Response ---
+                if getattr(config, 'DEBUG_MODE', False):
+                    try:
+                        with open("senior_response_debug.txt", "w", encoding="utf-8") as f:
+                            f.write(f"--- RAW RESPONSE FOR {ticker} ---\n")
+                            f.write(raw_text)
+                    except Exception as e:
+                        log_debug(f"⚠️ Failed to write response debug: {e}")
+
                 cleaned = clean_json_text(raw_text)
                 return json.loads(cleaned)
             

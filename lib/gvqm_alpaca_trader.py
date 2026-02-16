@@ -512,3 +512,25 @@ def close_full_position(ticker):
             
     except Exception as e:
         print(f"[{timestamp}] [TRADER]    ❌ KILL SWITCH FAILED: {e}")
+
+
+
+# ==========================================================
+# 📊 EMAIL NOTIFIER HELPERS (Add these at the bottom)
+# ==========================================================
+
+def get_account():
+    """Returns the Alpaca Account object (Buying Power, Equity, etc)."""
+    try:
+        return trading_client.get_account()
+    except Exception as e:
+        print(f"❌ [TRADER] Failed to fetch account: {e}")
+        return None
+
+def get_portfolio():
+    """Returns a list of all open positions."""
+    try:
+        return trading_client.get_all_positions()
+    except Exception as e:
+        print(f"❌ [TRADER] Failed to fetch portfolio: {e}")
+        return []
