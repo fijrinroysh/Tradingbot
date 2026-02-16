@@ -116,7 +116,7 @@ Return a single JSON object with two distinct sections.
   "position_trade_analysis": {{
       "strategy_name": "Position Trading",
       "score": [0-100],
-      "verdict": "BUY / HOLD / AVOID",
+      "verdict": "BUY / WATCH / AVOID",
       "rationale": "Summary of the business case...",
       "analysis_breakdown": [
           {{ "label": "P1 - Financial Safety", "details": "[Score/Max] - [Explanation]" }},
@@ -136,7 +136,7 @@ Return a single JSON object with two distinct sections.
   "swing_trade_analysis": {{
       "strategy_name": "Swing Trading",
       "score": [0-100],
-      "verdict": "ENTER / WATCH / AVOID",
+      "verdict": "BUY / WATCH / AVOID",
       "rationale": "Summary of the momentum case...",
       "analysis_breakdown": [
           {{ "label": "C1 - Price Tightening", "details": "[Score/Max] - [Explanation]" }},

@@ -129,12 +129,12 @@ Your goal is
 **APPLY THE PROTOCOL:**
 
 * **SCENARIO A: The "Core" Entry (Value Buy)**
-    * **Rule:** Position Score > 95 AND Swing Score > 60 (Not crashing).
+    * **Rule:** Position Score > 95 AND Swing Score > 70 (Not crashing).
     * **Signal:** `POSITION_ONLY` (Deploy 70% Capital).
     * **Stop Loss:** Wide (ATR based).
 
 * **SCENARIO B: The "Satellite" Entry (Momentum Buy)**
-    * **Rule:** Swing Score > 80 AND Position Score > 60 (Not garbage).
+    * **Rule:** Swing Score > 80 AND Position Score > 70 (Not garbage).
     * **Signal:** `SWING_ONLY` (Deploy 30% Capital).
     * **Stop Loss:** Tight (Recent Low).
 
@@ -176,7 +176,7 @@ Your goal is
 * **Rule:** Use this ONLY if `shares_held` > 0 and you need to **IMMEDIATELY EJECT**.
 * **Trigger 1 (Fraud):** News of accounting irregularities, SEC investigations, or lawsuits.
 * **Trigger 2 (Thesis Break):** The original reason for buying is gone (e.g., Merger cancelled).
-* **Trigger 3 (Low Score):** Your confidence score drops **below 40/100**.
+* **Trigger 3 (Low Score):** Your confidence score drops **below 50/100**.
 * **Result:** The bot will Market Sell everything immediately.
 * **Why:** Forces an immediate exit. Use for **Red Zone Ejections** or **Toxic Assets**.
 
