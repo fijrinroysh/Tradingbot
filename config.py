@@ -98,7 +98,7 @@ ALPACA_KEY_ID = os.getenv("ALPACA_KEY_ID")
 ALPACA_SECRET_KEY = os.getenv("ALPACA_SECRET_KEY") 
 
 # --- EMAIL NOTIFICATION SETTINGS ---
-EMAIL_SENDER = os.getenv("EMAIL")
+EMAIL_SENDER = "onboarding@resend.dev"
 EMAIL_RECIPIENT = os.getenv("EMAIL") # Can be the same as sender
 EMAIL_PASSWORD =  os.getenv("EMAIL_PASSWORD")  # The 16-character App Password
 
