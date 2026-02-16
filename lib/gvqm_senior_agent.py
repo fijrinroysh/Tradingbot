@@ -74,8 +74,24 @@ def analyze_single_ticker(candidate, risk_factor="Neutral", prev_context=None):
 	   
     ticker = candidate.get('ticker')
     log_debug(f"🤖 [SENIOR AGENT] Analyzing Single Ticker: {ticker}...")
+
+
+    # --- 🙈 THE BLIND TEST FILTER ---
+    # Create a copy so we don't delete data needed by the Python code later
+    clean_candidate = candidate.copy()
     
-    candidate_str = json.dumps(candidate, indent=2)
+    # List of fields to HIDE from the Senior Manager to prevent Bias
+    bias_fields = [
+        'conviction_score',    # Junior's Score
+        'action',              # Previous/Junior Action
+        'Detailed_Analysis',   # Junior's Rationale
+
+    ]
+    
+    for field in bias_fields:
+        clean_candidate.pop(field, None)
+    
+    candidate_str = json.dumps(clean_candidate, indent=2)
     
     try:
         prompt = prompts.SENIOR_MANAGER_PROMPT.format(
