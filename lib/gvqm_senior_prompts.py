@@ -129,7 +129,7 @@ Your goal is
 **APPLY THE PROTOCOL:**
 
 * **SCENARIO A: The "Core" Entry (Value Buy)**
-    * **Rule:** Position Score > 90 AND Swing Score > 60 (Not crashing).
+    * **Rule:** Position Score > 95 AND Swing Score > 60 (Not crashing).
     * **Signal:** `POSITION_ONLY` (Deploy 70% Capital).
     * **Stop Loss:** Wide (ATR based).
 
@@ -139,7 +139,7 @@ Your goal is
     * **Stop Loss:** Tight (Recent Low).
 
 * **SCENARIO C: The "Perfect Storm" (Hybrid)**
-    * **Rule:** Position Score > 70 AND Swing Score > 70.
+    * **Rule:** Position Score > 90 AND Swing Score > 65.
     * **Signal:** `HYBRID` (Deploy Max Capital).
 
 * **SCENARIO D: The "Value Trap" or "Falling Knife"**
