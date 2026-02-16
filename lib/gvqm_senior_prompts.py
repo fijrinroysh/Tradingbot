@@ -129,12 +129,12 @@ Your goal is
 **APPLY THE PROTOCOL:**
 
 * **SCENARIO A: The "Core" Entry (Value Buy)**
-    * **Rule:** Position Score > 90 AND Swing Score > 60 (Not crashing).
+    * **Rule:** Position Score > 95 AND Swing Score > 60 (Not crashing).
     * **Signal:** `POSITION_ONLY` (Deploy 70% Capital).
     * **Stop Loss:** Wide (ATR based).
 
 * **SCENARIO B: The "Satellite" Entry (Momentum Buy)**
-    * **Rule:** Swing Score > 90 AND Position Score > 60 (Not garbage).
+    * **Rule:** Swing Score > 80 AND Position Score > 60 (Not garbage).
     * **Signal:** `SWING_ONLY` (Deploy 30% Capital).
     * **Stop Loss:** Tight (Recent Low).
 

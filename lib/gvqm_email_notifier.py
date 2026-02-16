@@ -176,7 +176,7 @@ def send_executive_brief(decision, account_info, portfolio):
     # --- SEND ---
     try:
         r = resend.Emails.send({
-            "from": "GVQM Bot <onboarding@resend.dev>",
+            "from": "onboarding@resend.dev",    
             "to": getattr(config, 'NOTIFY_EMAIL', "your_email@example.com"),
             "subject": subject,
             "html": html_content
