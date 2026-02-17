@@ -84,8 +84,12 @@ def analyze_single_ticker(candidate, risk_factor="Neutral", prev_context=None):
     bias_fields = [
         'conviction_score',    # Junior's Score
         'action',              # Previous/Junior Action
-        'Detailed_Analysis',   # Junior's Rationale
-
+        'Detailed_Analysis',
+        'strategy' # Junior's proposed strategy (e.g. "Swing")
+        'days_held',
+        'date', # Remove old analysis date to prevent confusion.
+        'avg_entry_price'
+          
     ]
     
     for field in bias_fields:

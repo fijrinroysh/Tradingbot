@@ -446,22 +446,22 @@ def run_senior_phase():
         sorted_candidates, holdings_map = enrich_and_sort_candidates(final_candidates)
         
         # Blind Data
-        blinded_candidates = copy.deepcopy(sorted_candidates)
-        for c in blinded_candidates:
-            c['avg_entry_price'] = "HIDDEN"
-            c['days_held'] = "HIDDEN"
+        #blinded_candidates = copy.deepcopy(sorted_candidates)
+        #for c in blinded_candidates:
+        #    c['avg_entry_price'] = "HIDDEN"
+        #    c['days_held'] = "HIDDEN"
 
         risk_instruction = driver_fox.FOX_DRIVER_PROMPT
 
-        log_pipeline(f"🤖 Starting SERIAL analysis of {len(blinded_candidates)} candidates...")
+        log_pipeline(f"🤖 Starting SERIAL analysis of {len(sorted_candidates)} candidates...")
         
         all_dual_orders = []
         
         # ... inside run_senior_phase in routes.py ...
 
-        for i, candidate in enumerate(blinded_candidates):
+        for i, candidate in enumerate(sorted_candidates):
             ticker = candidate.get('ticker')
-            log_pipeline(f"   👉 [{i+1}/{len(blinded_candidates)}] Analyzing {ticker}...")
+            log_pipeline(f"   👉 [{i+1}/{len(sorted_candidates)}] Analyzing {ticker}...")
             
             # CALL SINGLE TICKER FUNCTION
             result = senior_agent.analyze_single_ticker(

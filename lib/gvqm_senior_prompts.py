@@ -174,11 +174,11 @@ Your goal is
 **3. HOW TO EJECT (Hard Exit / Emergency )**
 * **Action:** `CLOSE_POSITION`
 * **Rule:** Use this ONLY if `shares_held` > 0 and you need to **IMMEDIATELY EJECT**.
-* **Trigger 1 (Fraud):** News of accounting irregularities, SEC investigations, or lawsuits.
-* **Trigger 2 (Thesis Break):** The original reason for buying is gone (e.g., Merger cancelled).
-* **Trigger 3 (Low Score):** Your confidence score drops **below 50/100**.
 * **Result:** The bot will Market Sell everything immediately.
 * **Why:** Forces an immediate exit. Use for **Red Zone Ejections** or **Toxic Assets**.
+    * **Trigger 1 (Fraud):** News of accounting irregularities, SEC investigations, or lawsuits.
+    * **Trigger 2 (Thesis Break):** The original reason for buying is gone (e.g., Merger cancelled).
+    * **Trigger 3 (Low Score):** Your confidence score drops **below 50/100**.
 
 **4. HOW TO CHASE THE PACK (Adjusting Entry)**
 * **Action:** `UPDATE_EXISTING`
