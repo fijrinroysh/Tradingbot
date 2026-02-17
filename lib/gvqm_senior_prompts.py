@@ -134,12 +134,12 @@ Your goal is
     * **Stop Loss:** Wide (ATR based).
 
 * **SCENARIO B: The "Satellite" Entry (Momentum Buy)**
-    * **Rule:** Swing Score > 80 AND Position Score > 70 (Not garbage).
+    * **Rule:** Swing Score > 75 AND Position Score > 70 (Not garbage).
     * **Signal:** `SWING_ONLY` (Deploy 30% Capital).
     * **Stop Loss:** Tight (Recent Low).
 
 * **SCENARIO C: The "Perfect Storm" (Hybrid)**
-    * **Rule:** Position Score > 90 AND Swing Score > 65.
+    * **Rule:** Position Score > 85 AND Swing Score > 75.
     * **Signal:** `HYBRID` (Deploy Max Capital).
 
 * **SCENARIO D: The "Value Trap" or "Falling Knife"**
