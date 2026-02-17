@@ -76,7 +76,7 @@ DAILY_SCAN_LIMIT = int(os.getenv("DAILY_SCAN_LIMIT", 5))
 #DAILY_SCAN_LIMIT = 10
 
 JUNIOR_POSITION_SCORE_THRESHOLD = int(85)  # Minimum Conviction Score to pass to Senior
-JUNIOR_SWING_SCORE_THRESHOLD = int(70)     # Minimum Conviction Score to pass to Senior
+JUNIOR_SWING_SCORE_THRESHOLD = int(75)     # Minimum Conviction Score to pass to Senior
 
 # Dollar amount to invest in each "High Conviction" Buy
 INVEST_PER_TRADE = int(os.getenv("INVEST_PER_TRADE"))

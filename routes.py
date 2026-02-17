@@ -125,85 +125,56 @@ def get_live_context():
         log_pipeline(f"   ⚠️ Failed to fetch portfolio: {e}")
         return []
 
+# In routes.py
+
 def filter_candidates(live_tickers):
     """
     DUAL-STRATEGY FILTER:
-    1. Fetches Junior Reports (Position & Swing rows).
-    2. Groups them by Ticker.
-    3. Enforces Rule: Position Score >= 70 AND Swing Score >= 90.
+    1. Fetches Pre-Merged Junior Reports (Latest Only).
+    2. Enforces Config Thresholds.
     """
+    # Load Thresholds from Config
+    pos_thresh = getattr(config, 'JUNIOR_POSITION_SCORE_THRESHOLD', 85)
+    swing_thresh = getattr(config, 'JUNIOR_SWING_SCORE_THRESHOLD', 70)
     lookback = getattr(config, 'SENIOR_LOOKBACK_DAYS', 5)
-    position_score_threshold = getattr(config, 'JUNIOR_POSITION_SCORE_THRESHOLD', 88)
-    swing_score_threshold = getattr(config, 'JUNIOR_SWING_SCORE_THRESHOLD', 90)
-    
-    # 1. FETCH REPORTS (Now includes 'Strategy' column)
-    portfolio_reports = senior_history.fetch_portfolio_reports(live_tickers)
-    market_reports = senior_history.fetch_market_reports(lookback)
-    
-    all_reports = portfolio_reports + market_reports
-    log_pipeline(f"🔍 [FILTER] Processing {len(all_reports)} raw report rows.")
 
-    # 2. GROUP BY TICKER
-    grouped_candidates = {}
+    # 1. FETCH (Delegated to Junior History)
+    # This now returns clean, merged objects. No manual grouping needed here.
+    candidates = junior_history.fetch_recent_reports(lookback_days=lookback)
     
-    for r in all_reports:
-        ticker = r.get('ticker')
-        if not ticker: continue
-        
-        if ticker not in grouped_candidates:
-            grouped_candidates[ticker] = {
-                "ticker": ticker,
-                "pos_score": 0,
-                "swing_score": 0,
-                "raw_data": r,  # Keep one row as the data source
-                "is_held": ticker in live_tickers
-            }
-            
-        # Extract Score based on Strategy
-        strategy = r.get('strategy', 'Standard')
-        score = get_safe_score(r)
-        
-        if "Position" in strategy:
-            grouped_candidates[ticker]["pos_score"] = max(grouped_candidates[ticker]["pos_score"], score)
-        elif "Swing" in strategy:
-            grouped_candidates[ticker]["swing_score"] = max(grouped_candidates[ticker]["swing_score"], score)
-        else:
-            # Fallback for "Standard" (Old format) - Treat as both? Or ignore?
-            # User requirement is strict 70/90. Standard/Old reports will likely fail this check.
-            pass
+    log_pipeline(f"🔍 [FILTER] Checking {len(candidates)} unique candidates against thresholds ({pos_thresh}/{swing_thresh})...")
 
-    # 3. APPLY 70/90 RULE
     final_candidates = []
     
-    # Bulk Price Fetch
-    tickers_to_check = list(grouped_candidates.keys())
-    if not tickers_to_check: return []
-    price_map, _ = trader.get_bulk_market_data(tickers_to_check)
+    # Bulk Price Fetch (Optimization)
+    tickers = [c['ticker'] for c in candidates]
+    if not tickers: return []
+    price_map, _ = trader.get_bulk_market_data(tickers)
 
-    for ticker, data in grouped_candidates.items():
-        # --- GATE 1: ACTIVE HOLDINGS (Auto-Include) ---
-        if data['is_held']:
-            if ticker in price_map: data['raw_data']['current_price'] = price_map[ticker]
-            final_candidates.append(data['raw_data'])
-            log_pipeline(f"   ✅ {ticker}: Auto-Included (Portfolio Asset).")
-            continue
-
-        # --- GATE 2: DUAL SCORE FILTER ---
-        # Requirement: Position >= 70 AND Swing >= 90
-        pos_score = data['pos_score']
-        swing_score = data['swing_score']
+    for c in candidates:
+        ticker = c['ticker']
+        is_held = ticker in live_tickers
         
-        
-        if pos_score >= position_score_threshold and swing_score >= swing_score_threshold:
-            if ticker in price_map:
-                data['raw_data']['current_price'] = price_map[ticker]
-                final_candidates.append(data['raw_data'])
-                log_pipeline(f"   ✅ {ticker}: PASSED (Pos:{pos_score}, Swing:{swing_score})")
-        else:
-            # log_pipeline(f"   ⛔ {ticker}: Dropped (Pos:{pos_score}, Swing:{swing_score})")
-            pass
+        # Robust Score Extraction (Handled by history, but safe cast here)
+        p_score = float(c.get('Position_Score', 0))
+        s_score = float(c.get('Swing_Score', 0))
 
-    log_pipeline(f"✅ Filtered to {len(final_candidates)} candidates meeting Dual Criteria.")
+        # --- GATE: Threshold Check ---
+        # "AND" Logic: Must meet BOTH thresholds OR be Held
+        passes_threshold = (p_score >= pos_thresh and s_score >= swing_thresh)
+        
+        if passes_threshold or is_held:
+            # Inject Price
+            if ticker in price_map: 
+                c['current_price'] = price_map[ticker]
+            elif 'raw_data' in c:
+                c['current_price'] = c['raw_data'].get('Price', 0)
+
+            final_candidates.append(c)
+            
+            reason = "Held" if is_held else f"Scores {int(p_score)}/{int(s_score)}"
+            log_pipeline(f"   ✅ {ticker}: PASSED ({reason})")
+
     return final_candidates
 
 def enrich_and_sort_candidates(candidates):
@@ -499,7 +470,7 @@ def run_senior_phase():
         # Create Consolidated Payload
         # We assume 'all_dual_orders' IS the 'final_execution_orders' list
         consolidated_decision = {
-            "ceo_report": f"Session Complete. Analyzed {len(blinded_candidates)} assets. {len(all_dual_orders)} reports generated.",
+            "ceo_report": f"Session Complete. Analyzed {len(final_candidates)} assets. {len(all_dual_orders)} reports generated.",
             "final_execution_orders": all_dual_orders
         }
 
@@ -512,7 +483,7 @@ def run_senior_phase():
         print("="*80)
         print(consolidated_decision.get('ceo_report'))
 
-        senior_agent.visualize_decision(blinded_candidates, consolidated_decision)
+        senior_agent.visualize_decision(final_candidates, consolidated_decision)
         
         execute_decisions(consolidated_decision)
         

@@ -208,3 +208,110 @@ def filter_candidates(candidates, limit=20):
         
     print(f"✅ [HISTORY] Prioritized {len(valid)} stalest candidates (Limit: {limit}).")
     return valid
+
+#==========================================
+# 📥 READING (JUNIOR REPORTS)
+# ==========================================
+
+# lib/gvqm_junior_history.py
+
+
+def fetch_recent_reports(lookback_days=3):
+    """
+    Fetches Junior reports using YOUR EXACT COLUMN NAMES.
+    Columns: Date, Ticker, Overall_Rec, Strategy, Action, Score, Reason, 
+             Buy_Limit, Take_Profit, Stop_Loss, Detailed_Analysis
+    """
+    client = get_client()
+    if not client: return []
+    
+    try:
+        sheet = client.open(SHEET_NAME).sheet1
+        data = sheet.get_all_records()
+        
+        valid_rows = []
+        now = datetime.now()
+        
+        # 1. Date Filter
+        for row in data:
+            date_val = str(row.get('Date', ''))
+            if not date_val: continue
+            try:
+                try: dt = datetime.strptime(date_val, "%Y-%m-%d %H:%M")
+                except: dt = datetime.strptime(date_val, "%Y-%m-%d")
+                row['_dt'] = dt 
+                if (now - dt).days <= lookback_days:
+                    valid_rows.append(row)
+            except: continue
+            
+        # 2. Sort Newest First (Latest Record Logic)
+        valid_rows.sort(key=lambda x: x['_dt'], reverse=True)
+        
+        # 3. Normalize & Merge
+        merged = {}
+        for row in valid_rows:
+            t = row.get('Ticker', '').strip().upper()
+            if not t: continue
+            
+            # --- 🎯 EXACT COLUMN MAPPING ---
+            # We map your specific sheet columns to the internal keys
+            strat = str(row.get('Strategy', '')).strip()
+            score = 0.0
+            try: score = float(row.get('Score', 0))
+            except: pass
+
+            # 'Detailed_Analysis' is usually the big text block (Rationale)
+            # 'Action' is Buy/Sell
+            # 'Overall_Rec' is the Verdict
+            rationale_val = str(row.get('Detailed_Analysis', '')).strip()
+            if not rationale_val: rationale_val = str(row.get('Reason', '')).strip()
+            
+            verdict_val = str(row.get('Overall_Rec', '')).strip()
+            action_val = str(row.get('Action', '')).strip()
+            
+            # --- INIT MASTER OBJECT ---
+            if t not in merged:
+                merged[t] = {
+                    'ticker': t,
+                    'Date': str(row.get('Date', '')),
+                    # We default price to 0 if not in sheet; Routes will fill from Alpaca
+                    'Log_Price': 0.0, 
+                    
+                    'Position_Score': 0.0,
+                    'Position_Verdict': "N/A",
+                    'Position_Rationale': "",
+                    'Position_Action': "WAIT",
+                    
+                    'Swing_Score': 0.0,
+                    'Swing_Verdict': "N/A",
+                    'Swing_Rationale': "",
+                    'Swing_Action': "WAIT"
+                }
+            
+            # --- FILL DATA ---
+            if 'Position' in strat:
+                if merged[t]['Position_Score'] == 0:
+                    merged[t]['Position_Score'] = score
+                    merged[t]['Position_Verdict'] = verdict_val
+                    merged[t]['Position_Rationale'] = rationale_val
+                    merged[t]['Position_Action'] = action_val
+                    
+            elif 'Swing' in strat:
+                if merged[t]['Swing_Score'] == 0:
+                    merged[t]['Swing_Score'] = score
+                    merged[t]['Swing_Verdict'] = verdict_val
+                    merged[t]['Swing_Rationale'] = rationale_val
+                    merged[t]['Swing_Action'] = action_val
+            
+            # Fallback for rows without Strategy (Legacy)
+            elif not strat:
+                if merged[t]['Position_Score'] == 0:
+                    merged[t]['Position_Score'] = score
+                    merged[t]['Position_Rationale'] = rationale_val
+                    merged[t]['Position_Action'] = action_val
+
+        return list(merged.values())
+
+    except Exception as e:
+        print(f"⚠️ Junior Fetch Error: {e}")
+        return []

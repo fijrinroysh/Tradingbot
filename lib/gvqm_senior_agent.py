@@ -17,7 +17,6 @@ def log_debug(message):
     print(f"[{timestamp}] [SENIOR_AGENT] {message}")
 
 
-
 def clean_json_text(text):
     try:
         text = text.strip()
@@ -82,13 +81,18 @@ def analyze_single_ticker(candidate, risk_factor="Neutral", prev_context=None):
     
     # List of fields to HIDE from the Senior Manager to prevent Bias
     bias_fields = [
-        'conviction_score',    # Junior's Score
-        'action',              # Previous/Junior Action
-        'Detailed_Analysis',
-        'strategy' # Junior's proposed strategy (e.g. "Swing")
-        'days_held',
-        'date', # Remove old analysis date to prevent confusion.
-        'avg_entry_price'
+        "Date",
+        "Log_Price",
+        "Position_Score",
+        "Position_Verdict",
+        "Position_Rationale",
+        "Position_Action",
+        "Swing_Score",
+        "Swing_Verdict",
+        "Swing_Rationale",
+        "Swing_Action"
+        ##"days_held",
+        ##"avg_entry_price"
           
     ]
     
