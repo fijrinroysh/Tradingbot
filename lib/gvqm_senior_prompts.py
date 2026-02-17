@@ -156,9 +156,7 @@ Your goal is
 **1. HOW TO BUY A STOCK (The Launch)**
 * **Action:** `OPEN_NEW`
 * **Rule:** Use this ONLY if `shares_held` == 0 and `pending_buy_limit` is None.
-* **Scenario A (Safe Bet):** You like the Long Term story. Set Recommendation to `POSITION_ONLY`. (Bot invests 70%).
-* **Scenario B (Hot Hand):** You only like the Short Term chart. Set Recommendation to `SWING_ONLY`. (Bot invests 30%).
-* **Scenario C (Perfect Storm):** You love BOTH. Set Recommendation to `HYBRID`. (Bot invests 100%).
+
 
 
 **2. HOW TO UPDATE STOP LOSS and TAKE PROFIT (Managing Speed)**
