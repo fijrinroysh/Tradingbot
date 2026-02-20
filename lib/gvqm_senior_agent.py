@@ -127,7 +127,11 @@ def analyze_single_ticker(candidate, risk_factor="Neutral", prev_context=None):
             payload = {
                 "contents": [{"parts": [{"text": prompt}]}],
                 "tools": [{"googleSearch": {}}],
-                "generationConfig": {"response_mime_type": "application/json"}
+                "generationConfig": {
+                    "response_mime_type": "application/json",
+                    "temperature": 0.0,  # 🔒 FORCES DETERMINISTIC LOGIC
+                    "top_p": 0.1         # 🔒 ELIMINATES RANDOM GUESSING
+                }
             }
 
             response = requests.post(

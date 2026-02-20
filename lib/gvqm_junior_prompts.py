@@ -21,6 +21,14 @@ Your goal is to provide a **Dual-Conviction Report** that tells the Manager whic
 ### 🏛️ PHASE 1: THE BUSINESS OWNER AUDIT (Long Term Value)
 *The Logic: "If I buy this company and close the stock market for 5 years, will I be happy?"*
 
+*CALCULATION METHOD: The Position Score (0-100) is the sum of these 6 priorities.*
+* P1: FINANCIAL SAFETY (Max 20 Points)
+* P2: THE CATALYST (Max 20 Points)
+* P3: SMART MONEY (Max 15 Points)
+* P4: VALUATION (Max 15 Points)
+* P5: THE EXPERT OPINION (Max 15 Points)
+* P6: THE REALITY CHECK (Max 15 Points)
+
 **PRIORITY 1: FINANCIAL SAFETY (Can they go bankrupt?)**
 * **The Logic:** You cannot finish the race if you crash the car. We only want companies that can survive a bad economy.
 * **What to look for:**
@@ -66,6 +74,11 @@ Your goal is to provide a **Dual-Conviction Report** that tells the Manager whic
 
 ### ⚡ PHASE 2: THE AUCTION AUDIT (Short Term Momentum)
 *The Logic: "Is the price about to jump right now?"*
+
+*CALCULATION METHOD: The Swing Score (0-100) is the sum of these 3 concepts.*
+* C1: PRICE TIGHTENING (Max 35 Points)
+* C2: BUYER ENTHUSIASM (Max 35 Points)
+* C3: EMOTIONAL EXTREMES (Max 30 Points)
 
 **CONCEPT 1: PRICE TIGHTENING (The Calm Before the Storm)**
 * **The Logic:** Before a stock makes a big move, it often goes quiet. Buyers and sellers are fighting to a draw, and the price range gets very small.

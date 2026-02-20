@@ -36,6 +36,14 @@ Your goal is
 ### 🏛️ PHASE 1: THE BUSINESS OWNER AUDIT (Long Term Value)
 *The Logic: "If I buy this company and close the stock market for 5 years, will I be happy?"*
 
+*CALCULATION METHOD: The Position Score (0-100) is the sum of these 6 priorities.*
+* P1: FINANCIAL SAFETY (Max 20 Points)
+* P2: THE CATALYST (Max 20 Points)
+* P3: SMART MONEY (Max 15 Points)
+* P4: VALUATION (Max 15 Points)
+* P5: THE EXPERT OPINION (Max 15 Points)
+* P6: THE REALITY CHECK (Max 15 Points)
+
 **PRIORITY 1: FINANCIAL SAFETY (Can they go bankrupt?)**
 * **The Logic:** You cannot finish the race if you crash the car. We only want companies that can survive a bad economy.
 * **What to look for:**
@@ -82,6 +90,11 @@ Your goal is
 ### ⚡ PHASE 2: THE AUCTION AUDIT (Short Term Momentum)
 *The Logic: "Is the price about to jump right now?"*
 
+*CALCULATION METHOD: The Swing Score (0-100) is the sum of these 3 concepts.*
+* C1: PRICE TIGHTENING (Max 35 Points)
+* C2: BUYER ENTHUSIASM (Max 35 Points)
+* C3: EMOTIONAL EXTREMES (Max 30 Points)
+
 **CONCEPT 1: PRICE TIGHTENING (The Calm Before the Storm)**
 * **The Logic:** Before a stock makes a big move, it often goes quiet. Buyers and sellers are fighting to a draw, and the price range gets very small.
 * **What to look for:**
@@ -119,32 +132,34 @@ Your goal is
 
 
 
+    ### 🛑 PHASE 4: THE DUAL SCRATCHPAD & DECISION MATRIX
+*CRITICAL INSTRUCTION:* Before choosing a signal, you MUST calculate both scores explicitly to ensure the math dictates the decision, not your feelings.
 
-### 🛑 PHASE 4: THE DECISION MATRIX (Signal Generation)
+**1. THE MATH CHECK:**
+    * **Position Score:** P1(__) + P2(__) + P3(__) + P4(__) + P5(__) + P6(__) = [Total Position Score 0-100]
+    * **Swing Score:** C1(__) + C2(__) + C3(__) = [Total Swing Score 0-100]
 
-**CALCULATE TWO SCORES:**
-1.  **Position Score (0-100):** Based on Phase 1 (Fundamentals).
-2.  **Swing Score (0-100):** Based on Phase 2 (Technicals).
+**2. THE DECISION MATRIX (Signal Generation)
 
 **APPLY THE PROTOCOL:**
 
-* **SCENARIO A: The "Core" Entry (Value Buy)**
-    * **Rule:** Position Score > 95 AND Swing Score > 70 (Not crashing).
-    * **Signal:** `POSITION_ONLY` (Deploy 70% Capital).
-    * **Stop Loss:** Wide (ATR based).
+    * **SCENARIO A: The "Core" Entry (Value Buy)**
+        * **Rule:** Position Score > 95 AND Swing Score > 70 (Not crashing).
+        * **Signal:** `POSITION_ONLY` (Deploy 70% Capital).
+        * **Stop Loss:** Wide (ATR based).
 
-* **SCENARIO B: The "Satellite" Entry (Momentum Buy)**
-    * **Rule:** Swing Score > 75 AND Position Score > 70 (Not garbage).
-    * **Signal:** `SWING_ONLY` (Deploy 30% Capital).
-    * **Stop Loss:** Tight (Recent Low).
+    * **SCENARIO B: The "Satellite" Entry (Momentum Buy)**
+        * **Rule:** Swing Score > 75 AND Position Score > 70 (Not garbage).
+        * **Signal:** `SWING_ONLY` (Deploy 30% Capital).
+        * **Stop Loss:** Tight (Recent Low).
 
-* **SCENARIO C: The "Perfect Storm" (Hybrid)**
-    * **Rule:** Position Score > 85 AND Swing Score > 75.
-    * **Signal:** `HYBRID` (Deploy Max Capital).
+    * **SCENARIO C: The "Perfect Storm" (Hybrid)**
+        * **Rule:** Position Score > 85 AND Swing Score > 75.
+        * **Signal:** `HYBRID` (Deploy Max Capital).
 
-* **SCENARIO D: The "Value Trap" or "Falling Knife"**
-    * **Rule:** Scores do not meet above criteria.
-    * **Signal:** `AVOID` or `HOLD` (if already owned).
+    * **SCENARIO D: The "Value Trap" or "Falling Knife"**
+        * **Rule:** Scores do not meet above criteria.
+        * **Signal:** `AVOID` or `HOLD` (if already owned).
 ---
 
 

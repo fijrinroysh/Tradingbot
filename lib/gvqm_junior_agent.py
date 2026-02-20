@@ -49,8 +49,9 @@ def analyze_stock(ticker, current_price):
         "tools": [{"googleSearch": {}}],
         "safetySettings": safety_settings ,
         "generationConfig": {
-            "temperature": 1.0,  # range 0.0 to 1.0 (0.0 = Deterministic, 1.0 = Creative)
-            #"maxOutputTokens": 8192
+                    "response_mime_type": "application/json",
+                    "temperature": 0.0,  # 🔒 FORCES DETERMINISTIC LOGIC
+                    "top_p": 0.1         # 🔒 ELIMINATES RANDOM GUESSING
         }
     }
     
