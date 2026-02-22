@@ -23,6 +23,8 @@ import lib.gvqm_senior_agent as senior_agent
 import lib.gvqm_senior_history as senior_history
 import lib.gvqm_email_notifier as notifier
 import lib.gvqm_driver_fox as driver_fox
+import lib.gvqm_minor_league as minor_league
+import lib.gvqm_major_league as major_league
 
 main_routes = Blueprint('main_routes', __name__)
 
@@ -36,28 +38,18 @@ def log_pipeline(message):
     print(f"[{timestamp}] [PIPELINE] {message}")
 
 def get_safe_score(report):
-    """
-    Robustly extracts score. 
-    Checks 'conviction_score' (Internal) AND 'Score' (Google Sheet Header).
-    """
     try:
-        # Priority 1: Check internal key. Priority 2: Check Sheet Header.
         val = report.get('conviction_score', report.get('Score', 0))
-        
         if isinstance(val, (int, float)): return int(val)
-        
-        # Regex to find number in string "95/100" or "Score: 95"
         match = re.search(r'(\d+)', str(val))
         if match: return int(match.group(1))
     except: pass
     return 0
 
 def calculate_days_held(ticker, details):
-    """Calculates days held using position details or order history fallback."""
     entry_time = details.get('entry_time', None)
     shares = details.get('shares_held', 0)
 
-    # 1. Try fetching from Details first
     if entry_time:
         if isinstance(entry_time, str):
             try:
@@ -66,17 +58,13 @@ def calculate_days_held(ticker, details):
                 entry_dt = datetime.datetime.now(datetime.timezone.utc)
         else:
             entry_dt = entry_time
-        
         delta = datetime.datetime.now(datetime.timezone.utc) - entry_dt
         return delta.days
-
-    # 2. Fallback: If missing but we OWN it, check Order History
     elif shares > 0:
         try:
             req = trader.GetOrdersRequest(status=trader.QueryOrderStatus.CLOSED, symbols=[ticker], limit=50)
             closed_orders = trader.trading_client.get_orders(filter=req)
             last_buy = next((o for o in closed_orders if o.side == trader.OrderSide.BUY and o.filled_at), None)
-            
             if last_buy:
                 delta = datetime.datetime.now(datetime.timezone.utc) - last_buy.filled_at
                 return delta.days
@@ -85,10 +73,6 @@ def calculate_days_held(ticker, details):
     return 0
 
 def refresh_portfolio_data(portfolio_objects):
-    """
-    Manually updates Alpaca 'Position' objects with REAL-TIME data for the email.
-    FIXED: Casts values to strings because Alpaca Pydantic models enforce string types.
-    """
     if not portfolio_objects: return
     try:
         tickers = [p.symbol for p in portfolio_objects]
@@ -98,24 +82,17 @@ def refresh_portfolio_data(portfolio_objects):
         for p in portfolio_objects:
             if p.symbol in live_prices:
                 real_price = float(live_prices[p.symbol])
-                
-                # ✅ FIX: Cast to String to satisfy Pydantic validation
                 p.current_price = str(real_price) 
-                
                 try:
                     entry = float(p.avg_entry_price)
                     qty = float(p.qty)
                     pl = (real_price - entry) * qty
-                    
-                    # ✅ FIX: Cast to String here too
                     p.unrealized_pl = str(pl)
                 except: pass
-                
     except Exception as e:
         log_pipeline(f"⚠️ Portfolio Refresh Warning: {e}")
 
 def get_live_context():
-    """Fetches portfolio holdings to inform decisions."""
     try:
         positions = trader.trading_client.get_all_positions()
         live_tickers = [p.symbol for p in positions]
@@ -125,80 +102,18 @@ def get_live_context():
         log_pipeline(f"   ⚠️ Failed to fetch portfolio: {e}")
         return []
 
-# In routes.py
-
-def filter_candidates(live_tickers):
-    """
-    DUAL-STRATEGY FILTER:
-    1. Fetches Pre-Merged Junior Reports (Latest Only).
-    2. Enforces Config Thresholds.
-    """
-    # Load Thresholds from Config
-    pos_thresh = getattr(config, 'JUNIOR_POSITION_SCORE_THRESHOLD', 85)
-    swing_thresh = getattr(config, 'JUNIOR_SWING_SCORE_THRESHOLD', 70)
-    lookback = getattr(config, 'SENIOR_LOOKBACK_DAYS', 5)
-
-    # 1. FETCH (Delegated to Junior History)
-    # This now returns clean, merged objects. No manual grouping needed here.
-    candidates = junior_history.fetch_recent_reports(lookback_days=lookback)
-    
-    log_pipeline(f"🔍 [FILTER] Checking {len(candidates)} unique candidates against thresholds ({pos_thresh}/{swing_thresh})...")
-
-    final_candidates = []
-    
-    # Bulk Price Fetch (Optimization)
-    tickers = [c['ticker'] for c in candidates]
-    if not tickers: return []
-    price_map, _ = trader.get_bulk_market_data(tickers)
-
-    for c in candidates:
-        ticker = c['ticker']
-        is_held = ticker in live_tickers
-        
-        # Robust Score Extraction (Handled by history, but safe cast here)
-        p_score = float(c.get('Position_Score', 0))
-        s_score = float(c.get('Swing_Score', 0))
-
-        # --- GATE: Threshold Check ---
-        # "AND" Logic: Must meet BOTH thresholds OR be Held
-        passes_threshold = (p_score >= pos_thresh and s_score >= swing_thresh)
-        
-        if passes_threshold or is_held:
-            # Inject Price
-            if ticker in price_map: 
-                c['current_price'] = price_map[ticker]
-            elif 'raw_data' in c:
-                c['current_price'] = c['raw_data'].get('Price', 0)
-
-            final_candidates.append(c)
-            
-            reason = "Held" if is_held else f"Scores {int(p_score)}/{int(s_score)}"
-            log_pipeline(f"   ✅ {ticker}: PASSED ({reason})")
-
-    return final_candidates
-
 def enrich_and_sort_candidates(candidates):
-    """Adds active position details, market data, and STRATEGY MEMORY."""
     holdings_map = {} 
-    
-    # Bulk Fetch Data
     all_tickers = [c['ticker'] for c in candidates]
     price_map, atr_map = trader.get_bulk_market_data(all_tickers)
-    
-    # --- 1. FETCH STRATEGY MEMORY (NEW) ---
-    # This calls the helper in senior_history to see what we decided last time.
-    # Returns: {'AAPL': 'Position Trading', 'TSLA': 'Swing Trading'}
     strategy_map = senior_history.fetch_active_strategies(all_tickers)
 
     enriched = []
     for c in candidates:
         ticker = c.get('ticker')
-        
-        # Inject Market Data
         c['current_price'] = price_map.get(ticker, 0.0)
         c['daily_volatility'] = atr_map.get(ticker, 0.0)
 
-        # Inject Position Details
         if hasattr(trader, 'get_position_details'):
             details = trader.get_position_details(ticker)
             c['shares_held'] = details['shares_held']
@@ -206,7 +121,6 @@ def enrich_and_sort_candidates(candidates):
             c['current_active_tp'] = details['active_tp']
             c['current_active_sl'] = details['active_sl']
             c['pending_buy_limit'] = details['pending_buy_limit']
-            # Assuming calculate_days_held is available in scope
             c['days_held'] = calculate_days_held(ticker, details) 
             holdings_map[ticker] = details['shares_held']
         else:
@@ -214,62 +128,108 @@ def enrich_and_sort_candidates(candidates):
             c['days_held'] = 0
             holdings_map[ticker] = 0
 
-        # --- 2. INJECT MEMORY INTO CANDIDATE (NEW) ---
-        # The Prompt reads 'current_active_strategy' from this exact key.
-        if ticker in strategy_map:
-            c['current_active_strategy'] = strategy_map[ticker]
-        else:
-            c['current_active_strategy'] = "NONE"
-
+        c['current_active_strategy'] = strategy_map.get(ticker, "NONE")
         enriched.append(c)
 
-    # Sort: Holdings First, Then by Score (if available, else random/price)
+    # Sort logic to keep holdings near the top for processing
     random.shuffle(enriched)
-    enriched.sort(key=lambda x: (x['shares_held'] > 0, get_safe_score(x)), reverse=True)
-    
+    enriched.sort(key=lambda x: (x['shares_held'] > 0), reverse=True)
     return enriched, holdings_map
 
-# ==========================================
-# 🛡️ HELPER: DATA SANITIZATION
-# ==========================================
 def safe_float(val):
-    """
-    Forces any input (String, Int, messy JSON) into a clean Float.
-    Examples: "$150.00" -> 150.0, "150" -> 150.0, "[150]" -> 150.0
-    """
     if val is None: return 0.0
     try:
-        # If it's already a number, return it as float
-        if isinstance(val, (int, float)): 
-            return float(val)
-            
-        # Clean string artifacts
+        if isinstance(val, (int, float)): return float(val)
         clean = str(val).replace('$', '').replace(',', '').replace('[', '').replace(']', '').strip()
-        
         if not clean: return 0.0
         return float(clean)
     except Exception:
         return 0.0
 
 # ==========================================
+# ⚙️ THE STATE MACHINE (Order Generation)
+# ==========================================
+
+def process_swiss_standings(swiss_standings):
+    """
+    Evaluates the entire Swiss League leaderboard and routes decisions 
+    based on portfolio state and LLM actions (CHASE, UPDATE, HOLD).
+    """
+    mechanical_orders = []
+    llm_orders = []
+
+    if not swiss_standings:
+        return llm_orders, mechanical_orders
+
+    for rank, candidate in enumerate(swiss_standings):
+        ticker = candidate['ticker']
+        shares_owned = float(candidate.get('shares_held', 0))
+        pending_buy = float(candidate.get('pending_buy_limit', 0) or 0)
+        
+        is_champion = (rank == 0)
+        is_loser = (rank == len(swiss_standings) - 1)
+
+        # Extract LLM Action
+        llm_action = "HOLD"
+        order_data = {}
+        if candidate.get('_senior_decision'):
+            decision = candidate['_senior_decision']
+            if 'final_execution_orders' in decision and decision['final_execution_orders']:
+                order_data = decision['final_execution_orders'][0]
+                llm_action = order_data.get('action', 'HOLD').upper()
+
+        final_action = "HOLD"
+
+        # --- RULE 1: THE LOSER (Relegation) ---
+        if is_loser and shares_owned > 0:
+            final_action = "CLOSE_POSITION"
+
+        # --- RULE 2: THE CHAMPION ---
+        elif is_champion:
+            if shares_owned == 0 and pending_buy == 0:
+                final_action = "OPEN_NEW"
+            elif shares_owned == 0 and pending_buy > 0:
+                if llm_action == "CHASE": final_action = "UPDATE_EXISTING"
+            elif shares_owned > 0:
+                if llm_action == "UPDATE": final_action = "UPDATE_EXISTING"
+
+        # --- RULE 3: THE MIDDLE CLASS ---
+        else:
+            if shares_owned > 0:
+                if llm_action == "UPDATE": final_action = "UPDATE_EXISTING"
+            elif shares_owned == 0 and pending_buy > 0:
+                final_action = "CANCEL_PENDING"
+
+        # --- STAGE ORDERS ---
+        if final_action == "CLOSE_POSITION":
+            reason = "Relegated (Last Place in Swiss League)"
+            mechanical_orders.append({"ticker": ticker, "action": "CLOSE_POSITION", "final_recommendation": "AVOID", "matchup_rationale": reason})
+            if hasattr(senior_history, 'log_mechanical_trade'):
+                senior_history.log_mechanical_trade(ticker, "CLOSE_POSITION", reason, candidate.get('current_price', 0), shares_owned)
+        
+        elif final_action == "CANCEL_PENDING":
+            reason = "Orphaned Pending Order (Not Champion)"
+            mechanical_orders.append({"ticker": ticker, "action": "CANCEL_PENDING", "final_recommendation": "AVOID", "matchup_rationale": reason})
+            if hasattr(senior_history, 'log_mechanical_trade'):
+                senior_history.log_mechanical_trade(ticker, "CANCEL_PENDING", reason, candidate.get('current_price', 0), shares_owned)
+        
+        elif final_action in ["OPEN_NEW", "UPDATE_EXISTING"]:
+            if order_data:
+                order_data['action'] = final_action
+                llm_orders.append(order_data)
+
+    return llm_orders, mechanical_orders
+
+# ==========================================
 # ⚙️ EXECUTION LOGIC (The Capital Guard)
 # ==========================================
+
 def execute_decisions(decision_payload):
-    """
-    Executes trades with Dynamic Capital Allocation based on Conviction.
-    
-    SCENARIO A (Position Only): 70% Capital, Wide Stops.
-    SCENARIO B (Swing Only):    30% Capital, Tight Stops.
-    SCENARIO C (Hybrid):       100% Capital, Wide Stops (Safety First).
-    """
     orders = decision_payload.get('final_execution_orders', [])
     log_pipeline(f"⚙️ EXECUTION: Processing {len(orders)} orders with Capital Guard logic...")
     
-    # Base Capital (The "Max" amount you would invest in a perfect trade)
-    # Ensure this is set in your config.py, e.g., INVEST_PER_TRADE = 2000
     base_capital = getattr(config, 'INVEST_PER_TRADE', 1000)
 
-    # 1. DEFINE THE ALLOCATION MAP
     ALLOCATION_MAP = {
         "POSITION_ONLY": 0.70,
         "SWING_ONLY":    0.30,
@@ -282,32 +242,22 @@ def execute_decisions(decision_payload):
         action = order.get('action', 'HOLD').upper()
         recommendation = order.get('final_recommendation', 'AVOID').upper()
         
-        # --- 2. SELECT PARAMETERS & CAPITAL ---
-        # Logic: Pick the correct "Lens" (Dictionary) and Capital Multiplier
-        
         alloc_mult = ALLOCATION_MAP.get(recommendation, 0.0)
         investment_amount = base_capital * alloc_mult
         
-        # Default to Swing params, but override if Position/Hybrid
-        target_dict = order.get('swing_trade_analysis', {}) # Default
+        target_dict = order.get('swing_trade_analysis', {}) 
         
         if recommendation == "POSITION_ONLY":
             log_pipeline(f"   🛡️ Mode: POSITION ONLY (70% Capital, Wide Stops)")
             target_dict = order.get('position_trade_analysis', {})
-            
         elif recommendation == "HYBRID":
             log_pipeline(f"   🛡️ Mode: HYBRID (100% Capital, Wide Stops)")
-            # "Hybrid trades always default to Safety (Position stops)"
             target_dict = order.get('position_trade_analysis', {})
-            
         elif recommendation == "SWING_ONLY":
             log_pipeline(f"   ⚔️ Mode: SWING ONLY (30% Capital, Tight Stops)")
             target_dict = order.get('swing_trade_analysis', {})
 
-        # Extract Execution Plan from the selected dictionary
         plan = target_dict.get('execution_plan', {})
-        
-        # Sanitize Inputs (Prevent the '>' int vs str error)
         entry_price = safe_float(plan.get('entry_price'))
         take_profit = safe_float(plan.get('take_profit'))
         stop_loss   = safe_float(plan.get('stop_loss'))
@@ -315,38 +265,20 @@ def execute_decisions(decision_payload):
         log_pipeline(f"   👉 {ticker} Action: {action} | Alloc: ${investment_amount:.0f} ({alloc_mult*100}%)")
 
         try:
-            # --- 3. EXECUTE BASED ON ACTION ---
-            
             if action == "OPEN_NEW":
-                # Capital Guard: Cannot buy if allocation is 0
                 if investment_amount <= 0:
-                    log_pipeline(f"      ⛔ Skipped {ticker}: Allocation is $0 (AVOID/Unknown).")
+                    log_pipeline(f"      ⛔ Skipped {ticker}: Allocation is $0.")
                     continue
-                    
-                trader.execute_entry(
-                    ticker, 
-                    investment_amount, # Dynamic Amount
-                    entry_price,       # Limit Price from selected strategy
-                    take_profit, 
-                    stop_loss
-                )
+                trader.execute_entry(ticker, investment_amount, entry_price, take_profit, stop_loss)
 
             elif action == "UPDATE_EXISTING":
-                # Risk Management: Update Safety Nets ONLY. Do not buy more.
-                trader.execute_update(
-                    ticker, 
-                    take_profit, 
-                    stop_loss, 
-                    buy_limit=entry_price # Updates entry if still pending
-                )
+                trader.execute_update(ticker, take_profit, stop_loss, buy_limit=entry_price)
 
             elif action == "CANCEL_PENDING":
                 trader.execute_cancel(ticker)
                 
-
-
             elif action == "CLOSE_POSITION":
-                log_pipeline(f"      🚨 EJECTING {ticker} (Score too low).")
+                log_pipeline(f"      🚨 EJECTING {ticker} (Score too low/Relegated).")
                 trader.close_full_position(ticker)
 
             elif action == "HOLD":
@@ -355,153 +287,136 @@ def execute_decisions(decision_payload):
         except Exception as e:
             log_pipeline(f"      ❌ Execution Failed for {ticker}: {e}")
 
-
-
 # ==========================================
-# 👶 PHASE 1: JUNIOR ANALYST
+# 👶 PHASE 1: JUNIOR ANALYST (ELO MATCHMAKING)
 # ==========================================
 
 def run_junior_phase():
-    log_pipeline("\n👶 PHASE 1: JUNIOR ANALYST SCAN")
+    log_pipeline("\n👶 PHASE 1: JUNIOR ANALYST SCAN (ELO LEAGUE)")
     
     distressed_tickers = scanner.find_distressed_stocks()
     log_pipeline(f"   Found {len(distressed_tickers)} distressed candidates.")
     
     limit = getattr(config, 'DAILY_SCAN_LIMIT', 20)
     
-    # ✅ FIX: Renamed 'fresh_candidates' to match logic
-    priority_candidates = junior_history.filter_candidates(distressed_tickers, limit=limit)
-    log_pipeline(f"Filtered to {len(priority_candidates)} fresh candidates.")
+    # Using the module method for staleness filtering
+    priority_tickers = junior_history.filter_candidates(distressed_tickers, limit=limit)
+    log_pipeline(f"   Filtered to {len(priority_tickers)} priority candidates.")
+
+    candidates_with_prices = []
+    for ticker in priority_tickers:
+        price = trader.get_current_price(ticker)
+        if price:
+            candidates_with_prices.append({'ticker': ticker, 'current_price': price})
+            
+    if len(candidates_with_prices) < 2:
+        log_pipeline("   ⚠️ Not enough candidates to run a matchup. Skipping Phase 1.")
+        return
+    
+    matches_to_run = max(1, limit // 2)
+    matchups = minor_league.get_next_matchups(candidates_with_prices, league_name="Junior_Elo", match_count=matches_to_run)
+    
+    log_pipeline(f"   🥊 Prepared {len(matchups)} 1v1 matchups.")
 
     analyzed_count = 0
-    
-    # ✅ NEW: We must split the Dual JSON into separate objects for the Senior Agent
-    # This list will be used if we want to pass data to Senior Phase immediately (optional)
-    # For now, we mainly log to history.
-    
-    for ticker in priority_candidates:
-        current_price = trader.get_current_price(ticker)
-        if not current_price: continue
+    for match in matchups:
+        cand_a = match[0]
+        cand_b = match[1]
+        ticker_a = cand_a['ticker']
+        ticker_b = cand_b['ticker']
         
-        # 1. Call Junior
-        report = junior_agent.analyze_stock(ticker, current_price)
+        report = junior_agent.evaluate_matchup(cand_a, cand_b)
         
-        if report:
-            # 2. Log to History (Handles the 2 rows writing)
-            junior_history.log_report(ticker, report)
+        if report and 'ticker' in report:
+            winner_ticker = report['ticker']
+            loser_ticker = ticker_b if winner_ticker == ticker_a else ticker_a
+            
+            log_pipeline(f"   🏆 MATCH RESULT: {winner_ticker} defeated {loser_ticker}")
+            
+            minor_league.record_match_result("Junior_Elo", winner_ticker, loser_ticker)
+            junior_history.log_report(winner_ticker, report)
             analyzed_count += 1
+        else:
+            log_pipeline(f"   ⚠️ Matchup failed or returned invalid data: {ticker_a} vs {ticker_b}")
             
-            # Note: The Senior Phase currently reads from History or Live Portfolio.
-            # If you want Senior to immediately trade these, we would append to a list here.
-            # But based on your architecture, Senior reads from 'filter_candidates' which reads history.
-            
-            log_pipeline(f"   ✅ Dual Report logged for {ticker}")
-            
-    log_pipeline(f"   Phase 1 Complete. {analyzed_count} reports generated.")
-
+    log_pipeline(f"   Phase 1 Complete. {analyzed_count} matchups successfully processed.")
 
 # ==========================================
-# 👨‍💼 PHASE 2: SENIOR MANAGER (SERIAL MODE)
+# 👨‍💼 PHASE 2: SENIOR MANAGER (SWISS LEAGUE)
 # ==========================================
 
 def run_senior_phase():
-    log_pipeline("\n👨‍💼 PHASE 2: SENIOR MANAGER STRATEGY (SERIAL MODE)")
+    log_pipeline("\n👨‍💼 PHASE 2: SENIOR MANAGER STRATEGY (SWISS LEAGUE MODE)")
     try:
+        # 1. THE DRAFT
+        leaderboard = minor_league.fetch_leaderboard("Junior_Elo")
+        if not leaderboard:
+            log_pipeline("   ⚠️ No Elo leaderboard found. Junior needs to run more matches.")
+            return
+
+        sorted_league = sorted(leaderboard.items(), key=lambda x: x[1]['Elo_Rating'], reverse=True)
+        # Safely pull the limit from config (defaults to 4 if not found)
+        draft_limit = getattr(config, 'SENIOR_DRAFT_LIMIT', 4)
+        top_tickers = [item[0] for item in sorted_league[:draft_limit]]
+        
+        # 2. ADD EXISTING PORTFOLIO
         live_tickers = get_live_context()
-        final_candidates = filter_candidates(live_tickers)
-        
-        if not final_candidates:
-            log_pipeline("📉 No candidates found. Stopping Senior Phase.")
+        for t in live_tickers:
+            if t not in top_tickers:
+                top_tickers.append(t)
+                
+        log_pipeline(f"   📋 Drafted {len(top_tickers)} stocks for the Swiss League: {top_tickers}")
+        if len(top_tickers) < 2:
+            log_pipeline("   ⚠️ Not enough candidates to run Swiss League.")
             return
 
-        sorted_candidates, holdings_map = enrich_and_sort_candidates(final_candidates)
+        # 3. ENRICH DATA
+        playoff_candidates = [{'ticker': t} for t in top_tickers]
+        sorted_candidates, holdings_map = enrich_and_sort_candidates(playoff_candidates)
         
-        # Blind Data
-        #blinded_candidates = copy.deepcopy(sorted_candidates)
-        #for c in blinded_candidates:
-        #    c['avg_entry_price'] = "HIDDEN"
-        #    c['days_held'] = "HIDDEN"
-
-        risk_instruction = driver_fox.FOX_DRIVER_PROMPT
-
-        log_pipeline(f"🤖 Starting SERIAL analysis of {len(sorted_candidates)} candidates...")
+        log_pipeline(f"🤖 Starting SWISS LEAGUE analysis of {len(sorted_candidates)} candidates...")
         
-        all_dual_orders = []
-        
-        # ... inside run_senior_phase in routes.py ...
-
-        for i, candidate in enumerate(sorted_candidates):
-            ticker = candidate.get('ticker')
-            log_pipeline(f"   👉 [{i+1}/{len(sorted_candidates)}] Analyzing {ticker}...")
-            
-            # CALL SINGLE TICKER FUNCTION
-            result = senior_agent.analyze_single_ticker(
-                candidate, 
-                risk_factor=risk_instruction
-            )
-            
-            # ✅ FIX: UNWRAP THE AI RESPONSE
-            # The AI returns: { "final_execution_orders": [ {TARGET DATA} ] }
-            # We need to grab {TARGET DATA} and throw away the wrapper.
-            
-            if result and 'final_execution_orders' in result:
-                inner_orders = result['final_execution_orders']
-                
-                if isinstance(inner_orders, list) and len(inner_orders) > 0:
-                    # Take the first (and only) item from the list
-                    clean_order = inner_orders[0]
-                    
-                    # Double check it has the keys we need
-                    if 'ticker' in clean_order:
-                        all_dual_orders.append(clean_order)
-                    else:
-                        log_pipeline(f"   ⚠️ Result for {ticker} missing 'ticker' key.")
-                else:
-                     log_pipeline(f"   ⚠️ Result for {ticker} had empty order list.")
-            else:
-                log_pipeline(f"   ⚠️ Failed to analyze {ticker}. Skipping.")
-                
-            time.sleep(1)
-
-        if not all_dual_orders:
-            log_pipeline("❌ Senior Agent returned NO valid orders. Aborting.")
+        # 4. RUN THE SWISS LEAGUE
+        swiss_standings = major_league.run_swiss_league(sorted_candidates, num_rounds=3)
+        if not swiss_standings:
+            log_pipeline("   ⚠️ Swiss League failed to produce valid standings.")
             return
 
-        # Create Consolidated Payload
-        # We assume 'all_dual_orders' IS the 'final_execution_orders' list
+        # 5. THE STATE MACHINE: Generate all execution logic
+        llm_orders, mechanical_orders = process_swiss_standings(swiss_standings)
+        all_orders = llm_orders + mechanical_orders
+
+        if not all_orders:
+            log_pipeline("❌ State machine generated NO valid orders. Aborting execution phase.")
+            return
+
+        # 6. LOGGING & CONSOLIDATION
+        champion_ticker = swiss_standings[0]['ticker']
         consolidated_decision = {
-            "ceo_report": f"Session Complete. Analyzed {len(final_candidates)} assets. {len(all_dual_orders)} reports generated.",
-            "final_execution_orders": all_dual_orders
+            "ceo_report": f"Swiss League Complete. Champion: {champion_ticker}. Actions Processed: {len(all_orders)}.",
+            "final_execution_orders": all_orders
         }
 
-        # Logging & Execution
+        # Log overarching strategy and execute
         senior_history.log_strategy(consolidated_decision)
-        senior_history.log_detailed_decisions(consolidated_decision, holdings_map)
-        
-        print("\n" + "="*80)
-        print("📢  EXECUTIVE STRATEGY BRIEF (CONSOLIDATED)  📢")
-        print("="*80)
-        print(consolidated_decision.get('ceo_report'))
-
-        senior_agent.visualize_decision(final_candidates, consolidated_decision)
+        if llm_orders:
+            llm_only_payload = {"ceo_report": consolidated_decision["ceo_report"], "final_execution_orders": llm_orders}
+            senior_history.log_detailed_decisions(llm_only_payload, holdings_map)
+            if hasattr(senior_agent, 'visualize_decision'):
+                senior_agent.visualize_decision(sorted_candidates, llm_only_payload)
         
         execute_decisions(consolidated_decision)
         
-        # =========================================================
-        # 📧 EMAIL BLOCK (Make sure this exists!)
-        # =========================================================
+        # 7. EMAIL NOTIFICATION
         try:
-            print("   📧 Preparing Email Notification...") # <--- Added debug print
-            
-            # Fetch fresh account data for the email
+            print("   📧 Preparing Email Notification...") 
             account_info = trader.get_account()
             portfolio_objects = trader.get_portfolio()
-            refresh_portfolio_data(portfolio_objects) # Get live prices
+            refresh_portfolio_data(portfolio_objects)
             
-            # SEND IT
+            # Send the consolidated decision so the email captures ALL mechanical/LLM orders
             notifier.send_executive_brief(consolidated_decision, account_info, portfolio_objects)
             log_pipeline("✅ Consolidated Executive Brief email dispatched.")
-            
         except Exception as e:
             log_pipeline(f"❌ Failed to send email: {e}")
             import traceback

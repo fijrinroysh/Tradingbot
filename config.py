@@ -73,21 +73,13 @@ GEMINI_SENIOR_MODEL = "gemini-3-pro-preview"
 # If using Flash, set to 200+. If using Pro, set to ~20 to stay within limits.
 # This ensures you cover the 200-stock universe in chunks (e.g., 20/day = 10 days).
 DAILY_SCAN_LIMIT = int(os.getenv("DAILY_SCAN_LIMIT", 5))
-#DAILY_SCAN_LIMIT = 10
+SENIOR_DRAFT_LIMIT = 2 # How many top candidates Senior Manager drafts for final review (e.g., 5-10)
 
-JUNIOR_POSITION_SCORE_THRESHOLD = int(85)  # Minimum Conviction Score to pass to Senior
-JUNIOR_SWING_SCORE_THRESHOLD = int(75)     # Minimum Conviction Score to pass to Senior
+
+
 
 # Dollar amount to invest in each "High Conviction" Buy
 INVEST_PER_TRADE = int(os.getenv("INVEST_PER_TRADE"))
-
-# --- SENIOR MANAGER SETTINGS ---
-SENIOR_TOP_PICKS = int(os.getenv("SENIOR_TOP_PICKS", 5)) 
-
-# <--- Lookback period for Senior Manager to review past picks is usally aligned with cooldown period 
-# because within the cool down period the junior analyst will not analyze the same stocks twice 
-# and most likely would have covered all the stocks in her list
-SENIOR_LOOKBACK_DAYS = int(os.getenv("SENIOR_LOOKBACK_DAYS", 10)) 
 
 
 GOOGLE_SHEET_STRATEGY_TAB = os.getenv("GOOGLE_SHEET_STRATEGY_TAB","Executive_Briefs") 
@@ -106,7 +98,9 @@ RESEND_API_KEY =  os.getenv("RESEND_API_KEY")# Get this from Resend dashboard
 EMAIL_SENDER = "onboarding@resend.dev" # Or your verified domain email
 EMAIL_RECIPIENT = os.getenv("EMAIL")
 
-GOOGLE_SHEET_NAME = "TradingBot_History"
+
+
+GOOGLE_SHEET_NAME = os.getenv("GOOGLE_SHEET_NAME", "TradingBot_History")
 
 DEBUG_MODE = os.getenv("DEBUG_MODE", False)
 

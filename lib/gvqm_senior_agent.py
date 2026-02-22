@@ -16,7 +16,6 @@ def log_debug(message):
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     print(f"[{timestamp}] [SENIOR_AGENT] {message}")
 
-
 def clean_json_text(text):
     try:
         text = text.strip()
@@ -62,24 +61,10 @@ def visualize_decision(candidates, decision):
 
     print("="*80 + "\n")
 
-# ... (analyze_single_ticker stays the same) ...
-						
-
-						
-
-def analyze_single_ticker(candidate, risk_factor="Neutral", prev_context=None):
-	   
-																	  
-	   
-    ticker = candidate.get('ticker')
-    log_debug(f"🤖 [SENIOR AGENT] Analyzing Single Ticker: {ticker}...")
-
-
-    # --- 🙈 THE BLIND TEST FILTER ---
-    # Create a copy so we don't delete data needed by the Python code later
+# --- HELPER: BIAS REMOVAL ---
+def _remove_bias(candidate):
+    """Removes bias text from a single candidate before prompt formatting."""
     clean_candidate = candidate.copy()
-    
-    # List of fields to HIDE from the Senior Manager to prevent Bias
     bias_fields = [
         "Date",
         "Log_Price",
@@ -93,27 +78,38 @@ def analyze_single_ticker(candidate, risk_factor="Neutral", prev_context=None):
         "Swing_Action"
         ##"days_held",
         ##"avg_entry_price"
-          
     ]
-    
     for field in bias_fields:
         clean_candidate.pop(field, None)
+    return clean_candidate
+
+
+# --- THE NEW EVALUATE MATCHUP LOGIC ---
+def evaluate_matchup(candidate_a, candidate_b, risk_factor="Neutral", prev_context=None):
+    ticker_a = candidate_a.get('ticker')
+    ticker_b = candidate_b.get('ticker')
     
-    candidate_str = json.dumps(clean_candidate, indent=2)
+    log_debug(f"🤖 [SENIOR AGENT] Analyzing Matchup: {ticker_a} vs {ticker_b}...")
+
+    # --- 🙈 THE BLIND TEST FILTER (Applied to Both) ---
+    clean_a = _remove_bias(candidate_a)
+    clean_b = _remove_bias(candidate_b)
+    
+    cand_a_str = json.dumps(clean_a, indent=2)
+    cand_b_str = json.dumps(clean_b, indent=2)
     
     try:
         prompt = prompts.SENIOR_MANAGER_PROMPT.format(
             risk_factor=risk_factor,
-										 
-            ticker=ticker,
-            candidate_data=candidate_str 
+            candidate_A_data=cand_a_str,
+            candidate_B_data=cand_b_str 
         )
         
         # --- 📝 DEBUG: Write Senior Prompt ---
         if getattr(config, 'DEBUG_MODE', False):
             try:
                 with open("senior_prompt_debug.txt", "w", encoding="utf-8") as f:
-                    f.write(f"--- DEBUG FOR {ticker} ---\n")
+                    f.write(f"--- DEBUG FOR {ticker_a}_vs_{ticker_b} ---\n")
                     f.write(prompt)
             except Exception as e:
                 log_debug(f"⚠️ Failed to write prompt debug: {e}")
@@ -147,7 +143,7 @@ def analyze_single_ticker(candidate, risk_factor="Neutral", prev_context=None):
                 if getattr(config, 'DEBUG_MODE', False):
                     try:
                         with open("senior_response_debug.txt", "w", encoding="utf-8") as f:
-                            f.write(f"--- RAW RESPONSE FOR {ticker} ---\n")
+                            f.write(f"--- RAW RESPONSE FOR {ticker_a}_vs_{ticker_b} ---\n")
                             f.write(raw_text)
                     except Exception as e:
                         log_debug(f"⚠️ Failed to write response debug: {e}")
@@ -169,5 +165,5 @@ def analyze_single_ticker(candidate, risk_factor="Neutral", prev_context=None):
             log_debug(f"⚠️ Attempt {attempt+1}/3 Failed: {e}")
             time.sleep(2)
             
-    log_debug(f"❌ Failed to analyze {ticker} after 3 attempts.")
+    log_debug(f"❌ Failed to analyze Matchup {ticker_a} vs {ticker_b} after 3 attempts.")
     return None
