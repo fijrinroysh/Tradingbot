@@ -31,11 +31,31 @@ def clean_json_text(text):
     except:
         return None
 
-def analyze_stock(ticker, current_price):
-    print(f"🤖 [JUNIOR] Analyzing {ticker} using {MODEL_NAME}...")
+# --- UPGRADED FOR 1v1 MATCHMAKING ---
+def evaluate_matchup(candidate_a, candidate_b):
+    ticker_a = candidate_a.get('ticker', candidate_a.get('Ticker', 'UNKNOWN'))
+    price_a = candidate_a.get('current_price', candidate_a.get('Price', 0.0))
     
-    prompt = prompts.HEDGE_FUND_PROMPT.format(ticker=ticker, current_price=current_price)
+    ticker_b = candidate_b.get('ticker', candidate_b.get('Ticker', 'UNKNOWN'))
+    price_b = candidate_b.get('current_price', candidate_b.get('Price', 0.0))
+
+    print(f"🤖 [JUNIOR] Matchup Analysis: {ticker_a} vs {ticker_b} using {MODEL_NAME}...")
     
+    # Using the new dual-input prompt format
+    prompt = prompts.HEDGE_FUND_PROMPT.format(
+        ticker_A=ticker_a, price_A=price_a,
+        ticker_B=ticker_b, price_B=price_b
+    )
+    
+    # --- 📝 DEBUG: Write Junior Prompt ---
+    if getattr(config, 'DEBUG_MODE', False):
+        try:
+            with open("junior_prompt_debug.txt", "w", encoding="utf-8") as f:
+                f.write(f"--- DEBUG FOR {ticker_a}_vs_{ticker_b} ---\n")
+                f.write(prompt)
+        except Exception as e:
+            print(f"   ⚠️ Failed to write prompt debug: {e}")
+            
     # Safety Settings (Block None to prevent refusals)
     safety_settings = [
         {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
@@ -46,7 +66,7 @@ def analyze_stock(ticker, current_price):
     
     payload = {
         "contents": [{"parts": [{"text": prompt}]}], 
-        "tools": [{"googleSearch": {}}],
+        "tools": [{"googleSearch": {}}],         # ✅ GROUNDING RETAINED
         "safetySettings": safety_settings ,
         "generationConfig": {
                     "response_mime_type": "application/json",
@@ -75,6 +95,15 @@ def analyze_stock(ticker, current_price):
                     if not parts: return None
                         
                     text = parts[0].get('text', "")
+
+                    # --- 📝 DEBUG: Write Junior Response ---
+                    if getattr(config, 'DEBUG_MODE', False):
+                        try:
+                            with open("junior_response_debug.txt", "w", encoding="utf-8") as f:
+                                f.write(f"--- RAW RESPONSE FOR {ticker_a}_vs_{ticker_b} ---\n")
+                                f.write(text)
+                        except Exception as e:
+                            print(f"   ⚠️ Failed to write response debug: {e}")
                     
                     # --- NEW ROBUST CLEANING ---
                     cleaned_json = clean_json_text(text)

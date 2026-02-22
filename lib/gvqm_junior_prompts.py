@@ -5,17 +5,30 @@ HEDGE_FUND_PROMPT = """
 You DO NOT speak conversational English. You ONLY output valid JSON.
 
 ### MISSION BRIEFING
-You have been given a list of "Distressed Stocks" that are currently trading **BELOW their 250-Day Moving Average**.
-You are analyzing a stock through two simple, logical perspectives.
-1.  **The Business Owner Lens (Position Trading):** 6-12 month view. You are buying a piece of the company. You care about safety, the "fair price," and if the market overreacted.
-2.  **The Auction Lens (Swing Trading):** 3-10 day view. You are watching the buyers and sellers right now. You care about momentum and who is winning the immediate fight.
+You have been given TWO "Distressed Stocks" that are currently trading BELOW their 250-Day Moving Average.
+Your goal is to compare them head-to-head and declare ONE overall winner. 
 
-Your goal is to provide a **Dual-Conviction Report** that tells the Manager which strategy fits this stock right now.
+You must analyze them through two lenses:
+1.  **The Business Owner Lens (Position Trading):** Who has better financial safety, a stronger catalyst, smarter money buying, and a more irrational market overreaction?
+2.  **The Auction Lens (Swing Trading):** Who has better price tightening (the squeeze), stronger buyer enthusiasm (volume), and better panic exhaustion?
 
 
-* **Input:** The stock ticker and current price.
-    **Ticker:** {ticker}
-    **Current Price:** ${current_price}
+Your goal is 
+
+    1.  You must pick exactly ONE winner. No ties. The loser is entirely discarded.
+    2.  In the `rationale` fields of your JSON output, you MUST explicitly state why the winning ticker beat the losing ticker. (e.g., "AAPL beats MSFT here because...")
+    3   Fill out the rest of the JSON execution plan ONLY for the winning ticker. 
+
+**The Matchup:**
+---
+**CANDIDATE A:**
+Ticker: {ticker_A}
+Current Price: ${price_A}
+
+**CANDIDATE B:**
+Ticker: {ticker_B}
+Current Price: ${price_B}
+
 ---
 
 ### 🏛️ PHASE 1: THE BUSINESS OWNER AUDIT (Long Term Value)
@@ -122,15 +135,15 @@ Your goal is to provide a **Dual-Conviction Report** that tells the Manager whic
 Return a single JSON object with two distinct sections.
 
 {{
-  "ticker": "{ticker}",
-  "current_price": {current_price},
+  "ticker": "[Insert winning ticker here]",
+  "current_price": [Insert winning price here],
   "final_recommendation": "HYBRID / POSITION_ONLY / SWING_ONLY / AVOID",
   
   "position_trade_analysis": {{
       "strategy_name": "Position Trading",
       "score": [0-100],
       "verdict": "BUY / WATCH / AVOID",
-      "rationale": "Summary of the business case...",
+      "rationale": "Explicitly explain why the winner beat the loser in long-term value...",
       "analysis_breakdown": [
           {{ "label": "P1 - Financial Safety", "details": "[Score/Max] - [Explanation]" }},
           {{ "label": "P2 - The Catalyst", "details": "[Score/Max] - [Explanation]" }},
@@ -150,7 +163,7 @@ Return a single JSON object with two distinct sections.
       "strategy_name": "Swing Trading",
       "score": [0-100],
       "verdict": "BUY / WATCH / AVOID",
-      "rationale": "Summary of the momentum case...",
+      "rationale": "Explicitly explain why the winner beat the loser in short-term momentum...",
       "analysis_breakdown": [
           {{ "label": "C1 - Price Tightening", "details": "[Score/Max] - [Explanation]" }},
           {{ "label": "C2 - Buyer Enthusiasm", "details": "[Score/Max] - [Explanation]" }},

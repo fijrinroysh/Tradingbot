@@ -151,63 +151,50 @@ def log_report(ticker, analysis):
             print(f"⚠️ History Log Error (Attempt {attempt+1}/3): {e}")
             time.sleep(2)
 
-def filter_candidates(candidates, limit=20):
+def filter_candidates(distressed_tickers, limit=20):
     """
-    Prioritizes stocks that have NEVER been analyzed, followed by those analyzed longest ago.
-																	  
+    Acts as a Priority Queue. 
+    Reads the 'Last_Match' date directly from the Minor League Elo Scoreboard
+    so BOTH winners and losers get their staleness accurately tracked.
     """
-    # 1. Fetch History
-    for attempt in range(3):
-        try:
-            client = get_client()
-            if not client: return candidates[:limit]
-
-            sheet = client.open(SHEET_NAME).sheet1
-            records = sheet.get_all_values()
-            
-				
-            history_map = {}
-            for r in records[1:]:
-                if len(r) > 1:
-											   
-                    history_map[r[1]] = r[0] # Ticker -> Date
-            break
-        except Exception as e:
-            print(f"⚠️ History Read Error (Attempt {attempt+1}/3): {e}")
-            time.sleep(5)
-            if attempt == 2: return candidates[:limit]
-
-    # 2. Score Candidates
-    scored_candidates = []
-    now = datetime.now()
+    # Import locally to avoid circular import issues
+    import lib.gvqm_minor_league as minor_league 
     
-    for t in candidates:
-        days_since = 9999 
-		
-        if t in history_map:
-            try:
-										
-                last_seen = datetime.strptime(history_map[t], "%Y-%m-%d %H:%M")
-                days_since = (now - last_seen).days
-	   
-            except: pass
-												  
-
-												
-																	  
-        scored_candidates.append((t, days_since))
-
-    # 3. Sort & Extract
-																							   
-    scored_candidates.sort(key=lambda x: x[1], reverse=True)
-
-					  
-													   
-																						   
-    valid = [x[0] for x in scored_candidates[:limit]]
+    try:
+        # 1. Fetch the entire Minor League leaderboard
+        leaderboard = minor_league.fetch_leaderboard("Junior_Elo")
         
-    print(f"✅ [HISTORY] Prioritized {len(valid)} stalest candidates (Limit: {limit}).")
-    return valid
+        # 2. Build the "Last Played" map: {'AAPL': '2023-10-25', 'TSLA': '2023-10-20'}
+        last_played_map = {}
+        if leaderboard:
+            for ticker, stats in leaderboard.items():
+                date_str = stats.get('Last_Match', '')
+                if date_str:
+                    last_played_map[ticker] = date_str
+                    
+    except Exception as e:
+        print(f"   ⚠️ [JUNIOR HISTORY] Could not read Elo staleness. Defaulting to raw list. Error: {e}")
+        return distressed_tickers[:limit]
+
+    # 3. Sort the Distressed Tickers into the Priority Queue
+    prioritized_list = []
+    
+    for ticker in distressed_tickers:
+        if ticker not in last_played_map:
+            # PRIORITY 1: ROOKIE (Never played a match in the Minor League)
+            # Give it an artificial date of year 1900 so it goes to the absolute front of the line
+            prioritized_list.append({'ticker': ticker, 'last_played': '1900-01-01'})
+        else:
+            # PRIORITY 2/3: VETERAN (Has an Elo rating and a Last_Match date)
+            prioritized_list.append({'ticker': ticker, 'last_played': last_played_map[ticker]})
+            
+    # 4. Sort the list by 'last_played' ASCENDING (Oldest dates first)
+    prioritized_list.sort(key=lambda x: x['last_played'])
+    
+    # 5. Slice the top 'limit' (e.g., top 20 stalest/newest stocks)
+    drafted_tickers = [item['ticker'] for item in prioritized_list[:limit]]
+    
+    return drafted_tickers
 
 #==========================================
 # 📥 READING (JUNIOR REPORTS)
