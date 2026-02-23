@@ -82,8 +82,9 @@ SENIOR_DRAFT_LIMIT = 2 # How many top candidates Senior Manager drafts for final
 INVEST_PER_TRADE = int(os.getenv("INVEST_PER_TRADE"))
 
 
-GOOGLE_SHEET_STRATEGY_TAB = os.getenv("GOOGLE_SHEET_STRATEGY_TAB","Executive_Briefs") 
-GOOGLE_SHEET_SENIOR_DECISIONS_TAB = os.getenv("GOOGLE_SHEET_SENIOR_DECISIONS_TAB","Senior_Decisions") 
+GOOGLE_SHEET_STRATEGY_TAB = "Executive_Briefs"
+GOOGLE_SHEET_SENIOR_DECISIONS_TAB = "Senior_Decisions"
+TRADE_LOG_TAB = "Trade_Log"
 
 # 2. Alpaca Paper Trading Keys
 ALPACA_KEY_ID = os.getenv("ALPACA_KEY_ID") 

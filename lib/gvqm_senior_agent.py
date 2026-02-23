@@ -75,7 +75,11 @@ def _remove_bias(candidate):
         "Swing_Score",
         "Swing_Verdict",
         "Swing_Rationale",
-        "Swing_Action"
+        "Swing_Action",
+        "_wins",
+        "_losses",
+         "_daily_elo",
+        "_senior_decision"
         ##"days_held",
         ##"avg_entry_price"
     ]

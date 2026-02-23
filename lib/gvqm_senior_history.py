@@ -10,6 +10,7 @@ SCOPES = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapi
 SHEET_NAME = getattr(config, 'GOOGLE_SHEET_NAME', "TradingBot_History")
 SENIOR_DECISIONS_TAB = getattr(config, 'GOOGLE_SHEET_SENIOR_DECISIONS_TAB', "Senior_Decisions")
 STRATEGY_TAB_NAME = getattr(config, 'GOOGLE_SHEET_STRATEGY_TAB', "Strategy_Brief")
+TRADE_LOG_TAB = getattr(config, 'GOOGLE_SHEET_TRADE_LOG_TAB', "Trade_Log")
 
 def get_client():
     creds_json = os.getenv("GOOGLE_SHEETS_CREDENTIALS")
@@ -245,3 +246,27 @@ def fetch_active_strategies(active_tickers):
     except Exception as e:
         print(f"   ⚠️ Memory Read Error: {e}")
         return {}
+    
+
+
+def log_mechanical_trade(ticker, action, reason, price=0, shares=0):
+    """
+    Logs Python-based mechanical decisions (like Relegation) to a separate Trade_Log sheet.
+    """
+    client = get_client()
+    if not client: return
+    
+    try:
+        sheet = client.open(SHEET_NAME).worksheet(TRADE_LOG_TAB)
+    except gspread.exceptions.WorksheetNotFound:
+        # Create it if it doesn't exist
+        sheet = client.open(SHEET_NAME).add_worksheet(title=TRADE_LOG_TAB, rows=1000, cols=6)
+        sheet.append_row(["Date", "Ticker", "Action", "Reason", "Current_Price", "Shares_Held"])
+
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
+    try:
+        sheet.append_row([timestamp, ticker, action, reason, price, shares])
+        print(f"   ✅ [HISTORY] Logged Mechanical Action to Trade_Log: {ticker} -> {action}")
+    except Exception as e:
+        print(f"   ⚠️ [HISTORY] Failed to log to Trade_Log: {e}")
