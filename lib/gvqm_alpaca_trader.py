@@ -486,8 +486,13 @@ def close_full_position(ticker):
     print(f"[{timestamp}] [TRADER] 🚨 EXECUTING KILL SWITCH FOR {ticker}...")
     
     try:
-        # 1. Cancel Pending Orders (Stops/Limits)
-        trading_client.cancel_orders(symbols=[ticker])
+        # 1. Fetch and Cancel Pending Orders for this specific ticker
+        req = GetOrdersRequest(status=QueryOrderStatus.OPEN, symbols=[ticker])
+        open_orders = trading_client.get_orders(filter=req)
+        
+        for order in open_orders:
+            trading_client.cancel_order_by_id(order.id)
+            
         print(f"[{timestamp}] [TRADER]    All pending orders cancelled.")
         
         # 2. Get Open Position to know Qty
