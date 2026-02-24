@@ -407,16 +407,27 @@ def run_senior_phase():
         
         execute_decisions(consolidated_decision)
         
-        # 7. EMAIL NOTIFICATION
+        # =========================================================
+        # 📧 EMAIL BLOCK
+        # =========================================================
         try:
             print("   📧 Preparing Email Notification...") 
+            
             account_info = trader.get_account()
             portfolio_objects = trader.get_portfolio()
-            refresh_portfolio_data(portfolio_objects)
+            refresh_portfolio_data(portfolio_objects) # Get live prices
             
-            # Send the consolidated decision so the email captures ALL mechanical/LLM orders
+            # ✅ NEW: Fetch and sort the All-Time Major League Scorecard
+            senior_leaderboard = minor_league.fetch_leaderboard("Senior_Elo")
+            sorted_senior = sorted(senior_leaderboard.items(), key=lambda x: x[1]['Elo_Rating'], reverse=True)
+            
+            # Attach it to the consolidated decision payload
+            consolidated_decision["major_league_standings"] = sorted_senior
+            
+            # SEND IT
             notifier.send_executive_brief(consolidated_decision, account_info, portfolio_objects)
             log_pipeline("✅ Consolidated Executive Brief email dispatched.")
+
         except Exception as e:
             log_pipeline(f"❌ Failed to send email: {e}")
             import traceback
