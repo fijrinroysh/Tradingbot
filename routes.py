@@ -202,7 +202,7 @@ def process_swiss_standings(swiss_standings):
 
         # --- STAGE ORDERS ---
         if final_action == "CLOSE_POSITION":
-            reason = "Relegated (Last Place in Swiss League)"
+            reason = "Relegated (Lowest All-Time Elo in Active Pool)"
             mechanical_orders.append({"ticker": ticker, "action": "CLOSE_POSITION", "final_recommendation": "AVOID", "matchup_rationale": reason})
             if hasattr(senior_history, 'log_mechanical_trade'):
                 senior_history.log_mechanical_trade(ticker, "CLOSE_POSITION", reason, candidate.get('current_price', 0), shares_owned)
@@ -382,6 +382,24 @@ def run_senior_phase():
             log_pipeline("   ⚠️ Swiss League failed to produce valid standings.")
             return
 
+        # ==============================================================
+        # ⚖️ THE FIX: APPLY ALL-TIME ELO RANKING BEFORE EXECUTION
+        # ==============================================================
+        # We fetch the newly updated All-Time Senior Leaderboard
+        senior_leaderboard = minor_league.fetch_leaderboard("Senior_Elo")
+        
+        for cand in swiss_standings:
+            ticker = cand['ticker']
+            # Default to 1500 if they are a brand new rookie today
+            cand['_all_time_elo'] = senior_leaderboard.get(ticker, {}).get('Elo_Rating', 1500.0)
+            
+        # Re-sort today's participants STRICTLY by their All-Time rating!
+        swiss_standings.sort(key=lambda x: x['_all_time_elo'], reverse=True)
+        
+        log_pipeline(f"   🏆 TRUE CHAMPION (All-Time): {swiss_standings[0]['ticker']} ({swiss_standings[0]['_all_time_elo']:.1f} Elo)")
+        log_pipeline(f"   🗑️ TRUE LOSER (All-Time): {swiss_standings[-1]['ticker']} ({swiss_standings[-1]['_all_time_elo']:.1f} Elo)")
+        # ==============================================================
+
         # 5. THE STATE MACHINE: Generate all execution logic
         llm_orders, mechanical_orders = process_swiss_standings(swiss_standings)
         all_orders = llm_orders + mechanical_orders
@@ -393,7 +411,7 @@ def run_senior_phase():
         # 6. LOGGING & CONSOLIDATION
         champion_ticker = swiss_standings[0]['ticker']
         consolidated_decision = {
-            "ceo_report": f"Swiss League Complete. Champion: {champion_ticker}. Actions Processed: {len(all_orders)}.",
+            "ceo_report": f"Swiss League Complete. True Champion: {champion_ticker}. Actions Processed: {len(all_orders)}.",
             "final_execution_orders": all_orders
         }
 
@@ -417,11 +435,11 @@ def run_senior_phase():
             portfolio_objects = trader.get_portfolio()
             refresh_portfolio_data(portfolio_objects) # Get live prices
             
-            # ✅ NEW: Fetch and sort the All-Time Major League Scorecard
-            senior_leaderboard = minor_league.fetch_leaderboard("Senior_Elo")
+            # ✅ OPTIMIZED: We removed the duplicate API fetch!
+            # We just sort the 'senior_leaderboard' variable we already fetched earlier.
             sorted_senior = sorted(senior_leaderboard.items(), key=lambda x: x[1]['Elo_Rating'], reverse=True)
-            
-            # Attach it to the consolidated decision payload
+			
+															
             consolidated_decision["major_league_standings"] = sorted_senior
             
             # SEND IT
