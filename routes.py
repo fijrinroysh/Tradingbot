@@ -29,6 +29,12 @@ import lib.gvqm_major_league as major_league
 main_routes = Blueprint('main_routes', __name__)
 
 # ==========================================
+# 🔒 CONCURRENCY LOCK
+# ==========================================
+pipeline_lock = threading.Lock()
+is_pipeline_running = False
+
+# ==========================================
 # 🛠️ HELPER FUNCTIONS
 # ==========================================
 
@@ -483,9 +489,37 @@ def run_pipeline():
 
 @main_routes.route('/tradingbot')
 def trigger_scan():
-    thread = threading.Thread(target=run_pipeline)
+    global is_pipeline_running
+    
+    # 1. Check if the bot is already running
+    if is_pipeline_running:
+        log_pipeline("⚠️ Trigger ignored: Pipeline is already running.")
+        return jsonify({
+            "status": "ignored", 
+            "message": "Pipeline is already running. Please wait for it to finish.",
+            "timestamp": datetime.datetime.now()
+        }), 429 # HTTP 429: Too Many Requests
+
+    # 2. Wrap the pipeline in a lock manager
+    def locked_pipeline_execution():
+        global is_pipeline_running
+        with pipeline_lock: # Secure the thread
+            is_pipeline_running = True
+            try:
+                run_pipeline()
+            finally:
+                # 3. Always release the lock when finished, even if it crashes!
+                is_pipeline_running = False
+
+    # 4. Start the protected thread
+    thread = threading.Thread(target=locked_pipeline_execution)
     thread.start()
-    return jsonify({"status": "Pipeline triggered", "timestamp": datetime.datetime.now()})
+    
+    return jsonify({
+        "status": "success", 
+        "message": "Pipeline triggered successfully.", 
+        "timestamp": datetime.datetime.now()
+    }), 200
 
 @main_routes.route('/health')
 def health_check(): return jsonify(status="ok"), 200
