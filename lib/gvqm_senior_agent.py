@@ -79,9 +79,9 @@ def _remove_bias(candidate):
         "_wins",
         "_losses",
          "_daily_elo",
-        "_senior_decision"
-        ##"days_held",
-        ##"avg_entry_price"
+        "_senior_decision",
+        "days_held",
+        "avg_entry_price"
     ]
     for field in bias_fields:
         clean_candidate.pop(field, None)
