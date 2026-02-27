@@ -122,7 +122,8 @@ def evaluate_matchup(candidate_a, candidate_b, risk_factor="Neutral", prev_conte
         log_debug(f"❌ PROMPT FORMAT ERROR: {e}")
         return None
     
-    for attempt in range(3):
+    max_retries = 3
+    for attempt in range(max_retries):
         try:
             payload = {
                 "contents": [{"parts": [{"text": prompt}]}],
@@ -134,10 +135,12 @@ def evaluate_matchup(candidate_a, candidate_b, risk_factor="Neutral", prev_conte
                 }
             }
 
+            # ✅ NEW: The 90-second strict timeout prevents infinite hanging!
             response = requests.post(
                 BASE_URL + f"?key={API_KEY}",
                 headers={'Content-Type': 'application/json'},
-                json=payload
+                json=payload,
+                timeout=90
             )
             
             if response.status_code == 200:
@@ -165,9 +168,22 @@ def evaluate_matchup(candidate_a, candidate_b, risk_factor="Neutral", prev_conte
                 log_debug(f"❌ API Error {response.status_code}: {response.text}")
                 return None
                 
-        except Exception as e:
-            log_debug(f"⚠️ Attempt {attempt+1}/3 Failed: {e}")
-            time.sleep(2)
+        except requests.exceptions.Timeout:
+            # ✅ NEW: Explicitly catching the infinite hang
+            log_debug(f"⚠️ API timed out after 90 seconds. Retrying ({attempt+1}/{max_retries})...")
+            time.sleep(5)
+            continue
             
-    log_debug(f"❌ Failed to analyze Matchup {ticker_a} vs {ticker_b} after 3 attempts.")
+        except requests.exceptions.ConnectionError as e:
+            # ✅ NEW: Catches "Silent Drops" where Google drops the connection
+            log_debug(f"⚠️ Connection dropped by server: {e}. Retrying ({attempt+1}/{max_retries})...")
+            time.sleep(5)
+            continue
+            
+        except Exception as e:
+            log_debug(f"⚠️ Attempt {attempt+1}/{max_retries} Failed: {e}")
+            time.sleep(2)
+            continue
+            
+    log_debug(f"❌ Failed to analyze Matchup {ticker_a} vs {ticker_b} after {max_retries} attempts.")
     return None

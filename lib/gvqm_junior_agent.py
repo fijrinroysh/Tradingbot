@@ -79,10 +79,12 @@ def evaluate_matchup(candidate_a, candidate_b):
     max_retries = 3
     for attempt in range(max_retries):
         try:
+            # ✅ NEW: The 90-second strict timeout prevents infinite hanging!
             response = requests.post(
                 f"{BASE_URL}?key={API_KEY}", 
                 headers={'Content-Type': 'application/json'}, 
-                data=json.dumps(payload)
+                data=json.dumps(payload),
+                timeout=90  
             )
             
             if response.status_code == 200:
@@ -110,7 +112,7 @@ def evaluate_matchup(candidate_a, candidate_b):
                     
                     if not cleaned_json:
                         print(f"   ⚠️ Response contained no JSON. Raw: {text[:50]}...")
-                        # If the AI was chatty, we treat it as a fail and maybe retry or skip
+																							 
                         return None
                         
                     return json.loads(cleaned_json)
@@ -133,8 +135,21 @@ def evaluate_matchup(candidate_a, candidate_b):
                 print(f"   ❌ API Error {response.status_code}: {response.text}")
                 return None
                 
+        except requests.exceptions.Timeout:
+            # ✅ NEW: Explicitly catching the infinite hang
+            print(f"   ⚠️ [JUNIOR] Gemini API timed out after 90 seconds. Retrying ({attempt+1}/{max_retries})...")
+            time.sleep(5)
+            continue
+            
+        except requests.exceptions.ConnectionError as e:
+            # ✅ NEW: Catches "Silent Drops" where Google drops the connection
+            print(f"   ⚠️ [JUNIOR] Connection dropped by server: {e}. Retrying ({attempt+1}/{max_retries})...")
+            time.sleep(5)
+            continue
+            
         except Exception as e:
             print(f"   ❌ Connection Error: {e}")
             return None
             
+    print(f"   ❌ [JUNIOR] Matchup completely failed after {max_retries} retries. Skipping.")
     return None
