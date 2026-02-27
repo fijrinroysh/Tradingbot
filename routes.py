@@ -441,11 +441,14 @@ def run_senior_phase():
             portfolio_objects = trader.get_portfolio()
             refresh_portfolio_data(portfolio_objects) # Get live prices
             
-            # ✅ OPTIMIZED: We removed the duplicate API fetch!
-            # We just sort the 'senior_leaderboard' variable we already fetched earlier.
-            sorted_senior = sorted(senior_leaderboard.items(), key=lambda x: x[1]['Elo_Rating'], reverse=True)
-			
-															
+            # ✅ OPTION: Filter the leaderboard to ONLY show today's participants
+            active_tickers = [c['ticker'] for c in swiss_standings]
+            filtered_leaderboard = {k: v for k, v in senior_leaderboard.items() if k in active_tickers}
+            
+            # Sort the filtered list
+            sorted_senior = sorted(filtered_leaderboard.items(), key=lambda x: x[1]['Elo_Rating'], reverse=True)
+   
+			   
             consolidated_decision["major_league_standings"] = sorted_senior
             
             # SEND IT

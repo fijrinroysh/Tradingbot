@@ -66,14 +66,14 @@ GEMINI_JUNIOR_MODEL = "gemini-3-flash-preview"
 
 # SENIOR MANAGER: High reasoning, final decision.
 # Default: "gemini-3-pro-preview" (Smartest).
-GEMINI_SENIOR_MODEL = "gemini-3-pro-preview"
+GEMINI_SENIOR_MODEL = "gemini-3.1-pro-preview"
 
 # --- STRATEGY LIMITS ---
 # 1. JUNIOR LIMIT: How many stocks to analyze per day.
 # If using Flash, set to 200+. If using Pro, set to ~20 to stay within limits.
 # This ensures you cover the 200-stock universe in chunks (e.g., 20/day = 10 days).
 DAILY_SCAN_LIMIT = int(os.getenv("DAILY_SCAN_LIMIT", 5))
-SENIOR_DRAFT_LIMIT = 2 # How many top candidates Senior Manager drafts for final review (e.g., 5-10)
+SENIOR_DRAFT_LIMIT = 3 # How many top candidates Senior Manager drafts for final review (e.g., 5-10)
 
 
 
@@ -87,7 +87,7 @@ GOOGLE_SHEET_SENIOR_DECISIONS_TAB = "Senior_Decisions"
 TRADE_LOG_TAB = "Trade_Log"
 
 # 2. Alpaca Paper Trading Keys
-ALPACA_KEY_ID = os.getenv("ALPACA_KEY_ID") 
+ALPACA_KEY_ID = os.getenv("ALPACA_KEY_ID")
 ALPACA_SECRET_KEY = os.getenv("ALPACA_SECRET_KEY") 
 
 # --- EMAIL NOTIFICATION SETTINGS ---
