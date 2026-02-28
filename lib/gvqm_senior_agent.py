@@ -140,7 +140,7 @@ def evaluate_matchup(candidate_a, candidate_b, risk_factor="Neutral", prev_conte
                 BASE_URL + f"?key={API_KEY}",
                 headers={'Content-Type': 'application/json'},
                 json=payload,
-                timeout=90
+                timeout=120
             )
             
             if response.status_code == 200:
