@@ -130,8 +130,8 @@ def evaluate_matchup(candidate_a, candidate_b, risk_factor="Neutral", prev_conte
                 "tools": [{"googleSearch": {}}],
                 "generationConfig": {
                     "response_mime_type": "application/json",
-                    "temperature": 0.0,  # 🔒 FORCES DETERMINISTIC LOGIC
-                    "top_p": 0.1         # 🔒 ELIMINATES RANDOM GUESSING
+                    "temperature": 0.2,  # 🔒 FORCES DETERMINISTIC LOGIC
+                    
                 }
             }
 
