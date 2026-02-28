@@ -153,13 +153,13 @@ def safe_float(val):
         return 0.0
 
 # ==========================================
-# ⚙️ THE STATE MACHINE (Order Generation)
+# ⚙️ THE STATE MACHINE (Pure Swap Logic)
 # ==========================================
 
 def process_swiss_standings(swiss_standings):
     """
-    Evaluates the entire Swiss League leaderboard and routes decisions 
-    based on portfolio state and LLM actions (CHASE, UPDATE, HOLD).
+    Evaluates the leaderboard. It ONLY buys if an unowned stock 
+    ranks higher than an already owned stock (A 1-for-1 Swap).
     """
     mechanical_orders = []
     llm_orders = []
@@ -167,15 +167,39 @@ def process_swiss_standings(swiss_standings):
     if not swiss_standings:
         return llm_orders, mechanical_orders
 
+    # 1. SCOUT THE PLAYERS: Find the Best Unowned and the Worst Owned
+    best_unowned = None
+    worst_owned = None
+
     for rank, candidate in enumerate(swiss_standings):
+        candidate['current_rank'] = rank  # Save their leaderboard position
+        shares = float(candidate.get('shares_held', 0))
+        
+        if shares > 0:
+            # Continues updating as it moves down the list, settling on the worst owned
+            worst_owned = candidate 
+            
+        elif shares == 0 and best_unowned is None:
+            # Grabs the very first unowned stock it sees (the highest ranked one)
+            best_unowned = candidate 
+
+    # 2. THE SWAP CHECK: Does the New Guy beat the Weakest Link?
+    swap_triggered = False
+    if best_unowned and worst_owned:
+        if best_unowned['current_rank'] < worst_owned['current_rank']:
+            swap_triggered = True
+            log_pipeline(f"🔄 SWAP OPPORTUNITY DETECTED: {best_unowned['ticker']} (Rank {best_unowned['current_rank']}) outranks {worst_owned['ticker']} (Rank {worst_owned['current_rank']}).")
+
+    # 3. ASSIGN THE ACTIONS
+    for candidate in swiss_standings:
         ticker = candidate['ticker']
         shares_owned = float(candidate.get('shares_held', 0))
         pending_buy = float(candidate.get('pending_buy_limit', 0) or 0)
         
-        is_champion = (rank == 0)
-        is_loser = (rank == len(swiss_standings) - 1)
+        # Extract what the LLM *wants* to do based on its isolated decision
+													 
 
-        # Extract LLM Action
+							
         llm_action = "HOLD"
         order_data = {}
         if candidate.get('_senior_decision'):
@@ -186,35 +210,37 @@ def process_swiss_standings(swiss_standings):
 
         final_action = "HOLD"
 
-        # --- RULE 1: THE LOSER (Relegation) ---
-        if is_loser and shares_owned > 0:
-            final_action = "CLOSE_POSITION"
+												
+										 
+										   
 
-        # --- RULE 2: THE CHAMPION ---
-        elif is_champion:
-            if shares_owned == 0 and pending_buy == 0:
-                final_action = "OPEN_NEW"
-            elif shares_owned == 0 and pending_buy > 0:
-                if llm_action == "CHASE": final_action = "UPDATE_EXISTING"
-            elif shares_owned > 0:
-                if llm_action == "UPDATE": final_action = "UPDATE_EXISTING"
+        # --- APPLY THE SWAP RULES ---
+        if swap_triggered and ticker == worst_owned['ticker']:
+													  
+            final_action = "CLOSE_POSITION"  # Fire the loser
+            
+        elif swap_triggered and ticker == best_unowned['ticker']:
+            final_action = "OPEN_NEW"        # Hire the winner
+								  
+																		   
 
-        # --- RULE 3: THE MIDDLE CLASS ---
+        # --- STANDARD MAINTENANCE (For everyone else) ---
         else:
             if shares_owned > 0:
-                if llm_action == "UPDATE": final_action = "UPDATE_EXISTING"
+                if llm_action == "UPDATE": 
+                    final_action = "UPDATE_EXISTING" # Trail stops for healthy portfolio stocks
             elif shares_owned == 0 and pending_buy > 0:
-                final_action = "CANCEL_PENDING"
+                final_action = "CANCEL_PENDING"      # Clean up old orphaned orders
 
-        # --- STAGE ORDERS ---
+        # --- STAGE THE ORDERS ---
         if final_action == "CLOSE_POSITION":
-            reason = "Relegated (Lowest All-Time Elo in Active Pool)"
+            reason = f"Swapped out. Outranked by {best_unowned['ticker']}."
             mechanical_orders.append({"ticker": ticker, "action": "CLOSE_POSITION", "final_recommendation": "AVOID", "matchup_rationale": reason})
             if hasattr(senior_history, 'log_mechanical_trade'):
                 senior_history.log_mechanical_trade(ticker, "CLOSE_POSITION", reason, candidate.get('current_price', 0), shares_owned)
         
         elif final_action == "CANCEL_PENDING":
-            reason = "Orphaned Pending Order (Not Champion)"
+            reason = "Orphaned Pending Order"
             mechanical_orders.append({"ticker": ticker, "action": "CANCEL_PENDING", "final_recommendation": "AVOID", "matchup_rationale": reason})
             if hasattr(senior_history, 'log_mechanical_trade'):
                 senior_history.log_mechanical_trade(ticker, "CANCEL_PENDING", reason, candidate.get('current_price', 0), shares_owned)
@@ -227,13 +253,18 @@ def process_swiss_standings(swiss_standings):
     return llm_orders, mechanical_orders
 
 # ==========================================
-# ⚙️ EXECUTION LOGIC (The Capital Guard)
+# ⚙️ EXECUTION LOGIC (Pure Swap Mode)
 # ==========================================
 
 def execute_decisions(decision_payload):
     orders = decision_payload.get('final_execution_orders', [])
-    log_pipeline(f"⚙️ EXECUTION: Processing {len(orders)} orders with Capital Guard logic...")
+    log_pipeline(f"⚙️ EXECUTION: Processing {len(orders)} orders (Swap Logic Enabled)...")
     
+    # 🔄 CRITICAL: Sort orders so we SELL before we BUY to free up cash for the swap!
+    sort_priority = {"CLOSE_POSITION": 1, "CANCEL_PENDING": 2, "UPDATE_EXISTING": 3, "OPEN_NEW": 4, "HOLD": 5}
+    orders.sort(key=lambda o: sort_priority.get(o.get('action', 'HOLD').upper(), 99))
+
+    # Pull the base trade budget from your config file
     base_capital = getattr(config, 'INVEST_PER_TRADE', 1000)
 
     ALLOCATION_MAP = {
@@ -268,24 +299,30 @@ def execute_decisions(decision_payload):
         take_profit = safe_float(plan.get('take_profit'))
         stop_loss   = safe_float(plan.get('stop_loss'))
 
-        log_pipeline(f"   👉 {ticker} Action: {action} | Alloc: ${investment_amount:.0f} ({alloc_mult*100}%)")
+        log_pipeline(f"   👉 {ticker} Action: {action} | Target Alloc: ${investment_amount:.0f} ({alloc_mult*100}%)")
 
         try:
-            if action == "OPEN_NEW":
-                if investment_amount <= 0:
-                    log_pipeline(f"      ⛔ Skipped {ticker}: Allocation is $0.")
-                    continue
-                trader.execute_entry(ticker, investment_amount, entry_price, take_profit, stop_loss)
-
-            elif action == "UPDATE_EXISTING":
-                trader.execute_update(ticker, take_profit, stop_loss, buy_limit=entry_price)
+            if action == "CLOSE_POSITION":
+                log_pipeline(f"      🚨 EJECTING {ticker} (Relegated). Freeing up cash for swap...")
+                trader.close_full_position(ticker)
+                time.sleep(2) # Brief pause to let Alpaca register the freed cash
+				 
+																							
 
             elif action == "CANCEL_PENDING":
                 trader.execute_cancel(ticker)
                 
-            elif action == "CLOSE_POSITION":
-                log_pipeline(f"      🚨 EJECTING {ticker} (Score too low/Relegated).")
-                trader.close_full_position(ticker)
+            elif action == "UPDATE_EXISTING":
+                trader.execute_update(ticker, take_profit, stop_loss, buy_limit=entry_price)
+												  
+
+            elif action == "OPEN_NEW":
+                if investment_amount <= 0:
+                    log_pipeline(f"      ⛔ Skipped {ticker}: Allocation is $0.")
+                    continue
+                    
+                log_pipeline(f"      ✅ SENDING BUY ORDER for {ticker} (Target Amount: ${investment_amount:.2f}).")
+                trader.execute_entry(ticker, investment_amount, entry_price, take_profit, stop_loss)
 
             elif action == "HOLD":
                 log_pipeline(f"      ⏸️ Holding {ticker}. No changes.")
@@ -448,7 +485,7 @@ def run_senior_phase():
             # Sort the filtered list
             sorted_senior = sorted(filtered_leaderboard.items(), key=lambda x: x[1]['Elo_Rating'], reverse=True)
    
-			   
+               
             consolidated_decision["major_league_standings"] = sorted_senior
             
             # SEND IT
