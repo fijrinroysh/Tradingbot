@@ -135,7 +135,7 @@ def evaluate_matchup(candidate_a, candidate_b, risk_factor="Neutral", prev_conte
                 }
             }
 
-            # ✅ NEW: The 90-second strict timeout prevents infinite hanging!
+            # ✅ NEW: The 120-second strict timeout prevents infinite hanging!
             response = requests.post(
                 BASE_URL + f"?key={API_KEY}",
                 headers={'Content-Type': 'application/json'},
@@ -158,9 +158,10 @@ def evaluate_matchup(candidate_a, candidate_b, risk_factor="Neutral", prev_conte
                 cleaned = clean_json_text(raw_text)
                 return json.loads(cleaned)
             
-            elif response.status_code in [429, 503]:
+            # ✅ NEW: Explicitly catch 502 (Bad Gateway) and other 50x server errors
+            elif response.status_code in [429, 500, 502, 503, 504]:
                 wait_time = (attempt + 1) * 5
-                log_debug(f"⚠️ API Busy ({response.status_code}). Retrying in {wait_time}s...")
+                log_debug(f"⚠️ API Busy or Server Error ({response.status_code}). Retrying in {wait_time}s...")
                 time.sleep(wait_time)
                 continue
                 
@@ -170,7 +171,7 @@ def evaluate_matchup(candidate_a, candidate_b, risk_factor="Neutral", prev_conte
                 
         except requests.exceptions.Timeout:
             # ✅ NEW: Explicitly catching the infinite hang
-            log_debug(f"⚠️ API timed out after 90 seconds. Retrying ({attempt+1}/{max_retries})...")
+            log_debug(f"⚠️ API timed out after 120 seconds. Retrying ({attempt+1}/{max_retries})...")
             time.sleep(5)
             continue
             
