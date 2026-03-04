@@ -391,22 +391,28 @@ def run_junior_phase():
 def run_senior_phase():
     log_pipeline("\n👨‍💼 PHASE 2: SENIOR MANAGER STRATEGY (SWISS LEAGUE MODE)")
     try:
-        # 1. THE DRAFT
+		# 1. THE DRAFT (Fetching Data)
         leaderboard = minor_league.fetch_leaderboard("Junior_Elo")
         if not leaderboard:
             log_pipeline("   ⚠️ No Elo leaderboard found. Junior needs to run more matches.")
             return
 
         sorted_league = sorted(leaderboard.items(), key=lambda x: x[1]['Elo_Rating'], reverse=True)
-        # Safely pull the limit from config (defaults to 4 if not found)
-        draft_limit = getattr(config, 'SENIOR_DRAFT_LIMIT', 4)
-        top_tickers = [item[0] for item in sorted_league[:draft_limit]]
+        live_tickers = get_live_context()  # Get our portfolio FIRST
         
-        # 2. ADD EXISTING PORTFOLIO
-        live_tickers = get_live_context()
-        for t in live_tickers:
-            if t not in top_tickers:
-                top_tickers.append(t)
+        # 2. DRAFT THE CHALLENGERS (Filter out owned stocks first!)
+        unowned_challengers = [item[0] for item in sorted_league if item[0] not in live_tickers]
+        
+        draft_limit = getattr(config, 'SENIOR_DRAFT_LIMIT', 4)
+        top_tickers = unowned_challengers[:draft_limit] # Grab the top N fresh faces
+        
+        log_pipeline(f"   🥊 Minor League sent {len(top_tickers)} brand new challengers: {top_tickers}")
+
+        # 3. ADD THE DEFENDING CHAMPIONS (The Portfolio)
+        top_tickers.extend(live_tickers)
+        
+        log_pipeline(f"   📋 Final Major League Roster ({len(top_tickers)} stocks): {top_tickers}")
+									 
                 
         log_pipeline(f"   📋 Drafted {len(top_tickers)} stocks for the Swiss League: {top_tickers}")
         if len(top_tickers) < 2:
