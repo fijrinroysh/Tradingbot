@@ -62,7 +62,7 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") # <-- This is now safe
 # --- GEMINI SETTINGS (Pro Model) ---
 ## JUNIOR ANALYST: High volume, initial filtering. 
 # Default: "gemini-3-flash-preview" (Free/Cheap). Can switch to "gemini-3-pro-preview" if needed.
-GEMINI_JUNIOR_MODEL = "gemini-3-flash-preview"
+GEMINI_JUNIOR_MODEL = "gemini-3.1-flash-lite-preview"
 
 # SENIOR MANAGER: High reasoning, final decision.
 # Default: "gemini-3-pro-preview" (Smartest).

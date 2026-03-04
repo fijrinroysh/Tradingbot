@@ -69,9 +69,11 @@ def evaluate_matchup(candidate_a, candidate_b):
         "tools": [{"googleSearch": {}}],         # ✅ GROUNDING RETAINED
         "safetySettings": safety_settings ,
         "generationConfig": {
-                    "response_mime_type": "application/json",
-                    "temperature": 0.2,  # 🔒 UPDATED TO MATCH NEW FREEDOM CLAUSE LOGIC
-                   
+            "response_mime_type": "application/json",
+            "temperature": 0.2,  # 🔒 UPDATED TO MATCH NEW FREEDOM CLAUSE LOGIC
+            "thinkingConfig": {
+                "thinkingLevel": "HIGH"  # 🧠 Maximum reasoning depth enabled
+            }
         }
     }
     
@@ -112,7 +114,7 @@ def evaluate_matchup(candidate_a, candidate_b):
                     
                     if not cleaned_json:
                         print(f"   ⚠️ Response contained no JSON. Raw: {text[:50]}...")
-                                                                                                                                                                                                               
+																																																			   
                         return None
                         
                     return json.loads(cleaned_json)
@@ -129,7 +131,7 @@ def evaluate_matchup(candidate_a, candidate_b):
             elif response.status_code in [429, 500, 502, 503, 504]:
                 wait = (attempt + 1) * 10
                 print(f"   ⚠️ API Busy or Server Error ({response.status_code}). Retrying in {wait}s...")
-                time. held(wait) # Wait
+									   
                 time.sleep(wait)
                 continue
             
