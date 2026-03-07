@@ -63,12 +63,12 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") # <-- This is now safe
 ## JUNIOR ANALYST: High volume, initial filtering. 
 # Default: "gemini-3-flash-preview" (Free/Cheap). Can switch to "gemini-3-pro-preview" if needed.
 GEMINI_JUNIOR_MODEL = "gemini-3.1-pro-preview"
-JUNIOR_THINKING_LEVEL = "MEDIUM"  # Fast, cheap scouting for the Minor League
+JUNIOR_THINKING_LEVEL = "HIGH"  # Fast, cheap scouting for the Minor League
 
 # SENIOR MANAGER: High reasoning, final decision.
 # Default: "gemini-3-pro-preview" (Smartest).
-GEMINI_SENIOR_MODEL = "gemini-3.1-flash-lite-preview"
-SENIOR_THINKING_LEVEL = "LOW" # Deep, rigorous reasoning for the Major League
+GEMINI_SENIOR_MODEL = "gemini-3.1-pro-preview"
+SENIOR_THINKING_LEVEL = "HIGH" # Deep, rigorous reasoning for the Major League
 
 
 
@@ -78,7 +78,6 @@ SCANNER_SMA_WINDOW = 250
 
 #Instead of just asking, "Is the price below the MA?", we need to ask, "Is the price at least 20% BELOW the MA?"
 SCANNER_SMA_MULTIPLIER = float(os.getenv("SCANNER_SMA_MULTIPLIER", 0.85))  
-# Default to 1.0 (no % drop) if not set in .env
 # 0.85: Means the stock must be 15% below the MA.
 
 
@@ -117,7 +116,6 @@ EMAIL_RECIPIENT = os.getenv("EMAIL")
 
 
 GOOGLE_SHEET_NAME = os.getenv("GOOGLE_SHEET_NAME", "TradingBot_History")
-
 DEBUG_MODE = os.getenv("DEBUG_MODE", False)
 
 
