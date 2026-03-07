@@ -7,9 +7,18 @@ import re
 import datetime
 
 # 1. Setup Model
-raw_model = getattr(config, 'GEMINI_SENIOR_MODEL', "gemini-1.5-pro")
-MODEL_NAME = raw_model.replace("models/", "")
+raw_model = getattr(config, 'GEMINI_SENIOR_MODEL', "gemini-3.1-pro-preview")
+
+# Ensure clean formatting for the REST API
+if raw_model.startswith("models/"):
+    MODEL_NAME = raw_model.replace("models/", "")
+else:
+    MODEL_NAME = raw_model
+
 API_KEY = config.GEMINI_API_KEY
+if not API_KEY:
+    print("⚠️ [SENIOR] CRITICAL WARNING: GEMINI_API_KEY is missing.")
+
 BASE_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL_NAME}:generateContent"
 
 def log_debug(message):
@@ -93,7 +102,7 @@ def evaluate_matchup(candidate_a, candidate_b, risk_factor="Neutral", prev_conte
     ticker_a = candidate_a.get('ticker')
     ticker_b = candidate_b.get('ticker')
     
-    log_debug(f"🤖 [SENIOR AGENT] Analyzing Matchup: {ticker_a} vs {ticker_b}...")
+    log_debug(f"🤖 [SENIOR AGENT] Analyzing Matchup: {ticker_a} vs {ticker_b} using {MODEL_NAME}...")
 
     # --- 🙈 THE BLIND TEST FILTER (Applied to Both) ---
     clean_a = _remove_bias(candidate_a)
@@ -112,30 +121,53 @@ def evaluate_matchup(candidate_a, candidate_b, risk_factor="Neutral", prev_conte
         # --- 📝 DEBUG: Write Senior Prompt ---
         if getattr(config, 'DEBUG_MODE', False):
             try:
-                with open("senior_prompt_debug.txt", "w", encoding="utf-8") as f:
-                    f.write(f"--- DEBUG FOR {ticker_a}_vs_{ticker_b} ---\n")
+                # Append mode so tournament matchups aren't overwritten
+                with open("senior_prompt_debug.txt", "a", encoding="utf-8") as f:
+                    f.write(f"\n--- DEBUG FOR {ticker_a}_vs_{ticker_b} ---\n")
                     f.write(prompt)
+                    f.write("\n=========================================\n")
             except Exception as e:
                 log_debug(f"⚠️ Failed to write prompt debug: {e}")
 
     except Exception as e:
         log_debug(f"❌ PROMPT FORMAT ERROR: {e}")
         return None
+        
+    # Safety Settings
+    safety_settings = [
+        {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+        {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+        {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+        {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"}
+    ]
+    
+    # 🎯 DYNAMIC GENERATION CONFIGURATION
+    gen_config = {
+        "response_mime_type": "application/json"
+    }
+
+    # Pull the desired thinking level from your config (defaults to HIGH if missing)
+    thinking_level = getattr(config, 'SENIOR_THINKING_LEVEL', 'HIGH').upper()
+
+    # Gemini 3.x series uses thinkingLevel, as do legacy "thinking" models
+    if "3." in MODEL_NAME or "thinking" in MODEL_NAME.lower():
+        gen_config["thinkingConfig"] = {"thinkingLevel": thinking_level}
+    else:
+        # Fallback for older models
+        gen_config["temperature"] = 0.2 
+    
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "tools": [{"googleSearch": {}}],
+        "safetySettings": safety_settings,
+        "generationConfig": gen_config
+    }
     
     max_retries = 3
     for attempt in range(max_retries):
         try:
-            payload = {
-                "contents": [{"parts": [{"text": prompt}]}],
-                "tools": [{"googleSearch": {}}],
-                "generationConfig": {
-                    "response_mime_type": "application/json",
-                    "temperature": 0.2,  # 🔒 FORCES DETERMINISTIC LOGIC
-                    
-                }
-            }
-
             # ✅ NEW: The 120-second strict timeout prevents infinite hanging!
+            # Since Senior logic is deep, 120s is safer for the PRO model
             response = requests.post(
                 BASE_URL + f"?key={API_KEY}",
                 headers={'Content-Type': 'application/json'},
@@ -149,16 +181,18 @@ def evaluate_matchup(candidate_a, candidate_b, risk_factor="Neutral", prev_conte
                 # --- 📝 DEBUG: Write Senior Response ---
                 if getattr(config, 'DEBUG_MODE', False):
                     try:
-                        with open("senior_response_debug.txt", "w", encoding="utf-8") as f:
-                            f.write(f"--- RAW RESPONSE FOR {ticker_a}_vs_{ticker_b} ---\n")
+                        # Append mode
+                        with open("senior_response_debug.txt", "a", encoding="utf-8") as f:
+                            f.write(f"\n--- RAW RESPONSE FOR {ticker_a}_vs_{ticker_b} ---\n")
                             f.write(raw_text)
+                            f.write("\n=========================================\n")
                     except Exception as e:
                         log_debug(f"⚠️ Failed to write response debug: {e}")
 
                 cleaned = clean_json_text(raw_text)
                 return json.loads(cleaned)
             
-            # ✅ NEW: Explicitly catch 502 (Bad Gateway) and other 50x server errors
+            # Explicitly catch 502 (Bad Gateway) and other server errors
             elif response.status_code in [429, 500, 502, 503, 504]:
                 wait_time = (attempt + 1) * 5
                 log_debug(f"⚠️ API Busy or Server Error ({response.status_code}). Retrying in {wait_time}s...")
@@ -170,13 +204,13 @@ def evaluate_matchup(candidate_a, candidate_b, risk_factor="Neutral", prev_conte
                 return None
                 
         except requests.exceptions.Timeout:
-            # ✅ NEW: Explicitly catching the infinite hang
+            # Explicitly catching the infinite hang
             log_debug(f"⚠️ API timed out after 120 seconds. Retrying ({attempt+1}/{max_retries})...")
             time.sleep(5)
             continue
             
         except requests.exceptions.ConnectionError as e:
-            # ✅ NEW: Catches "Silent Drops" where Google drops the connection
+            # Catches "Silent Drops" where Google drops the connection
             log_debug(f"⚠️ Connection dropped by server: {e}. Retrying ({attempt+1}/{max_retries})...")
             time.sleep(5)
             continue

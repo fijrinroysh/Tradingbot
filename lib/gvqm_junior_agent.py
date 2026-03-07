@@ -7,8 +7,13 @@ import re
 import os
 
 # 1. Setup Model
-raw_model = getattr(config, 'GEMINI_JUNIOR_MODEL', "gemini-2.0-flash")
-MODEL_NAME = raw_model.replace("models/", "")
+raw_model = getattr(config, 'GEMINI_JUNIOR_MODEL', "gemini-3.1-pro-preview")
+
+# Ensure clean formatting for the REST API
+if raw_model.startswith("models/"):
+    MODEL_NAME = raw_model.replace("models/", "")
+else:
+    MODEL_NAME = raw_model
 
 API_KEY = config.GEMINI_API_KEY
 if not API_KEY:
@@ -64,24 +69,33 @@ def evaluate_matchup(candidate_a, candidate_b):
         {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"}
     ]
     
+    # 🎯 DYNAMIC GENERATION CONFIGURATION
+    gen_config = {
+        "response_mime_type": "application/json"
+    }
+
+    # Pull the desired thinking level from your config (defaults to LOW if missing)
+    thinking_level = getattr(config, 'JUNIOR_THINKING_LEVEL', 'LOW').upper()
+
+    # Gemini 3.x series uses thinkingLevel, as do legacy "thinking" models
+    if "3." in MODEL_NAME or "thinking" in MODEL_NAME.lower():
+        gen_config["thinkingConfig"] = {"thinkingLevel": thinking_level}
+    else:
+        # Fallback for Gemini 1.5 and standard 2.0 Flash
+        gen_config["temperature"] = 0.2 
+    
     payload = {
         "contents": [{"parts": [{"text": prompt}]}], 
         "tools": [{"googleSearch": {}}],         # ✅ GROUNDING RETAINED
-        "safetySettings": safety_settings ,
-        "generationConfig": {
-            "response_mime_type": "application/json",
-            "temperature": 0.2,  # 🔒 UPDATED TO MATCH NEW FREEDOM CLAUSE LOGIC
-            "thinkingConfig": {
-                "thinkingLevel": "HIGH"  # 🧠 Maximum reasoning depth enabled
-            }
-        }
+        "safetySettings": safety_settings,
+        "generationConfig": gen_config           # ✅ DYNAMIC THINKING CONFIG APPLIED
     }
     
     # Retry Loop
     max_retries = 3
     for attempt in range(max_retries):
         try:
-            # ✅ NEW: The 90-second strict timeout prevents infinite hanging!
+            # ⏱️ The 90-second strict timeout prevents infinite hanging!
             response = requests.post(
                 f"{BASE_URL}?key={API_KEY}", 
                 headers={'Content-Type': 'application/json'}, 
@@ -103,9 +117,11 @@ def evaluate_matchup(candidate_a, candidate_b):
                     # --- 📝 DEBUG: Write Junior Response ---
                     if getattr(config, 'DEBUG_MODE', False):
                         try:
-                            with open("junior_response_debug.txt", "w", encoding="utf-8") as f:
-                                f.write(f"--- RAW RESPONSE FOR {ticker_a}_vs_{ticker_b} ---\n")
+                            # Use append mode so we don't overwrite multiple matchups
+                            with open("junior_response_debug.txt", "a", encoding="utf-8") as f:
+                                f.write(f"\n--- RAW RESPONSE FOR {ticker_a}_vs_{ticker_b} ---\n")
                                 f.write(text)
+                                f.write("\n=========================================\n")
                         except Exception as e:
                             print(f"   ⚠️ Failed to write response debug: {e}")
                     
@@ -114,7 +130,6 @@ def evaluate_matchup(candidate_a, candidate_b):
                     
                     if not cleaned_json:
                         print(f"   ⚠️ Response contained no JSON. Raw: {text[:50]}...")
-																																																			   
                         return None
                         
                     return json.loads(cleaned_json)
@@ -127,26 +142,26 @@ def evaluate_matchup(candidate_a, candidate_b):
                     print(f"   ❌ Parsing Structure Error: {e}")
                     return None
             
-            # ✅ NEW: Explicitly catch 502 (Bad Gateway) and other 50x server errors
+            # Explicitly catch 502 (Bad Gateway), 429 (Rate Limit) and other server errors
             elif response.status_code in [429, 500, 502, 503, 504]:
                 wait = (attempt + 1) * 10
                 print(f"   ⚠️ API Busy or Server Error ({response.status_code}). Retrying in {wait}s...")
-									   
                 time.sleep(wait)
                 continue
             
             else:
+                # Log full error for 400 Bad Request or other client errors
                 print(f"   ❌ API Error {response.status_code}: {response.text}")
                 return None
                 
         except requests.exceptions.Timeout:
-            # ✅ NEW: Explicitly catching the infinite hang
+            # Explicitly catching the infinite hang
             print(f"   ⚠️ [JUNIOR] Gemini API timed out after 90 seconds. Retrying ({attempt+1}/{max_retries})...")
             time.sleep(5)
             continue
             
         except requests.exceptions.ConnectionError as e:
-            # ✅ NEW: Catches "Silent Drops" where Google drops the connection
+            # Catches "Silent Drops" where Google drops the connection
             print(f"   ⚠️ [JUNIOR] Connection dropped by server: {e}. Retrying ({attempt+1}/{max_retries})...")
             time.sleep(5)
             continue
