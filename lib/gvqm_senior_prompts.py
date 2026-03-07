@@ -161,16 +161,16 @@ Return a single JSON object with two distinct sections.
           "strategy_name": "Position Trading",
           "score": [0-100],
           "verdict": "BUY / WATCH / AVOID",
-          "rationale": "Explicitly explain your holistic judgment for why the winner's long-term value beat the loser...",
+          "rationale": "Explicitly explain your holistic judgment WHO is the winner and WHY...",
           "analysis_breakdown": [
-              {{ "label": "P1 - Financial Safety", "details": "[Score/Max] - [[WINNER] beat [LOSER] because...]" }},
-              {{ "label": "P2 - The Spark", "details": "[Score/Max] - [[WINNER] beat [LOSER] because...]" }},
-              {{ "label": "P3 - Eating Their Own Cooking", "details": "[Score/Max] - [[WINNER] beat [LOSER] because...]" }},
-              {{ "label": "P4 - The Bargain Bin", "details": "[Score/Max] - [[WINNER] beat [LOSER] because...]" }},
-              {{ "label": "P5 - The Pro Opinion", "details": "[Score/Max] - [[WINNER] beat [LOSER] because...]" }},
-              {{ "label": "P6 - The Reality Check", "details": "[Score/Max] - [[WINNER] beat [LOSER] because...]" }},
-              {{ "label": "P7 - The Secret Weapon", "details": "[Score/Max] - [[WINNER] beat [LOSER] because...]" }},
-              {{ "label": "P8 - The Big Picture", "details": "[Score/Max] - [[WINNER] beat [LOSER] because...]" }}
+              {{ "label": "P1 - Financial Safety", "details": "[Score/Max] - [Show WHO is the winner in this category and explain WHY]" }},
+              {{ "label": "P2 - The Spark", "details": "[Score/Max] - [Show WHO is the winner in this category and explain WHY]" }},
+              {{ "label": "P3 - Eating Their Own Cooking", "details": "[Score/Max] - [Show WHO is the winner in this category and explain WHY]" }},
+              {{ "label": "P4 - The Bargain Bin", "details": "[Score/Max] - [Show WHO is the winner in this category and explain WHY]" }},
+              {{ "label": "P5 - The Pro Opinion", "details": "[Score/Max] - [Show WHO is the winner in this category and explain WHY]" }},
+              {{ "label": "P6 - The Reality Check", "details": "[Score/Max] - [Show WHO is the winner in this category and explain WHY]" }},
+              {{ "label": "P7 - The Secret Weapon", "details": "[Score/Max] - [Show WHO is the winner in this category and explain WHY]" }},
+              {{ "label": "P8 - The Big Picture", "details": "[Score/Max] - [Show WHO is the winner in this category and explain WHY]" }}
           ],
           "execution_plan": {{
               "entry_price": "[Slightly above Current Price]",
@@ -183,13 +183,13 @@ Return a single JSON object with two distinct sections.
           "strategy_name": "Swing Trading",
           "score": [0-100],
           "verdict": "BUY / WATCH / AVOID",
-          "rationale": "Explicitly explain your holistic judgment for why the winner's momentum setup beat the loser...",
+          "rationale": "Explicitly explain your holistic judgment WHO is the winner and WHY...",
           "analysis_breakdown": [
-              {{ "label": "S1 - The Coiled Spring", "details": "[Score/Max] - [[WINNER] beat [LOSER] because...]" }},
-              {{ "label": "S2 - The Big Money", "details": "[Score/Max] - [[WINNER] beat [LOSER] because...]" }},
-              {{ "label": "S3 - Panic Exhaustion", "details": "[Score/Max] - [[WINNER] beat [LOSER] because...]" }},
-              {{ "label": "S4 - The Bear Trap", "details": "[Score/Max] - [[WINNER] beat [LOSER] because...]" }},
-              {{ "label": "S5 - The Coin Flip", "details": "[Score/Max] - [[WINNER] beat [LOSER] because...]" }}
+              {{ "label": "S1 - The Coiled Spring", "details": "[Score/Max] - [Show WHO is the winner in this category and explain WHY]" }},
+              {{ "label": "S2 - The Big Money", "details": "[Score/Max] - [Show WHO is the winner in this category and explain WHY]" }},
+              {{ "label": "S3 - Panic Exhaustion", "details": "[Score/Max] - [Show WHO is the winner in this category and explain WHY]" }},
+              {{ "label": "S4 - The Bear Trap", "details": "[Score/Max] - [Show WHO is the winner in this category and explain WHY]" }},
+              {{ "label": "S5 - The Coin Flip", "details": "[Score/Max] - [Show WHO is the winner in this category and explain WHY]" }}
           ],
           "execution_plan": {{
               "entry_price": "[Slightly above Current Price]",
