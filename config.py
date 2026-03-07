@@ -68,12 +68,25 @@ GEMINI_JUNIOR_MODEL = "gemini-3.1-flash-lite-preview"
 # Default: "gemini-3-pro-preview" (Smartest).
 GEMINI_SENIOR_MODEL = "gemini-3.1-pro-preview"
 
+
+
+# Market Scanner Settings
+ # Number of days for the Moving Average filter (e.g. 250, 150, 50)
+SCANNER_SMA_WINDOW = 250
+
+#Instead of just asking, "Is the price below the MA?", we need to ask, "Is the price at least 20% BELOW the MA?"
+SCANNER_SMA_MULTIPLIER = float(os.getenv("SCANNER_SMA_MULTIPLIER", 0.85))  
+# Default to 1.0 (no % drop) if not set in .env
+# 0.85: Means the stock must be 15% below the MA.
+
+
+
 # --- STRATEGY LIMITS ---
 # 1. JUNIOR LIMIT: How many stocks to analyze per day.
 # If using Flash, set to 200+. If using Pro, set to ~20 to stay within limits.
 # This ensures you cover the 200-stock universe in chunks (e.g., 20/day = 10 days).
 DAILY_SCAN_LIMIT = int(os.getenv("DAILY_SCAN_LIMIT", 5))
-SENIOR_DRAFT_LIMIT = 3 # How many top candidates Senior Manager drafts for final review (e.g., 5-10)
+SENIOR_DRAFT_LIMIT = 1 # How many top candidates Senior Manager drafts for final review (e.g., 5-10)
 
 
 
