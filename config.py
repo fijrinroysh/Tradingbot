@@ -87,7 +87,7 @@ SCANNER_SMA_MULTIPLIER = float(os.getenv("SCANNER_SMA_MULTIPLIER", 0.85))
 # If using Flash, set to 200+. If using Pro, set to ~20 to stay within limits.
 # This ensures you cover the 200-stock universe in chunks (e.g., 20/day = 10 days).
 DAILY_SCAN_LIMIT = int(os.getenv("DAILY_SCAN_LIMIT", 5))
-SENIOR_DRAFT_LIMIT = 1 # How many top candidates Senior Manager drafts for final review (e.g., 5-10)
+SENIOR_DRAFT_LIMIT = int(os.getenv("SENIOR_DRAFT_LIMIT", 3))# How many top candidates Senior Manager drafts for final review (e.g., 5-10)
 
 
 
