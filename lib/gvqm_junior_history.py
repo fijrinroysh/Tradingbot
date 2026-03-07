@@ -16,17 +16,13 @@ SCOPES = [
 def get_client():
     creds_json = os.getenv("GOOGLE_SHEETS_CREDENTIALS")
     if not creds_json:
-	  
         if os.path.exists("google_credentials.json"):
-				
             try: creds_json = open("google_credentials.json").read()
             except: return None
-   
         else: return None
             
     try:
         creds_dict = json.loads(creds_json)
-	
         creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
         return gspread.authorize(creds)
     except Exception as e:
@@ -40,6 +36,11 @@ def log_report(ticker, analysis):
     Logs the Junior Analyst report. 
     Handles both OLD formats (single object) and NEW DUAL formats (Position + Swing).
     """
+    # --- 1. GRAB THE FIGHTERS & CONCATENATE ---
+    winner = analysis.get('ticker', ticker)
+    loser = analysis.get('defeated_ticker', 'UNKNOWN')
+    matchup_display = f"{winner} - {loser}" if loser != 'UNKNOWN' else winner
+
     # --- RETRY LOOP ---
     for attempt in range(3):
         try:
@@ -47,9 +48,7 @@ def log_report(ticker, analysis):
             if not client: return
 
             sh = client.open(SHEET_NAME)
-												 
             try: sheet = sh.sheet1
-								 
             except: sheet = sh.add_worksheet(title="Junior_Analyst_Log", rows=1000, cols=12)
 
             # --- HEADER CHECK (Auto-Add Columns if New Sheet) ---
@@ -64,7 +63,7 @@ def log_report(ticker, analysis):
             if "position_trade_analysis" in analysis and "swing_trade_analysis" in analysis:
                 current_price = analysis.get('current_price', 0)
                 timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
-				
+                
                 rows_to_add = []
                 
                 # 1. Position Strategy Row
@@ -77,7 +76,7 @@ def log_report(ticker, analysis):
 
                 rows_to_add.append([
                     timestamp,
-                    ticker,
+                    matchup_display,        # 🎯 Replaced 'ticker' with 'NOW - XYZ'
                     "Position Trading",     # Strategy
                     pos.get("verdict", "N/A"),
                     pos.get("score", 0),
@@ -99,7 +98,7 @@ def log_report(ticker, analysis):
 
                 rows_to_add.append([
                     timestamp,
-                    ticker,
+                    matchup_display,        # 🎯 Replaced 'ticker' with 'NOW - XYZ'
                     "Swing Trading",        # Strategy
                     swing.get("verdict", "N/A"),
                     swing.get("score", 0),
@@ -112,26 +111,15 @@ def log_report(ticker, analysis):
                 ])
                 
                 sheet.append_rows(rows_to_add)
-                print(f"   ✅ [HISTORY] Logged Dual Strategy for {ticker} (2 Rows).")
+                print(f"   ✅ [HISTORY] Logged Matchup {matchup_display} (2 Rows).")
                 return
 
             # --- STANDARD HANDLING (Fallback for old prompt) ---
             else:
-														   
                 exec_plan = analysis.get('execution', {})
-													  
-				
-														  
-									  
-													
-															   
-													  
-														 
-																	  
-
                 row = [
                     datetime.now().strftime("%Y-%m-%d %H:%M"),
-                    ticker,
+                    matchup_display,        # 🎯 Replaced 'ticker' with 'NOW - XYZ'
                     "Standard", # Strategy
                     analysis.get('action'),
                     analysis.get('conviction_score'),
@@ -142,9 +130,9 @@ def log_report(ticker, analysis):
                     exec_plan.get('stop_loss', 0),
                     analysis.get('sector')
                 ]
-				
+                
                 sheet.append_row(row)
-                print(f"   ✅ [HISTORY] Logged Standard Report for {ticker}.")
+                print(f"   ✅ [HISTORY] Logged Standard Matchup {matchup_display}.")
                 return
             
         except Exception as e:
@@ -167,10 +155,10 @@ def filter_candidates(distressed_tickers, limit=20):
         # 2. Build the "Last Played" map: {'AAPL': '2023-10-25', 'TSLA': '2023-10-20'}
         last_played_map = {}
         if leaderboard:
-            for ticker, stats in leaderboard.items():
+            for t, stats in leaderboard.items():
                 date_str = stats.get('Last_Match', '')
                 if date_str:
-                    last_played_map[ticker] = date_str
+                    last_played_map[t] = date_str
                     
     except Exception as e:
         print(f"   ⚠️ [JUNIOR HISTORY] Could not read Elo staleness. Defaulting to raw list. Error: {e}")
@@ -179,14 +167,14 @@ def filter_candidates(distressed_tickers, limit=20):
     # 3. Sort the Distressed Tickers into the Priority Queue
     prioritized_list = []
     
-    for ticker in distressed_tickers:
-        if ticker not in last_played_map:
+    for t in distressed_tickers:
+        if t not in last_played_map:
             # PRIORITY 1: ROOKIE (Never played a match in the Minor League)
             # Give it an artificial date of year 1900 so it goes to the absolute front of the line
-            prioritized_list.append({'ticker': ticker, 'last_played': '1900-01-01'})
+            prioritized_list.append({'ticker': t, 'last_played': '1900-01-01'})
         else:
             # PRIORITY 2/3: VETERAN (Has an Elo rating and a Last_Match date)
-            prioritized_list.append({'ticker': ticker, 'last_played': last_played_map[ticker]})
+            prioritized_list.append({'ticker': t, 'last_played': last_played_map[t]})
             
     # 4. Sort the list by 'last_played' ASCENDING (Oldest dates first)
     prioritized_list.sort(key=lambda x: x['last_played'])
@@ -199,9 +187,6 @@ def filter_candidates(distressed_tickers, limit=20):
 #==========================================
 # 📥 READING (JUNIOR REPORTS)
 # ==========================================
-
-# lib/gvqm_junior_history.py
-
 
 def fetch_recent_reports(lookback_days=3):
     """
@@ -237,8 +222,12 @@ def fetch_recent_reports(lookback_days=3):
         # 3. Normalize & Merge
         merged = {}
         for row in valid_rows:
-            t = row.get('Ticker', '').strip().upper()
-            if not t: continue
+            raw_t = str(row.get('Ticker', '')).strip().upper()
+            if not raw_t: continue
+            
+            # --- 🛡️ SAFETY NET: Extract just the Winner ---
+            # If the sheet says "NOW - XYZ", we only want "NOW" for the internal systems
+            t = raw_t.split('-')[0].strip()
             
             # --- 🎯 EXACT COLUMN MAPPING ---
             # We map your specific sheet columns to the internal keys

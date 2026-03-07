@@ -57,10 +57,13 @@ def fetch_market_reports(lookback_days=3):
                     if row_date < cutoff_date: continue
                 except: continue
 
+                # 🛡️ THE SAFETY NET: Strip out the loser!
+                raw_ticker = str(row.get('Ticker', '')).strip()
+                clean_ticker = raw_ticker.split('-')[0].strip()
+
                 report = {
-                    "ticker": row.get('Ticker'),
+                    "ticker": clean_ticker, # ✅ Uses the safely cleaned ticker
                     "date": date_str,
-                    # ✅ NEW: Fetch Strategy Column
                     "strategy": row.get('Strategy', 'Standard'), 
                     "conviction_score": row.get('Score', 0),
                     "action": row.get('Action', 'WATCH'),
@@ -106,7 +109,6 @@ def log_detailed_decisions(decision_data, holdings_map=None):
             if not client: return
             sh = client.open(SHEET_NAME)
             
-            # --- UPDATED HEADERS (Added Overall_Rec) ---
             headers = [
                 "Date", "Ticker", "Overall_Rec", "Strategy", "Action", "Score", 
                 "Reason", "Buy_Limit", "Take_Profit", "Stop_Loss", 
@@ -122,7 +124,6 @@ def log_detailed_decisions(decision_data, holdings_map=None):
             if sheet.row_count < 1 or not sheet.row_values(1):
                  sheet.append_row(headers)
 
-            # Orders are now complex Dual Objects
             orders = decision_data.get('final_execution_orders', [])
             timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
             
@@ -132,7 +133,10 @@ def log_detailed_decisions(decision_data, holdings_map=None):
                 ticker = order.get('ticker')
                 shares_held = holdings_map.get(ticker, 0)
                 
-                # ✅ NEW: Extract Overall Recommendation (High Level Decision)
+                # --- 1. GRAB THE FIGHTERS & CONCATENATE ---
+                loser = order.get('defeated_ticker', 'UNKNOWN')
+                matchup_display = f"{ticker} - {loser}" if loser != 'UNKNOWN' else ticker
+
                 overall_rec = order.get('final_recommendation', 'N/A')
                 
                 # --- 1. LOG POSITION STRATEGY ---
@@ -146,9 +150,9 @@ def log_detailed_decisions(decision_data, holdings_map=None):
 
                     rows_to_append.append([
                         timestamp,
-                        ticker,
-                        overall_rec,            # <--- ADDED HERE
-                        "Position Trading",     # Strategy Column
+                        matchup_display,        # 🎯 Replaced 'ticker' with 'NOW - XYZ'
+                        overall_rec,            
+                        "Position Trading",     
                         pos.get('verdict', 'N/A'),
                         pos.get('score', 0),
                         pos.get('rationale', 'N/A'),
@@ -170,9 +174,9 @@ def log_detailed_decisions(decision_data, holdings_map=None):
 
                     rows_to_append.append([
                         timestamp,
-                        ticker,
-                        overall_rec,            # <--- ADDED HERE
-                        "Swing Trading",        # Strategy Column
+                        matchup_display,        # 🎯 Replaced 'ticker' with 'NOW - XYZ'
+                        overall_rec,            
+                        "Swing Trading",        
                         swing.get('verdict', 'N/A'),
                         swing.get('score', 0),
                         swing.get('rationale', 'N/A'),
@@ -233,8 +237,10 @@ def fetch_active_strategies(active_tickers):
         # Iterate through history (Oldest to Newest)
         # We want the LAST entry for each ticker
         for row in data:
-            t = row.get('Ticker')
-            # Look for our new specific column
+            # 🛡️ THE SAFETY NET: Strip out the loser!
+            raw_t = str(row.get('Ticker', '')).strip()
+            t = raw_t.split('-')[0].strip()
+            
             rec = row.get('Overall_Rec') 
             
             if t in active_tickers and rec:
@@ -247,7 +253,6 @@ def fetch_active_strategies(active_tickers):
         print(f"   ⚠️ Memory Read Error: {e}")
         return {}
     
-
 
 def log_mechanical_trade(ticker, action, reason, price=0, shares=0):
     """
