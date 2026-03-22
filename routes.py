@@ -518,9 +518,9 @@ def run_pipeline():
     print("="*60)
     
     # 1. Market Check
-    #if not trader.is_market_open():
-    #   log_pipeline("💤 Market Closed. Aborting.")
-    #   return
+    if not trader.is_market_open():
+       log_pipeline("💤 Market Closed. Aborting.")
+       return
 
     run_junior_phase()
     run_senior_phase()
