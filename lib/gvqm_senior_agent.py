@@ -166,6 +166,12 @@ def evaluate_matchup(candidate_a, candidate_b, risk_factor="Neutral", prev_conte
     max_retries = 3
     for attempt in range(max_retries):
         try:
+            # 🛑 NEW: DYNAMIC CONFIGURABLE THROTTLE
+            throttle = getattr(config, 'API_THROTTLE_SECONDS', 0)
+            if throttle > 0:
+                log_debug(f"⏳ Throttling API request for {throttle} seconds (Attempt {attempt+1})...")
+                time.sleep(throttle)
+                
             # ✅ NEW: The 120-second strict timeout prevents infinite hanging!
             # Since Senior logic is deep, 120s is safer for the PRO model
             response = requests.post(
@@ -191,13 +197,20 @@ def evaluate_matchup(candidate_a, candidate_b, risk_factor="Neutral", prev_conte
 
                 cleaned = clean_json_text(raw_text)
                 return json.loads(cleaned)
-            
-            # Explicitly catch 502 (Bad Gateway) and other server errors
-            elif response.status_code in [429, 500, 502, 503, 504]:
-                wait_time = (attempt + 1) * 5
-                log_debug(f"⚠️ API Busy or Server Error ({response.status_code}). Retrying in {wait_time}s...")
+            # 🛑 NEW: Dedicated Rate Limit Handler
+            elif response.status_code == 429:
+                # If we hit the limit, wait a full 60 seconds to clear the penalty box
+                print(f"   ⚠️ Quota Exceeded (429). Waiting 60s for API bucket to reset...")
+                time.sleep(60)
+                continue
+                
+            # Standard server errors (500s)
+            elif response.status_code in [500, 502, 503, 504]:
+                wait_time = (attempt + 1) * 10
+                print(f"   ⚠️ Server Error ({response.status_code}). Retrying in {wait_time}s...")
                 time.sleep(wait_time)
                 continue
+
                 
             else:
                 log_debug(f"❌ API Error {response.status_code}: {response.text}")

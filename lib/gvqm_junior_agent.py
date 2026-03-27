@@ -95,6 +95,12 @@ def evaluate_matchup(candidate_a, candidate_b):
     max_retries = 3
     for attempt in range(max_retries):
         try:
+            # 🛑 NEW: DYNAMIC CONFIGURABLE THROTTLE
+            throttle = getattr(config, 'API_THROTTLE_SECONDS', 0)
+            if throttle > 0:
+                print(f"   ⏳ Throttling API request for {throttle} seconds (Attempt {attempt+1})...")
+                time.sleep(throttle)
+            
             # ⏱️ The 90-second strict timeout prevents infinite hanging!
             response = requests.post(
                 f"{BASE_URL}?key={API_KEY}", 
@@ -142,12 +148,20 @@ def evaluate_matchup(candidate_a, candidate_b):
                     print(f"   ❌ Parsing Structure Error: {e}")
                     return None
             
-            # Explicitly catch 502 (Bad Gateway), 429 (Rate Limit) and other server errors
-            elif response.status_code in [429, 500, 502, 503, 504]:
-                wait = (attempt + 1) * 10
-                print(f"   ⚠️ API Busy or Server Error ({response.status_code}). Retrying in {wait}s...")
-                time.sleep(wait)
+            # 🛑 NEW: Dedicated Rate Limit Handler
+            elif response.status_code == 429:
+                # If we hit the limit, wait a full 60 seconds to clear the penalty box
+                print(f"   ⚠️ Quota Exceeded (429). Waiting 60s for API bucket to reset...")
+                time.sleep(60)
                 continue
+                
+            # Standard server errors (500s)
+            elif response.status_code in [500, 502, 503, 504]:
+                wait_time = (attempt + 1) * 10
+                print(f"   ⚠️ Server Error ({response.status_code}). Retrying in {wait_time}s...")
+                time.sleep(wait_time)
+                continue
+
             
             else:
                 # Log full error for 400 Bad Request or other client errors
