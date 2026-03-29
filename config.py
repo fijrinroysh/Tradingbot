@@ -62,16 +62,15 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") # <-- This is now safe
 # --- GEMINI SETTINGS (Pro Model) ---
 ## JUNIOR ANALYST: High volume, initial filtering. 
 # Default: "gemini-3-flash-preview" (Free/Cheap). Can switch to "gemini-3-pro-preview" if needed.
-#GEMINI_JUNIOR_MODEL = "gemini-3.1-pro-preview"
-GEMINI_JUNIOR_MODEL = "gemini-3.1-flash-lite-preview"
-JUNIOR_THINKING_LEVEL = "HIGH"  # Fast, cheap scouting for the Minor League
+GEMINI_JUNIOR_MODEL = "gemini-3.1-pro-preview"
+#GEMINI_JUNIOR_MODEL = "gemini-3.1-flash-lite-preview"
+JUNIOR_THINKING_LEVEL = "LOW"  # Fast, cheap scouting for the Minor League
 
 # SENIOR MANAGER: High reasoning, final decision.
 # Default: "gemini-3-pro-preview" (Smartest).
-#GEMINI_SENIOR_MODEL = "gemini-3.1-pro-preview"
-GEMINI_SENIOR_MODEL = "gemini-3.1-flash-lite-preview"
-
-SENIOR_THINKING_LEVEL = "HIGH" # Deep, rigorous reasoning for the Major League
+GEMINI_SENIOR_MODEL = "gemini-3.1-pro-preview"
+#GEMINI_SENIOR_MODEL = "gemini-3.1-flash-lite-preview"
+SENIOR_THINKING_LEVEL = "LOW" # Deep, rigorous reasoning for the Major League
 
 # API Rate Limiting (Set to 15 for Free Tier, 0 for Paid Tier)
 API_THROTTLE_SECONDS = 0
