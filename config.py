@@ -64,13 +64,13 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") # <-- This is now safe
 # Default: "gemini-3-flash-preview" (Free/Cheap). Can switch to "gemini-3-pro-preview" if needed.
 GEMINI_JUNIOR_MODEL = "gemini-3.1-pro-preview"
 #GEMINI_JUNIOR_MODEL = "gemini-3.1-flash-lite-preview"
-JUNIOR_THINKING_LEVEL = "LOW"  # Fast, cheap scouting for the Minor League
+JUNIOR_THINKING_LEVEL = "MEDIUM"  # Fast, cheap scouting for the Minor League
 
 # SENIOR MANAGER: High reasoning, final decision.
 # Default: "gemini-3-pro-preview" (Smartest).
 GEMINI_SENIOR_MODEL = "gemini-3.1-pro-preview"
 #GEMINI_SENIOR_MODEL = "gemini-3.1-flash-lite-preview"
-SENIOR_THINKING_LEVEL = "LOW" # Deep, rigorous reasoning for the Major League
+SENIOR_THINKING_LEVEL = "MEDIUM" # Deep, rigorous reasoning for the Major League
 
 
 
