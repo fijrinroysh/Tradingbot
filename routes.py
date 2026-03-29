@@ -517,10 +517,11 @@ def run_pipeline():
     log_pipeline("🚀 STARTING DAILY TRADING PIPELINE (PRODUCTION)")
     print("="*60)
     
-    # 1. Market Check
-    if not trader.is_market_open():
-       log_pipeline("💤 Market Closed. Aborting.")
-       return
+    if getattr(config, 'DEBUG_MODE', False) == False:
+        # 1. Market Check
+        if not trader.is_market_open():
+           log_pipeline("💤 Market Closed. Aborting.")
+           return
 
     run_junior_phase()
     run_senior_phase()
