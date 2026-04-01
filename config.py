@@ -70,7 +70,7 @@ JUNIOR_THINKING_LEVEL = "LOW"  # Fast, cheap scouting for the Minor League
 # Default: "gemini-3-pro-preview" (Smartest).
 GEMINI_SENIOR_MODEL = "gemini-3.1-pro-preview"
 #GEMINI_SENIOR_MODEL = "gemini-3.1-flash-lite-preview"
-SENIOR_THINKING_LEVEL = "LOW" # Deep, rigorous reasoning for the Major League
+SENIOR_THINKING_LEVEL = "LOW" # Deep, rigorous reasoning for the Major League 
 
 # API Rate Limiting (Set to 15 for Free Tier, 0 for Paid Tier)
 API_THROTTLE_SECONDS = 0
