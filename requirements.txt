@@ -1,29 +1,20 @@
-flask
-requests
-gunicorn
-#vaderSentiment
+# --- CORE TRADING & SCANNING ---
 alpaca-py
-#finnhub-python
-
-#Needed for Finbert
-#torch
-#transformers
-#Needed for Backtesting
-#backtesting
-
-
-#matplotlib
-
-
-#Needed for XGBoost strategy
-#xgboost 
-#scikit-learn 
-#pandas-ta
-#python-dotenv
-google-generativeai
 yfinance
+pandas
+numpy
 lxml
-gspread 
+
+# --- AI & LOGIC ---
+google-generativeai
+requests
+
+# --- DATABASE (GOOGLE SHEETS) ---
+gspread
 google-auth
-dotenv
+
+# --- NOTIFICATIONS ---
 resend
+
+# --- LOCAL DEVELOPMENT ---
+python-dotenv
