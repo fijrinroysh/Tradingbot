@@ -36,5 +36,15 @@ jobs:
           ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
           ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
           GOOGLE_SHEETS_CREDENTIALS: ${{ secrets.GOOGLE_SHEETS_CREDENTIALS }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+
+          # --- THE VARIABLES (Optional: Add any you put in the Variables tab here) ---
+          DAILY_SCAN_LIMIT: ${{ vars.DAILY_SCAN_LIMIT }}
+          EMAIL: ${{ vars.EMAIL }}
+          INVEST_PER_TRADE: ${{ vars.INVEST_PER_TRADE }}
+          SENIOR_DRAFT_LIMIT: ${{ vars.SENIOR_DRAFT_LIMIT }}
+          SCANNER_SMA_MULTIPLIER: ${{ vars.SCANNER_SMA_MULTIPLIER }}
+          GOOGLE_SHEET_NAME: ${{ vars.GOOGLE_SHEET_NAME }}
+
         run: |
           python bot.py
