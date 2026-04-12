@@ -97,9 +97,11 @@ def maintain_portfolio():
         
         trade_plan = senior_agent.generate_execution_paperwork(ticker, current_price)
         
-        # 👇 THE EINSTEIN SIMPLIFICATION 👇
-        # We blindly pass the numbers to the Trader Firewall and let it decide if an update is needed!
         if trade_plan:
+            # 👇 INJECT STANDARDIZED DATA FOR THE LOGGER 👇
+            trade_plan['ticker'] = ticker
+            trade_plan['action'] = "UPDATE_EXISTING"
+
             log_pipeline(f"   📈 Routing paperwork to Trader Firewall for {ticker}...")
             trader.execute_update(
                 ticker=ticker, 
@@ -203,6 +205,10 @@ def execute_swaps():
         trade_plan = senior_agent.generate_execution_paperwork(best_ticker, current_price) 
         
         if trade_plan:
+            # 👇 INJECT STANDARDIZED DATA FOR THE LOGGER 👇
+            trade_plan['ticker'] = best_ticker
+            trade_plan['action'] = "OPEN_NEW"
+
             budget = getattr(config, 'INVEST_PER_TRADE', 1000)
             try:
                 trader.execute_entry(
@@ -220,7 +226,6 @@ def execute_swaps():
             except Exception as e:
                 log_pipeline(f"   ❌ Alpaca Trade Failed: {e}")
         else:
-            # 👇 ADDED SAFETY NET 👇
             log_pipeline(f"   ❌ Senior Agent failed to write paperwork for {best_ticker}. Cash held.")
     else:
         log_pipeline(" 🛡️ Portfolio is strong. No swaps required today.")
