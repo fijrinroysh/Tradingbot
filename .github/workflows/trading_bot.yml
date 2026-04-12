@@ -7,6 +7,10 @@ on:
     - cron: '30 13 * * 1-5'
   workflow_dispatch: 
 
+# 👇 ADD THIS BLOCK TO SILENCE THE NODE.JS WARNING 👇
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  
 jobs:
   run-trading-bot:
     runs-on: ubuntu-latest
@@ -26,7 +30,7 @@ jobs:
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install google-generativeai requests alpaca-py gspread
+          pip install -r requirements.txt
 
       # 4. Run the pure math & AI logic
       - name: Execute Trading Bot
