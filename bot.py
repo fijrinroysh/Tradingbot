@@ -97,8 +97,10 @@ def maintain_portfolio():
         
         trade_plan = senior_agent.generate_execution_paperwork(ticker, current_price)
         
-        if trade_plan and trade_plan.get('action') == "UPDATE_EXISTING":
-            log_pipeline(f"   📈 Trailing stops updated for {ticker}.")
+        # 👇 THE EINSTEIN SIMPLIFICATION 👇
+        # We blindly pass the numbers to the Trader Firewall and let it decide if an update is needed!
+        if trade_plan:
+            log_pipeline(f"   📈 Routing paperwork to Trader Firewall for {ticker}...")
             trader.execute_update(
                 ticker=ticker, 
                 take_profit=trade_plan.get('take_profit'), 
@@ -113,7 +115,7 @@ def maintain_portfolio():
             except Exception as e:
                 log_pipeline(f"   ⚠️ Failed to log maintenance to sheets: {e}")
         else:
-            log_pipeline(f"   ✅ {ticker} is healthy. Holding steady.")
+            log_pipeline(f"   ⚠️ Senior Agent failed to return paperwork for {ticker}.")
 
 # ==========================================
 # 🏟️ PHASE 2: THE MAJOR LEAGUE (The Heavyweights)
@@ -182,7 +184,6 @@ def execute_swaps():
     best_ticker, best_data = best_unowned[0], best_unowned[1]
     worst_ticker, worst_data = worst_owned[0], worst_owned[1]
 
-    # 👇 RESTORED CHATTER 👇
     log_pipeline(f" 🏆 Best Unowned: {best_ticker} ({best_data['Elo_Rating']:.1f} Elo)")
     log_pipeline(f" 🗑️ Worst Owned: {worst_ticker} ({worst_data['Elo_Rating']:.1f} Elo)")
 
@@ -218,8 +219,10 @@ def execute_swaps():
                 daily_ai_logic.append(f"🔄 SWAP ({worst_ticker} -> {best_ticker}): {reasoning}")
             except Exception as e:
                 log_pipeline(f"   ❌ Alpaca Trade Failed: {e}")
+        else:
+            # 👇 ADDED SAFETY NET 👇
+            log_pipeline(f"   ❌ Senior Agent failed to write paperwork for {best_ticker}. Cash held.")
     else:
-        # 👇 RESTORED CHATTER 👇
         log_pipeline(" 🛡️ Portfolio is strong. No swaps required today.")
 
 # ==========================================
