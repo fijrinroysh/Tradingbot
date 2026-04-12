@@ -10,7 +10,7 @@ on:
 # 👇 ADD THIS BLOCK TO SILENCE THE NODE.JS WARNING 👇
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-  
+
 jobs:
   run-trading-bot:
     runs-on: ubuntu-latest
@@ -37,7 +37,7 @@ jobs:
         env:
           # This pulls your hidden API keys from GitHub Secrets and safely hands them to Python
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_KEY_ID: ${{ secrets.ALPACA_KEY_ID }}
           ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
           GOOGLE_SHEETS_CREDENTIALS: ${{ secrets.GOOGLE_SHEETS_CREDENTIALS }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
