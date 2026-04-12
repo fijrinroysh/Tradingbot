@@ -245,7 +245,7 @@ if __name__ == "__main__":
             log_pipeline("🐛 DEBUG MODE ON: Bypassing 'Market Closed' check. Bot will execute.")
         else:
             log_pipeline("💤 Market Closed. Script exiting gracefully.")
-            sys.exit(0)
+            #sys.exit(0)
 
     # --- 🧹 THE RESTORED LOGIC: Wipe yesterday's unfilled limit orders ---
     log_pipeline("🧹 Sweeping portfolio for orphaned pending orders...")
