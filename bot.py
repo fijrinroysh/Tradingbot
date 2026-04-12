@@ -184,12 +184,50 @@ def run_major_league():
 def execute_swaps():
     log_pipeline("\n⚖️ PHASE 3: FRONT OFFICE (SWAP EXECUTION)")
     
-    portfolio_tickers = get_live_portfolio()
-    if not portfolio_tickers: return
-
     senior_board = minor_league.fetch_leaderboard("Senior_Elo")
-    ranked_majors = sorted(senior_board.items(), key=lambda x: x[1]['Elo_Rating'], reverse=True)
+    if not senior_board: return
     
+    ranked_majors = sorted(senior_board.items(), key=lambda x: x[1]['Elo_Rating'], reverse=True)
+    portfolio_tickers = get_live_portfolio()
+
+    # ---------------------------------------------------------
+    # 🚀 SCENARIO A: THE COLD START (Portfolio is empty)
+    # ---------------------------------------------------------
+    if not portfolio_tickers:
+        log_pipeline(" 💼 Portfolio is empty. Initiating Cold Start...")
+        if not ranked_majors: return
+        
+        best_ticker, best_data = ranked_majors[0] # Grab the absolute #1 stock
+        
+        current_price = trader.get_current_price(best_ticker)
+        trade_plan = senior_agent.generate_execution_paperwork(best_ticker, current_price)
+        
+        if trade_plan:
+            trade_plan['ticker'] = best_ticker
+            trade_plan['action'] = "OPEN_NEW"
+            budget = getattr(config, 'INVEST_PER_TRADE', 1000)
+            
+            try:
+                trader.execute_entry(
+                    ticker=best_ticker, investment_amount=budget,
+                    buy_limit=trade_plan.get('entry_price'),
+                    take_profit=trade_plan.get('take_profit'),
+                    stop_loss=trade_plan.get('stop_loss')
+                )
+                payload = {"ceo_report": f"Initial Purchase: {best_ticker}", "final_execution_orders": [trade_plan]}
+                senior_history.log_detailed_decisions(payload, {best_ticker: 0})
+                
+                reasoning = trade_plan.get('rationale', 'No rationale provided.')
+                daily_ai_logic.append(f"🚀 COLD START (Bought {best_ticker}): {reasoning}")
+            except Exception as e:
+                log_pipeline(f"   ❌ Alpaca Trade Failed: {e}")
+        else:
+            log_pipeline(f"   ❌ Senior Agent failed paperwork for {best_ticker}.")
+        return # Exit after cold start
+
+    # ---------------------------------------------------------
+    # ⚖️ SCENARIO B: THE SWAP (Portfolio has assets)
+    # ---------------------------------------------------------
     best_unowned = next((item for item in ranked_majors if item[0] not in portfolio_tickers), None)
     worst_owned = next((item for item in reversed(ranked_majors) if item[0] in portfolio_tickers), None)
 
@@ -203,8 +241,11 @@ def execute_swaps():
     log_pipeline(f" 🏆 Best Unowned: {best_ticker} ({best_data['Elo_Rating']:.1f} Elo)")
     log_pipeline(f" 🗑️ Worst Owned: {worst_ticker} ({worst_data['Elo_Rating']:.1f} Elo)")
 
-    if best_data['Elo_Rating'] > worst_data['Elo_Rating']:
-        log_pipeline(f" 🚨 SWAP TRIGGERED: {best_ticker} > {worst_ticker}!")
+    # 👇 THE FRICTION TAX 👇
+    ELO_THRESHOLD = getattr(config, 'ELO_SWAP_THRESHOLD', 15.0) 
+
+    if best_data['Elo_Rating'] > (worst_data['Elo_Rating'] + ELO_THRESHOLD):
+        log_pipeline(f" 🚨 SWAP TRIGGERED: {best_ticker} defeated {worst_ticker} by more than {ELO_THRESHOLD} pts!")
         
         current_loser_price = trader.get_current_price(worst_ticker)
         trader.close_full_position(worst_ticker)
@@ -225,10 +266,9 @@ def execute_swaps():
 
             budget = getattr(config, 'INVEST_PER_TRADE', 1000)
             try:
-
                 trader.execute_entry(
                     ticker=best_ticker, investment_amount=budget,
-                    buy_limit=trade_plan.get('entry_price'),  # <--- FIXED PARAMETER NAME
+                    buy_limit=trade_plan.get('entry_price'), 
                     take_profit=trade_plan.get('take_profit'),
                     stop_loss=trade_plan.get('stop_loss')
                 )
@@ -243,7 +283,7 @@ def execute_swaps():
         else:
             log_pipeline(f"   ❌ Senior Agent failed to write paperwork for {best_ticker}. Cash held.")
     else:
-        log_pipeline(" 🛡️ Portfolio is strong. No swaps required today.")
+        log_pipeline(f" 🛡️ No swap. Challenger did not beat the +{ELO_THRESHOLD} pt margin of victory.")
 
 # ==========================================
 # 🚀 GITHUB ACTIONS ENTRY POINT
@@ -265,13 +305,31 @@ if __name__ == "__main__":
     try:
         log_pipeline("\n📧 Dispatching Executive Brief...")
         
-        # Build the CEO report from the diary
-        report_text = "Daily Pipeline Reasoning:\n\n" + "\n\n".join(daily_ai_logic) if daily_ai_logic else "No major events."
-        
+        portfolio_tickers = get_live_portfolio()
         senior_board = minor_league.fetch_leaderboard("Senior_Elo")
         sorted_senior = sorted(senior_board.items(), key=lambda x: x[1]['Elo_Rating'], reverse=True)
         
-        decision_payload = {"ceo_report": report_text, "major_league_standings": sorted_senior}
+        # 👇 1. CLEAN UP STANDINGS (Portfolio + Top 3 Challengers ONLY) 👇
+        active_standings = [item for item in sorted_senior if item[0] in portfolio_tickers]
+        challenger_standings = [item for item in sorted_senior if item[0] not in portfolio_tickers][:3]
+        
+        # Combine and re-sort them so they display in proper Elo order
+        presentation_standings = active_standings + challenger_standings
+        presentation_standings.sort(key=lambda x: x[1]['Elo_Rating'], reverse=True)
+        
+        # 👇 2. SEPARATE ACTIONS FROM SCOUTING NOTES 👇
+        actions_taken = [log for log in daily_ai_logic if "SWAP" in log or "PORTFOLIO" in log or "COLD START" in log]
+        scout_notes = [log for log in daily_ai_logic if "SCOUT" in log or "MATCHUP" in log]
+        
+        action_text = "\n".join(actions_taken) if actions_taken else "No immediate portfolio changes required today."
+        notes_text = "\n".join(scout_notes) if scout_notes else "Routine market conditions."
+        
+        # Build the new categorized payload
+        decision_payload = {
+            "immediate_actions": action_text,
+            "ceo_report": notes_text, 
+            "major_league_standings": presentation_standings
+        }
         
         senior_history.log_strategy(decision_payload)
         notifier.send_executive_brief(decision_payload, trader.get_account(), trader.get_portfolio())

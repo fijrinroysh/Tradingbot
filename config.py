@@ -122,7 +122,7 @@ EMAIL_RECIPIENT = os.getenv("EMAIL")
 GOOGLE_SHEET_NAME = os.getenv("GOOGLE_SHEET_NAME", "TradingBot_History")
 DEBUG_MODE = os.getenv("DEBUG_MODE", False)
 
-
+ELO_THRESHOLD = 15.0
 
 # ==========================================
 # 🧠 SENIOR MANAGER PSYCHOLOGY (RISK DIAL)
