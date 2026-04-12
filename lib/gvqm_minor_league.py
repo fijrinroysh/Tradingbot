@@ -23,7 +23,7 @@ def get_client():
         creds = Credentials.from_service_account_info(json.loads(creds_json), scopes=SCOPES)
         return gspread.authorize(creds)
     except Exception as e:
-        print(f"⚠️ [MINOR LEAGUE] Auth Error: {e}")
+        print(f"⚠️ [MATCHMAKER] Auth Error: {e}")
         return None
 
 # ==========================================
@@ -77,7 +77,7 @@ def fetch_leaderboard(league_name="Junior_Elo"):
         except gspread.exceptions.WorksheetNotFound:
             return {}
         except Exception as e:
-            print(f"   ⚠️ [MINOR LEAGUE] Google Sheets connection dropped (fetch). Retrying ({attempt+1}/3)...")
+            print(f"   ⚠️ [MATCHMAKER] Google Sheets connection dropped (fetch). Retrying ({attempt+1}/3)...")
             time.sleep(2) # Wait 2 seconds and try again
             
     return {} # If it fails 3 times, return empty
@@ -125,7 +125,8 @@ def record_match_result(league_name, winner_ticker, loser_ticker):
                     pass
                 
                 if cell: 
-                    worksheet.update(f"A{cell.row}:F{cell.row}", [row_data])
+                    # 🛠️ UPDATED FOR GSPREAD 6.0+ COMPATIBILITY
+                    worksheet.update(values=[row_data], range_name=f"A{cell.row}:F{cell.row}")
                 else: 
                     worksheet.append_row(row_data)
 
@@ -137,7 +138,7 @@ def record_match_result(league_name, winner_ticker, loser_ticker):
             return # Success! Exit the retry loop.
 
         except Exception as e:
-            print(f"   ⚠️ [MINOR LEAGUE] Google Sheets connection dropped (write). Retrying ({attempt+1}/3)...")
+            print(f"   ⚠️ [MATCHMAKER] Google Sheets connection dropped (write). Retrying ({attempt+1}/3)...")
             time.sleep(2)
 
 # ==========================================
@@ -146,6 +147,7 @@ def record_match_result(league_name, winner_ticker, loser_ticker):
 def get_next_matchups(candidates, league_name="Junior_Elo", match_count=3):
     """
     Pairs stocks with similar Elo ratings so they fight evenly.
+    Works for BOTH Junior and Senior Leagues!
     """
     leaderboard = fetch_leaderboard(league_name)
     

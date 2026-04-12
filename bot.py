@@ -238,9 +238,21 @@ if __name__ == "__main__":
     log_pipeline("🚀 STARTING DAILY TRADING PIPELINE (ACTIONS EDITION)")
     print("="*60)
     
+    # --- 🛑 MARKET OPEN CHECK (WITH DEBUG BYPASS) ---
+    is_debug = getattr(config, 'DEBUG_MODE', False)
     if not trader.is_market_open():
-        log_pipeline("💤 Market Closed. Script exiting gracefully.")
-        sys.exit(0)
+        if is_debug:
+            log_pipeline("🐛 DEBUG MODE ON: Bypassing 'Market Closed' check. Bot will execute.")
+        else:
+            log_pipeline("💤 Market Closed. Script exiting gracefully.")
+            sys.exit(0)
+
+    # --- 🧹 THE RESTORED LOGIC: Wipe yesterday's unfilled limit orders ---
+    log_pipeline("🧹 Sweeping portfolio for orphaned pending orders...")
+    try:
+        trader.trading_client.cancel_orders()
+    except Exception as e:
+        log_pipeline(f"⚠️ Failed to cancel pending orders: {e}")
 
     # 1. The Operations
     run_minor_league()
