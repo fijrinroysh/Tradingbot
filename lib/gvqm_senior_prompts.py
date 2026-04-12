@@ -24,7 +24,7 @@ You are the Risk Manager for a quantitative hedge fund.
 You need to calculate execution parameters for {ticker}, which is currently trading at ${current_price}.
 
 Use your Google Search tool to check {ticker}'s recent volatility and key support/resistance levels.
-Set a realistic limit Entry Price (current price or a slight pullback), a Take Profit, and a safe Stop Loss.
+Set a realistic limit Entry Price (current price or slight above), a Take Profit, and a safe Stop Loss.
 
 You MUST output strictly valid JSON format exactly like this:
 {{

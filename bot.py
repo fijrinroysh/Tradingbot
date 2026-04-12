@@ -293,7 +293,7 @@ if __name__ == "__main__":
     
     if not trader.is_market_open() and not getattr(config, 'DEBUG_MODE', False):
         log_pipeline("💤 Market Closed. Exiting.")
-        sys.exit(0)
+        #sys.exit(0)
 
     # 1. Operations
     run_minor_league()
