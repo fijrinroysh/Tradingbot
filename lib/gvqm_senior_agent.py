@@ -42,8 +42,16 @@ def clean_json_text(text):
 # 📡 CORE API ENGINE
 # ==========================================
 def _call_gemini_api(prompt, context_label="Request"):
-    """Centralized, bulletproof API caller with retries and 429 handling."""
+    """Centralized API caller with Local File Debugging."""
     
+    # --- 📝 DEBUG: Save Prompt to File ---
+    if getattr(config, 'DEBUG_MODE', False):
+        try:
+            with open("senior_prompt_debug.txt", "a", encoding="utf-8") as f:
+                f.write(f"\n{'='*50}\n👨‍💼 [SENIOR] PROMPT FOR: {context_label}\n{'-'*50}\n{prompt}\n{'='*50}\n")
+        except Exception as e:
+            pass
+
     safety_settings = [
         {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
         {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
@@ -61,7 +69,7 @@ def _call_gemini_api(prompt, context_label="Request"):
     
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
-        "tools": [{"googleSearch": {}}], # NATIVE REAL-TIME SEARCH ENABLED
+        "tools": [{"googleSearch": {}}], 
         "safetySettings": safety_settings,
         "generationConfig": gen_config
     }
@@ -83,15 +91,13 @@ def _call_gemini_api(prompt, context_label="Request"):
             if response.status_code == 200:
                 raw_text = response.json()['candidates'][0]['content']['parts'][0]['text']
                 
-                # --- 📝 DEBUG: Write Senior Response ---
+                # --- 📝 DEBUG: Save Response to File ---
                 if getattr(config, 'DEBUG_MODE', False):
                     try:
                         with open("senior_response_debug.txt", "a", encoding="utf-8") as f:
-                            f.write(f"\n--- RAW RESPONSE FOR {context_label} ---\n")
-                            f.write(raw_text)
-                            f.write("\n=========================================\n")
+                            f.write(f"\n{'='*50}\n👨‍💼 [SENIOR] RESPONSE FOR: {context_label}\n{'-'*50}\n{raw_text}\n{'='*50}\n")
                     except Exception as e:
-                        log_debug(f"⚠️ Failed to write response debug: {e}")
+                        pass
 
                 cleaned = clean_json_text(raw_text)
                 return json.loads(cleaned)
@@ -112,7 +118,7 @@ def _call_gemini_api(prompt, context_label="Request"):
                 return None
                 
         except requests.exceptions.Timeout:
-            log_debug(f"⚠️ API timed out after 120 seconds. Retrying ({attempt+1}/{max_retries})...")
+            log_debug(f"⚠️ API timed out. Retrying ({attempt+1}/{max_retries})...")
             time.sleep(5)
             continue
         except requests.exceptions.ConnectionError as e:
@@ -145,16 +151,7 @@ def evaluate_matchup(candidate_a, candidate_b, risk_factor="Neutral", prev_conte
         ticker_b=ticker_b
     )
     
-    # --- 📝 DEBUG: Write Senior Prompt ---
-    if getattr(config, 'DEBUG_MODE', False):
-        try:
-            with open("senior_prompt_debug.txt", "a", encoding="utf-8") as f:
-                f.write(f"\n--- DEBUG FOR {ticker_a}_vs_{ticker_b} ---\n")
-                f.write(prompt)
-                f.write("\n=========================================\n")
-        except Exception as e:
-            log_debug(f"⚠️ Failed to write prompt debug: {e}")
-
+    # Removed the duplicate debug writing from here, since _call_gemini_api handles it natively!
     return _call_gemini_api(prompt, context_label=f"{ticker_a}_vs_{ticker_b}")
 
 

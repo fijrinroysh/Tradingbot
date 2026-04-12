@@ -28,13 +28,42 @@ def get_client():
         return None
 
 # ==========================================
-# 📤 WRITING (SENIOR DECISIONS)
+# 🥊 1. LOG MATCHUPS (SENIOR DECISIONS TAB)
 # ==========================================
+def log_matchup(cand_a, cand_b, winner, rationale):
+    """Logs the 1v1 Major League scouting rationale to Senior_Decisions."""
+    for attempt in range(3):
+        try:
+            client = get_client()
+            if not client: return
+            sh = client.open(SHEET_NAME)
+            
+            headers = ["Date", "Matchup", "Winner", "Rationale"]
+            
+            try: sheet = sh.worksheet(SENIOR_DECISIONS_TAB)
+            except: 
+                sheet = sh.add_worksheet(title=SENIOR_DECISIONS_TAB, rows=1000, cols=4)
+                sheet.append_row(headers)
+            
+            if sheet.row_count < 1 or not sheet.row_values(1):
+                 sheet.append_row(headers)
 
+            timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+            matchup_str = f"{cand_a} vs {cand_b}"
+            
+            sheet.append_row([timestamp, matchup_str, winner, rationale])
+            print(f"   ✅ [SENIOR] Matchup Rationale Logged to {SENIOR_DECISIONS_TAB}.")
+            return
+            
+        except Exception as e:
+            print(f"   ⚠️ Matchup Log Error (Attempt {attempt+1}/3): {e}")
+            time.sleep(2)
+
+# ==========================================
+# 📝 2. LOG EXECUTIONS (TRADE LOG TAB)
+# ==========================================
 def log_detailed_decisions(decision_data, holdings_map=None):
-    """
-    Logs the Senior Agent's execution paperwork to Google Sheets.
-    """
+    """Logs the Senior Agent's execution paperwork to the Trade_Log."""
     if holdings_map is None: holdings_map = {}
     
     for attempt in range(3):
@@ -43,15 +72,15 @@ def log_detailed_decisions(decision_data, holdings_map=None):
             if not client: return
             sh = client.open(SHEET_NAME)
             
-            # The new, simplified headers matching our "Einstein" JSON prompt
+            # Master headers for the Front Office
             headers = [
                 "Date", "Ticker", "Action", "Entry_Price", 
-                "Stop_Loss", "Take_Profit", "Risk_Rationale", "Shares_Held"
+                "Stop_Loss", "Take_Profit", "Rationale", "Shares_Held"
             ]
             
-            try: sheet = sh.worksheet(SENIOR_DECISIONS_TAB)
+            try: sheet = sh.worksheet(TRADE_LOG_TAB)
             except: 
-                sheet = sh.add_worksheet(title=SENIOR_DECISIONS_TAB, rows=2000, cols=10)
+                sheet = sh.add_worksheet(title=TRADE_LOG_TAB, rows=2000, cols=8)
                 sheet.append_row(headers)
             
             if sheet.row_count < 1 or not sheet.row_values(1):
@@ -59,7 +88,6 @@ def log_detailed_decisions(decision_data, holdings_map=None):
 
             orders = decision_data.get('final_execution_orders', [])
             timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-            
             rows_to_append = []
             
             for order in orders:
@@ -68,28 +96,46 @@ def log_detailed_decisions(decision_data, holdings_map=None):
                 shares_held = holdings_map.get(ticker, 0)
                 
                 rows_to_append.append([
-                    timestamp,
-                    ticker,
-                    order.get('action', 'UNKNOWN'),
-                    order.get('entry_price', 0),
-                    order.get('stop_loss', 0),
-                    order.get('take_profit', 0),
-                    order.get('risk_rationale', 'N/A'),
+                    timestamp, ticker, order.get('action', 'UNKNOWN'),
+                    order.get('entry_price', 0), order.get('stop_loss', 0),
+                    order.get('take_profit', 0), order.get('rationale', 'N/A'),
                     shares_held
                 ])
 
             if rows_to_append:
                 sheet.append_rows(rows_to_append)
-                
-            print(f"   ✅ [SENIOR] Ledger Updated ({len(rows_to_append)} rows).")
+            print(f"   ✅ [FRONT OFFICE] Trade Paperwork Logged to {TRADE_LOG_TAB}.")
             return
             
         except Exception as e:
-            print(f"   ⚠️ Ledger Log Error (Attempt {attempt+1}/3): {e}")
+            print(f"   ⚠️ Trade Log Error (Attempt {attempt+1}/3): {e}")
             time.sleep(2)
 
+def log_mechanical_trade(ticker, action, reason, price=0, shares=0):
+    """Logs purely mathematical Front Office actions (like firing a loser) to Trade_Log."""
+    client = get_client()
+    if not client: return
+    
+    try:
+        sheet = client.open(SHEET_NAME).worksheet(TRADE_LOG_TAB)
+    except gspread.exceptions.WorksheetNotFound:
+        # If it doesn't exist, log_detailed_decisions will create it with the right headers.
+        return 
+
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
+    try:
+        # Aligning perfectly with the 8 columns of the Trade_Log headers
+        sheet.append_row([timestamp, ticker, action, price, "", "", reason, shares])
+        print(f"   ✅ [FRONT OFFICE] Mechanical Action Logged to {TRADE_LOG_TAB}.")
+    except Exception as e:
+        print(f"   ⚠️ [HISTORY] Failed to log to {TRADE_LOG_TAB}: {e}")
+
+# ==========================================
+# 📊 3. LOG STRATEGY (STRATEGY BRIEF TAB)
+# ==========================================
 def log_strategy(decision_payload):
-    """Logs the CEO Report / Execution summaries."""
+    """Logs the CEO Email Report."""
     try:
         client = get_client()
         if not client: return
@@ -97,34 +143,13 @@ def log_strategy(decision_payload):
         
         try: sheet = sh.worksheet(STRATEGY_TAB_NAME)
         except: 
-            sheet = sh.add_worksheet(title=STRATEGY_TAB_NAME, rows=1000, cols=5)
+            sheet = sh.add_worksheet(title=STRATEGY_TAB_NAME, rows=1000, cols=2)
             sheet.append_row(["Date", "CEO_Report"])
 
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
         report = decision_payload.get('ceo_report', 'No report.')
         
         sheet.append_row([timestamp, report])
-        print("   ✅ [SENIOR] Strategy/Execution Logged.")
+        print("   ✅ [SENIOR] Strategy/Email Logged.")
     except Exception as e:
         print(f"   ⚠️ Strategy Log Error: {e}")
-
-def log_mechanical_trade(ticker, action, reason, price=0, shares=0):
-    """
-    Logs Python-based pure-math decisions (like Swaps/Sells) to a separate Trade_Log sheet.
-    """
-    client = get_client()
-    if not client: return
-    
-    try:
-        sheet = client.open(SHEET_NAME).worksheet(TRADE_LOG_TAB)
-    except gspread.exceptions.WorksheetNotFound:
-        sheet = client.open(SHEET_NAME).add_worksheet(title=TRADE_LOG_TAB, rows=1000, cols=6)
-        sheet.append_row(["Date", "Ticker", "Action", "Reason", "Current_Price", "Shares_Held"])
-
-    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    
-    try:
-        sheet.append_row([timestamp, ticker, action, reason, price, shares])
-        print(f"   ✅ [HISTORY] Logged Mechanical Action to Trade_Log: {ticker} -> {action}")
-    except Exception as e:
-        print(f"   ⚠️ [HISTORY] Failed to log to Trade_Log: {e}")

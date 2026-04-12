@@ -11,7 +11,7 @@ If you could only hold ONE of these stocks for the next 6 months, which do you c
 You must output your decision in strictly valid JSON format like this:
 {{
   "winner": "TICKER",
-  "rationale": "A 1-sentence explanation of why this stock is a stronger fundamental hold based on today's search results."
+  "rationale": "Explanation of why this stock is a stronger fundamental hold based on today's search results."
 }}
 """
 

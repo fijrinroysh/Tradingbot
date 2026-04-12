@@ -8,6 +8,6 @@ Which of these two stocks has a higher probability of a healthy recovery?
 You must output your decision in strictly valid JSON format like this:
 {{
   "winner": "TICKER",
-  "rationale": "A 1-sentence explanation of why this stock has better recovery potential based on today's news."
+  "rationale": "Explanation of why this stock has better recovery potential based on today's news."
 }}
 """
