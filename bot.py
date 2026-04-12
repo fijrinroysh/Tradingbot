@@ -70,7 +70,14 @@ def run_minor_league():
         report = junior_agent.evaluate_matchup(cand_a, cand_b)
         
         if report and 'winner' in report:
-            winner = report['winner']
+            # Clean the text to prevent spacing/case errors
+            winner = str(report['winner']).strip().upper()
+            
+            # 👇 SAFETY CHECK: Did the AI hallucinate a random ticker? 👇
+            if winner not in [cand_a['ticker'], cand_b['ticker']]:
+                log_pipeline(f"   ⚠️ AI hallucinated winner '{winner}'. Skipping match.")
+                continue 
+
             loser = cand_b['ticker'] if winner == cand_a['ticker'] else cand_a['ticker']
             
             log_pipeline(f"   🏆 {winner} defeated {loser}")
@@ -152,7 +159,14 @@ def run_major_league():
         report = senior_agent.evaluate_matchup(cand_a, cand_b) 
         
         if report and 'winner' in report:
-            winner = report['winner']
+            # Clean the text to prevent spacing/case errors
+            winner = str(report['winner']).strip().upper()
+            
+            # 👇 SAFETY CHECK: Did the AI hallucinate a random ticker? 👇
+            if winner not in [cand_a['ticker'], cand_b['ticker']]:
+                log_pipeline(f"   ⚠️ AI hallucinated winner '{winner}'. Skipping match.")
+                continue 
+
             loser = cand_b['ticker'] if winner == cand_a['ticker'] else cand_a['ticker']
             minor_league.record_match_result("Senior_Elo", winner, loser)
             
@@ -211,9 +225,10 @@ def execute_swaps():
 
             budget = getattr(config, 'INVEST_PER_TRADE', 1000)
             try:
+
                 trader.execute_entry(
                     ticker=best_ticker, investment_amount=budget,
-                    entry_price=trade_plan.get('entry_price'),
+                    buy_limit=trade_plan.get('entry_price'),  # <--- FIXED PARAMETER NAME
                     take_profit=trade_plan.get('take_profit'),
                     stop_loss=trade_plan.get('stop_loss')
                 )

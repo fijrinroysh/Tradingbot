@@ -177,6 +177,8 @@ def generate_execution_paperwork(ticker, current_price):
         if trade_plan.get("stop_loss") == 0.0 or trade_plan.get("take_profit") == 0.0:
             log_debug(f"⚠️ AI returned 0.00 for stops. Rejecting paperwork.")
             return None
-        log_debug(f"✅ Paperwork Approved. Action: {trade_plan.get('action')}. Stop Loss: ${trade_plan.get('stop_loss')}.")
+        
+        # 👇 TRAP REMOVED: No longer looking for the 'action' key from the AI
+        log_debug(f"✅ Paperwork Approved. Stop Loss: ${trade_plan.get('stop_loss')}.")
         
     return trade_plan
