@@ -275,12 +275,12 @@ def execute_update(ticker, take_profit, stop_loss, buy_limit=0):
     curr_sl = initial_state['sl'] or 0.0
     curr_buy = initial_state['pending_buy'] or 0.0
     
-    # Check if the change is less than $0.02
+    # Check if the change is less than $2.00 (to avoid micro-adjustments that could trigger broker rejections or fees)
     tp_diff = abs(curr_tp - take_profit)
     sl_diff = abs(curr_sl - stop_loss)
     buy_diff = abs(curr_buy - buy_limit)
 
-    if tp_diff < 0.02 and sl_diff < 0.02 and buy_diff < 0.02:
+    if tp_diff < 2.00 and sl_diff < 2.00 and buy_diff < 2.00:
         res = _enforce_contract({"event": "HOLD", "info": "STOPS UNCHANGED (Tolerance)"})
         log_execution_matrix(ticker, "UPDATE", initial_state, req_data, initial_state, res)
         return res
