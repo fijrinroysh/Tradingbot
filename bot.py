@@ -54,15 +54,27 @@ def run_minor_league():
     limit = getattr(config, 'DAILY_SCAN_LIMIT', 20)
     priority_tickers = junior_history.filter_candidates(distressed_tickers, limit=limit)
     
-    candidates_with_prices = [{'ticker': t, 'current_price': trader.get_current_price(t)} for t in priority_tickers if trader.get_current_price(t)]
+    # EDGE CASE FIX: Fetch price ONCE per ticker to save API rate limits
+    candidates_with_prices = []
+    for t in priority_tickers:
+        price = trader.get_current_price(t)
+        if price:
+            candidates_with_prices.append({'ticker': t, 'current_price': price})
             
     if len(candidates_with_prices) < 2:
-        log_pipeline(" ⚠️ Not enough candidates. Skipping Minor League.")
+        log_pipeline(" ⚠️ Not enough candidates with valid prices. Skipping Minor League.")
         return
     
-    matches_to_run = max(1, limit // 2)
-    matchups = minor_league.get_next_matchups(candidates_with_prices, league_name="Junior_Elo", match_count=matches_to_run)
+    # EDGE CASE FIX: Calculate matches based on ACTUAL survivors, not the abstract 'limit'
+    matches_to_run = max(1, len(candidates_with_prices) // 2)
     
+    # 👇 NEW FUNCTION CALL 👇
+    matchups = minor_league.get_minor_league_matchups(candidates_with_prices, match_count=matches_to_run)
+    
+    if not matchups:
+        log_pipeline(" ⚠️ Matchmaking engine returned no eligible fights today.")
+        return
+        
     log_pipeline(f" 🥊 Running {len(matchups)} Minor League Matchups...")
 
     for match in matchups:
@@ -147,13 +159,29 @@ def run_major_league():
 
     if len(major_league_roster) < 2: return
 
-    roster_data = [{'ticker': t, 'current_price': trader.get_current_price(t)} for t in major_league_roster if trader.get_current_price(t)]
+    # EDGE CASE FIX: Fetch price ONCE per ticker to save API calls
+    roster_data = []
+    for t in major_league_roster:
+        price = trader.get_current_price(t)
+        if price:
+            roster_data.append({'ticker': t, 'current_price': price})
 
     # 3. RUN HEAVYWEIGHT MATCHUPS
     matches_to_run = max(1, len(roster_data) // 2)
-    matchups = minor_league.get_next_matchups(roster_data, league_name="Senior_Elo", match_count=matches_to_run)
     
+    # 👇 NEW FUNCTION CALL (With Title Defense logic) 👇
+    matchups = minor_league.get_major_league_matchups(
+        candidates=roster_data, 
+        owned_tickers=portfolio_tickers, 
+        match_count=matches_to_run
+    )
+    
+    if not matchups:
+        log_pipeline(" 🛡️ No valid Major League matchups generated (e.g. waiting on challengers).")
+        return
+        
     log_pipeline(f" 🥊 Running {len(matchups)} Major League Matchups...")
+    
     for match in matchups:
         cand_a, cand_b = match[0], match[1]
         report = senior_agent.evaluate_matchup(cand_a, cand_b) 
@@ -293,7 +321,7 @@ if __name__ == "__main__":
     
     if not trader.is_market_open() and not getattr(config, 'DEBUG_MODE', False):
         log_pipeline("💤 Market Closed. Exiting.")
-        #sys.exit(0)
+        sys.exit(0)
 
     # 1. Operations
     run_minor_league()
@@ -307,17 +335,33 @@ if __name__ == "__main__":
         
         portfolio_tickers = get_live_portfolio()
         senior_board = minor_league.fetch_leaderboard("Senior_Elo")
-        sorted_senior = sorted(senior_board.items(), key=lambda x: x[1]['Elo_Rating'], reverse=True)
         
-        # 👇 1. CLEAN UP STANDINGS (Portfolio + Top 3 Challengers ONLY) 👇
-        active_standings = [item for item in sorted_senior if item[0] in portfolio_tickers]
-        challenger_standings = [item for item in sorted_senior if item[0] not in portfolio_tickers][:3]
+        # 👇 1. DYNAMICALLY PULL *TODAY'S* ROOKIES FROM JUNIOR BOARD 👇
+        junior_board = minor_league.fetch_leaderboard("Junior_Elo")
+        sorted_juniors = sorted(junior_board.items(), key=lambda x: x[1]['Elo_Rating'], reverse=True)
+        unowned_juniors = [item[0] for item in sorted_juniors if item[0] not in portfolio_tickers]
+        actual_promoted_rookies = unowned_juniors[:3]
+        
+        # 👇 2. BUILD THE ACTIVE ROSTER STANDINGS 👇
+        active_standings = []
+        for t in portfolio_tickers:
+            if t in senior_board:
+                active_standings.append((t, senior_board[t]))
+                
+        # 👇 3. BUILD THE CHALLENGER STANDINGS (Syncing the scores) 👇
+        challenger_standings = []
+        for t in actual_promoted_rookies:
+            if t in senior_board:
+                challenger_standings.append((t, senior_board[t]))
+            else:
+                # If they are brand new and haven't fought yet, give them a clean slate score!
+                challenger_standings.append((t, {'Elo_Rating': 1500.0, 'Wins': 0, 'Losses': 0}))
         
         # Combine and re-sort them so they display in proper Elo order
         presentation_standings = active_standings + challenger_standings
         presentation_standings.sort(key=lambda x: x[1]['Elo_Rating'], reverse=True)
         
-        # 👇 2. SEPARATE ACTIONS FROM SCOUTING NOTES 👇
+        # 👇 4. SEPARATE ACTIONS FROM SCOUTING NOTES 👇
         actions_taken = [log for log in daily_ai_logic if "SWAP" in log or "PORTFOLIO" in log or "COLD START" in log]
         scout_notes = [log for log in daily_ai_logic if "SCOUT" in log or "MATCHUP" in log]
         

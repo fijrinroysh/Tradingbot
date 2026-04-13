@@ -142,26 +142,88 @@ def record_match_result(league_name, winner_ticker, loser_ticker):
             time.sleep(2)
 
 # ==========================================
-# 🥊 MATCHMAKING ENGINE
+# 📊 HELPER: ENRICH CANDIDATES
 # ==========================================
-def get_next_matchups(candidates, league_name="Junior_Elo", match_count=3):
+def _enrich_candidates(candidates, league_name):
     """
-    Pairs stocks with similar Elo ratings so they fight evenly.
-    Works for BOTH Junior and Senior Leagues!
+    Private helper function. Fetches the leaderboard and attaches 
+    Elo and Last_Match data to every candidate so they are ready for math.
     """
     leaderboard = fetch_leaderboard(league_name)
     
     for c in candidates:
         t = c.get('ticker', c.get('Ticker', ''))
-        c['_elo'] = leaderboard.get(t, {}).get('Elo_Rating', 1500.0)
+        stats = leaderboard.get(t, {})
+        c['_elo'] = stats.get('Elo_Rating', 1500.0)
         
-    # Sort by Elo so we can pair neighbors
-    candidates.sort(key=lambda x: x['_elo'], reverse=True)
+        last_match_str = stats.get('Last_Match', '')
+        try:
+            c['_last_match_dt'] = datetime.strptime(last_match_str, "%Y-%m-%d %H:%M:%S")
+        except:
+            c['_last_match_dt'] = datetime.min # Never fought = highest priority
+            
+    return candidates
+
+# ==========================================
+# ⚾ MINOR LEAGUE: THE CHESS LADDER
+# ==========================================
+def get_minor_league_matchups(candidates, match_count=3):
+    """
+    Finds the stalest stocks and pairs them against opponents with similar Elo.
+    """
+    # EDGE CASE GUARD: Not enough stocks to fight, or match count is zero
+    if match_count < 1 or len(candidates) < 2:
+        return []
+
+    candidates = _enrich_candidates(candidates, "Junior_Elo")
+    
+    # 1. Sort by Staleness (who has been waiting the longest)
+    candidates.sort(key=lambda x: x['_last_match_dt'])
+    
+    # 2. Grab only the number of fighters we need today
+    brawl_pool = candidates[:(match_count * 2)]
+    
+    # 3. Sort those specific fighters by Elo so the matches are fair
+    brawl_pool.sort(key=lambda x: x['_elo'], reverse=True)
+    
+    # 4. Pair them up
+    matchups = []
+    for i in range(0, len(brawl_pool) - 1, 2):
+        matchups.append((brawl_pool[i], brawl_pool[i+1]))
+        
+    return matchups
+
+# ==========================================
+# 🥊 MAJOR LEAGUE: THE TITLE DEFENSE
+# ==========================================
+def get_major_league_matchups(candidates, owned_tickers, match_count=3):
+    """
+    Forces your active portfolio to defend against the highest-ranked challengers.
+    """
+    # EDGE CASE GUARD: Not enough stocks to fight, or match count is zero
+    if match_count < 1 or len(candidates) < 2:
+        return []
+
+    candidates = _enrich_candidates(candidates, "Senior_Elo")
+    
+    # Separate the Champions from the Challengers
+    champions = [c for c in candidates if c.get('ticker', c.get('Ticker', '')) in owned_tickers]
+    challengers = [c for c in candidates if c.get('ticker', c.get('Ticker', '')) not in owned_tickers]
+
+    # Sort challengers purely by Skill (Elo) to find the deadliest threats
+    challengers.sort(key=lambda x: x['_elo'], reverse=True)
     
     matchups = []
-    for i in range(0, len(candidates) - 1, 2):
+    for champ in champions:
+        # EDGE CASE GUARD: If we have more champions than challengers, gracefully stop pairing
+        if not challengers: 
+            break 
+        
+        # Pull the absolute best challenger off the top of the list
+        best_challenger = challengers.pop(0) 
+        matchups.append((champ, best_challenger))
+        
         if len(matchups) >= match_count:
             break
-        matchups.append((candidates[i], candidates[i+1]))
-        
+            
     return matchups
