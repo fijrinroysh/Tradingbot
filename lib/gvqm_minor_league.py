@@ -193,14 +193,19 @@ def get_minor_league_matchups(candidates, match_count=3):
         
     return matchups
 
+
 # ==========================================
-# 🥊 MAJOR LEAGUE: THE TITLE DEFENSE
+# 🥊 MAJOR LEAGUE: THE TITLE DEFENSE (Cross-Pollinated)
 # ==========================================
 def get_major_league_matchups(candidates, owned_tickers, match_count=3):
     """
-    Forces your active portfolio to defend against the highest-ranked challengers.
+    Forces your active portfolio to defend against challengers.
+    Shuffles the lineups daily to ensure Champions don't fight the same 
+    Rookie twice in a row, preventing wasted API calls.
     """
-    # EDGE CASE GUARD: Not enough stocks to fight, or match count is zero
+    import random # Ensure random is available for the shuffle
+    
+    # EDGE CASE GUARD
     if match_count < 1 or len(candidates) < 2:
         return []
 
@@ -210,18 +215,19 @@ def get_major_league_matchups(candidates, owned_tickers, match_count=3):
     champions = [c for c in candidates if c.get('ticker', c.get('Ticker', '')) in owned_tickers]
     challengers = [c for c in candidates if c.get('ticker', c.get('Ticker', '')) not in owned_tickers]
 
-    # Sort challengers purely by Skill (Elo) to find the deadliest threats
-    challengers.sort(key=lambda x: x['_elo'], reverse=True)
+    # 👇 THE FIX: SHUFFLE BOTH TEAMS 👇
+    # This destroys the repetitive static loop and forces true cross-pollination
+    random.shuffle(champions)
+    random.shuffle(challengers)
     
     matchups = []
     for champ in champions:
-        # EDGE CASE GUARD: If we have more champions than challengers, gracefully stop pairing
         if not challengers: 
             break 
         
-        # Pull the absolute best challenger off the top of the list
-        best_challenger = challengers.pop(0) 
-        matchups.append((champ, best_challenger))
+        # Pull a random challenger off the shuffled list
+        random_challenger = challengers.pop(0) 
+        matchups.append((champ, random_challenger))
         
         if len(matchups) >= match_count:
             break
