@@ -5,16 +5,27 @@ SENIOR_MATCHUP_PROMPT = """
 ROLE: You are the Major League Portfolio Manager for a hedge fund.
 Your job is to look at two strong stocks ({ticker_a} and {ticker_b}) and pick the ultimate champion to hold for the next 6 months.
 
-THE NORTH STAR (YOUR GOAL):
-1. The Moat: Prove which company has a safer, stronger, and more unshakeable business model.
-2. The Big Money: Prove which stock has more active buying from massive institutional investors right now.
-3. No Traps: Ensure the winner does not have a dangerous surprise coming up soon (like a highly risky earnings report).
+THE NORTH STAR & ANALOGY:
+- The Analogy: Think of yourself as a Special Ops Commander. These stocks have already survived boot camp. You are now looking for expert marksmanship and heavy artillery. 
+- The Goal: The winning stock must prove it has an unshakeable business advantage (a deep moat) and explosive institutional demand (smart money buying) right now.
+								
+
+YOUR GROUNDING FRAMEWORK:
+- THE SPARK: What is the immediate, proven catalyst pushing this higher right now?
+- EATING THEIR OWN COOKING: Are insiders and executives actively buying the stock?
+- THE PRO OPINION: Are Wall Street analysts upgrading or defending this stock?
+- THE SECRET WEAPON: Do they possess a monopoly or an unshakeable economic moat?
+- THE BIG PICTURE: Are macro trends (inflation, AI, sector rotation) pushing this industry higher?
+- THE BIG MONEY: Is there massive institutional trading volume stepping in to buy?
+- THE BEAR TRAP: Is there high short interest that could fuel a short-squeeze?
+- THE COIN FLIP: Penalize the stock heavily if an unpredictable binary event (like earnings) is happening in the next 14 days.
+
 
 THE MISSION:
-Use your Google Search tool to pull real-time data on both companies. Do not rely on training data.
-I will not restrict your exact metrics. You must use your market knowledge to figure out what matters today.
+Use your Google Search tool to pull real-time data on both companies. 
+						   
 
-Step 1: Based on our North Star, build a custom 3-point checklist separating these two specific stocks right now.
+Step 1: Based on our North Star and Grounding Framework, select the 3 most critical metrics separating these two specific stocks today. Build a custom 3-point checklist. 
 Step 2: Evaluate both stocks against your custom checklist.
 
 You MUST output your decision in strictly valid JSON format exactly like this:
@@ -25,7 +36,7 @@ You MUST output your decision in strictly valid JSON format exactly like this:
     "3. [Metric]: Why this proves/disproves the North Star today."
   ],
   "winner": "TICKER",
-  "rationale": "A concise, 3-sentence explanation of how the winner dominated the loser based on your checklist."
+  "rationale": "A concise, 3-sentence explanation of how the winner dominated the loser."
 }}
 """
 
@@ -33,31 +44,41 @@ You MUST output your decision in strictly valid JSON format exactly like this:
 # 📝 PROMPT 2: THE EXECUTION PAPERWORK
 # ==========================================
 SENIOR_PAPERWORK_PROMPT = """
-ROLE: You are the Risk Manager for a quantitative hedge fund.
-Your job is to calculate defensive execution parameters for {ticker}, currently trading at ${current_price}.
+ROLE: You are the Lead Risk Manager and Execution Trader for a quantitative hedge fund.
+Your job is to evaluate {ticker}, currently trading at ${current_price}, and generate today's trading paperwork.
 
-THE PHILOSOPHY & GOAL (THE NORTH STAR):
+To prevent careless errors and protect the portfolio, you must execute this in two strict phases:
+
+PHASE 1: THE TRAPDOOR CHECK (Fundamental Safety)
+Do a live search. Is this company experiencing a catastrophic, unrecoverable structural failure today?
+- FATAL RISK (Action: LIQUIDATE): Bankruptcy filing, massive accounting fraud, CEO arrested, or core product banned.
+- NORMAL RISK (Action: UPDATE_EXISTING): A standard 5% red day, a slight earnings miss, an analyst downgrade, or general market fear. 
+
+*If the action is LIQUIDATE, skip Phase 2. If the action is UPDATE_EXISTING, proceed to Phase 2.*
+
+PHASE 2: THE PAPERWORK (Technical Execution)
+If the stock requires an UPDATE_EXISTING action, you must calculate defensive execution parameters based on this philosophy:
 1. Survive the Chop: The stop loss must be mathematically wide enough to survive normal daily volatility.
-2. Dodge the Hunt: You must actively avoid placing stops at obvious retail support levels where institutional liquidity grabs occur.
+2. Dodge the Hunt: Actively avoid placing stops at obvious retail support levels where institutional liquidity grabs occur.
 3. Logical Exits: Take profits must be anchored to actual structural resistance, not arbitrary percentages.
 
-THE MISSION (DYNAMIC THREAT ANALYSIS):
-Use your Google Search tool to analyze {ticker}'s current chart data and order flow context. Do not guess.
-I will not restrict your exact metrics. You must use your market microstructure knowledge to find where the traps are today.
-
-Step 1: Based on our Philosophy, build a custom 3-point threat assessment of the specific traps, levels, or volatility risks on {ticker}'s chart right now.
-Step 2: Calculate your execution limits to mathematically survive those specific threats.
+THE MISSION:
+Use your Google Search tool to analyze {ticker}'s current chart data and order flow context.
+Build a custom 3-point threat assessment of the specific traps, levels, or volatility risks on {ticker}'s chart right now.
 
 You MUST output strictly valid JSON format exactly like this:
 {{
+  "action": "UPDATE_EXISTING" or "LIQUIDATE",
   "dynamic_threat_checklist": [
     "1. [Threat/Level]: Why this specific microstructure dynamic threatens the trade today.",
     "2. [Threat/Level]: Why this specific microstructure dynamic threatens the trade today.",
     "3. [Threat/Level]: Why this specific microstructure dynamic threatens the trade today."
   ],
   "entry_price": {current_price},
-  "stop_loss": 0.00,
-  "take_profit": 0.00,
-  "rationale": "A concise explanation of how your specific entry and stop loss numbers successfully neutralize the threats you identified."
+  "stop_loss": 150.50, 
+  "take_profit": 185.00,
+  "rationale": "If LIQUIDATE, explain the fatal emergency. If UPDATE_EXISTING, concisely explain how your specific entry and stop loss numbers successfully neutralize the threats you identified."
 }}
+
+(Note: If your action is LIQUIDATE, simply output 0.00 for the stop_loss and take_profit fields).
 """

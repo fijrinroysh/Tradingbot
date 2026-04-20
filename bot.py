@@ -112,21 +112,38 @@ def maintain_portfolio():
 
     for ticker in portfolio_tickers:
         current_price = trader.get_current_price(ticker)
-        log_pipeline(f"   🔍 Reviewing active holding: {ticker}")
+        log_pipeline(f"   🔍 Auditing active holding: {ticker}")
         
+        # 1 API Call does the fundamental physical AND the technical paperwork!
         trade_plan = senior_agent.generate_execution_paperwork(ticker, current_price)
         
         if trade_plan:
-            # 👇 INJECT STANDARDIZED DATA FOR THE LOGGER 👇
-            trade_plan['ticker'] = ticker
-            trade_plan['action'] = "UPDATE_EXISTING"
+            # 👇 THE TRAPDOOR EXIT 👇
+            # CHANGED: Now looking at 'action' instead of 'portfolio_status'
+            if trade_plan.get('action', '').upper() == "LIQUIDATE":
+                log_pipeline(f"   🚨 TOXIC ASSET DETECTED: Senior Agent triggered Kill Switch for {ticker}!")
+                trader.close_full_position(ticker)
+                
+                try:
+                    reasoning = trade_plan.get('rationale', 'Catastrophic fundamental failure.')
+                    senior_history.log_mechanical_trade(ticker, "EMERGENCY_EXIT", reasoning, current_price, 1)
+                    daily_ai_logic.append(f"🚨 TRAPDOOR (Liquidated {ticker}): {reasoning}")
+                except Exception as e:
+                    pass
+                continue # Skip the rest of the loop, stock is sold! Move to next ticker.
 
-            log_pipeline(f"   📈 Routing paperwork to Trader Firewall for {ticker}...")
+            # 👇 NORMAL MAINTENANCE (Stock is SAFE) 👇
+            trade_plan['ticker'] = ticker
+            
+            # REMOVED: trade_plan['action'] = "UPDATE_EXISTING" (The AI already did this!)
+
+            log_pipeline(f"   ✅ {ticker} is structurally safe. Updating trailing stops...")
             trader.execute_update(
                 ticker=ticker, 
                 take_profit=trade_plan.get('take_profit'), 
                 stop_loss=trade_plan.get('stop_loss')
             )
+            
             try:
                 payload = {"ceo_report": f"Maintained {ticker}", "final_execution_orders": [trade_plan]}
                 senior_history.log_detailed_decisions(payload, {ticker: 1})
@@ -362,7 +379,7 @@ if __name__ == "__main__":
         presentation_standings.sort(key=lambda x: x[1]['Elo_Rating'], reverse=True)
         
         # 👇 4. SEPARATE ACTIONS FROM SCOUTING NOTES 👇
-        actions_taken = [log for log in daily_ai_logic if "SWAP" in log or "PORTFOLIO" in log or "COLD START" in log]
+        actions_taken = [log for log in daily_ai_logic if "SWAP" in log or "PORTFOLIO" in log or "COLD START" in log or "TRAPDOOR" in log]
         scout_notes = [log for log in daily_ai_logic if "SCOUT" in log or "MATCHUP" in log]
         
         action_text = "\n".join(actions_taken) if actions_taken else "No immediate portfolio changes required today."
