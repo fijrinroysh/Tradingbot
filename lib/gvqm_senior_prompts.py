@@ -36,7 +36,6 @@ You MUST output your decision in strictly valid JSON format exactly like this:
   "rationale": "A concise, 3-sentence explanation of how the winner dominated the loser."
 }}
 """
-"""
 
 # ==========================================
 # 📝 PROMPT 2: THE EXECUTION PAPERWORK
