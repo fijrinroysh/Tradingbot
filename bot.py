@@ -134,8 +134,6 @@ def maintain_portfolio():
 
             # 👇 NORMAL MAINTENANCE (Stock is SAFE) 👇
             trade_plan['ticker'] = ticker
-            
-            # REMOVED: trade_plan['action'] = "UPDATE_EXISTING" (The AI already did this!)
 
             log_pipeline(f"   ✅ {ticker} is structurally safe. Updating trailing stops...")
             trader.execute_update(
@@ -166,10 +164,13 @@ def run_major_league():
         
     portfolio_tickers = get_live_portfolio()
     
-    # 1. THE CALL-UP: Promote top 3 unowned Minor Leaguers
+    # 👇 INTEGRATED SENIOR DRAFT LIMIT 👇
+    draft_limit = getattr(config, 'SENIOR_DRAFT_LIMIT', 3)
+    
+    # 1. THE CALL-UP: Promote top unowned Minor Leaguers
     sorted_juniors = sorted(junior_board.items(), key=lambda x: x[1]['Elo_Rating'], reverse=True)
     unowned_juniors = [item[0] for item in sorted_juniors if item[0] not in portfolio_tickers]
-    promoted_rookies = unowned_juniors[:3]
+    promoted_rookies = unowned_juniors[:draft_limit] 
     
     major_league_roster = list(set(portfolio_tickers + promoted_rookies))
     log_pipeline(f" 📈 Major League Roster: {major_league_roster}")
@@ -353,11 +354,14 @@ if __name__ == "__main__":
         portfolio_tickers = get_live_portfolio()
         senior_board = minor_league.fetch_leaderboard("Senior_Elo")
         
+        # 👇 INTEGRATED SENIOR DRAFT LIMIT 👇
+        draft_limit = getattr(config, 'SENIOR_DRAFT_LIMIT', 3)
+        
         # 👇 1. DYNAMICALLY PULL *TODAY'S* ROOKIES FROM JUNIOR BOARD 👇
         junior_board = minor_league.fetch_leaderboard("Junior_Elo")
         sorted_juniors = sorted(junior_board.items(), key=lambda x: x[1]['Elo_Rating'], reverse=True)
         unowned_juniors = [item[0] for item in sorted_juniors if item[0] not in portfolio_tickers]
-        actual_promoted_rookies = unowned_juniors[:3]
+        actual_promoted_rookies = unowned_juniors[:draft_limit] 
         
         # 👇 2. BUILD THE ACTIVE ROSTER STANDINGS 👇
         active_standings = []
