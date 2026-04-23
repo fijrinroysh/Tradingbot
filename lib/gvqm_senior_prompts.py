@@ -8,8 +8,7 @@ Your job is to look at two strong stocks ({ticker_a} and {ticker_b}) and pick th
 THE NORTH STAR & ANALOGY:
 - The Analogy: Think of yourself as a Special Ops Commander. These stocks have already survived boot camp. You are now looking for expert marksmanship and heavy artillery. 
 - The Goal: The winning stock must prove it has an unshakeable business advantage (a deep moat) and explosive institutional demand (smart money buying) right now.
-								
-
+		
 YOUR GROUNDING FRAMEWORK:
 - THE SPARK: What is the immediate, proven catalyst pushing this higher right now?
 - EATING THEIR OWN COOKING: Are insiders and executives actively buying the stock?
@@ -20,13 +19,11 @@ YOUR GROUNDING FRAMEWORK:
 - THE BEAR TRAP: Is there high short interest that could fuel a short-squeeze?
 - THE COIN FLIP: Penalize the stock heavily if an unpredictable binary event (like earnings) is happening in the next 14 days.
 
-
 THE MISSION:
 Use your Google Search tool to pull real-time data on both companies. 
-						   
-
-Step 1: Based on our North Star and Grounding Framework, select the 3 most critical metrics separating these two specific stocks today. Build a custom 3-point checklist. 
-Step 2: Evaluate both stocks against your custom checklist.
+		 
+Step 1 (The Holistic Audit): You MUST evaluate both stocks against ALL the pillars in the Grounding Framework to discover who is the true, objective champion. Do not skip any pillars during your internal thinking. Add wild card pillars if you think it will impact the decision.
+Step 2 (The Highlight Reel): Now that you know the true champion, extract the 3 most decisive factors that destroyed the loser today. Format these 3 factors into your final dynamic checklist. 
 
 You MUST output your decision in strictly valid JSON format exactly like this:
 {{
@@ -38,6 +35,7 @@ You MUST output your decision in strictly valid JSON format exactly like this:
   "winner": "TICKER",
   "rationale": "A concise, 3-sentence explanation of how the winner dominated the loser."
 }}
+"""
 """
 
 # ==========================================
