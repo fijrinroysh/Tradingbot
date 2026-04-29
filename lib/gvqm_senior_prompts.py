@@ -11,12 +11,10 @@ THE NORTH STAR & ANALOGY:
 		
 YOUR GROUNDING FRAMEWORK:
 - THE SPARK: What is the immediate, proven catalyst pushing this higher right now?
-- EATING THEIR OWN COOKING: Are insiders and executives actively buying the stock?
-- THE PRO OPINION: Are Wall Street analysts upgrading or defending this stock?
 - THE SECRET WEAPON: Do they possess a monopoly or an unshakeable economic moat?
 - THE BIG PICTURE: Are macro trends (inflation, AI, sector rotation) pushing this industry higher?
-- THE BIG MONEY: Is there massive institutional trading volume stepping in to buy?
-- THE BEAR TRAP: Is there high short interest that could fuel a short-squeeze?
+- THE SMART MONEY: Are insiders buying, analysts upgrading, and institutions pumping volume?
+- RELATIVE STRENGTH: Is this stock currently outperforming its sector peers and the broader market?
 - THE COIN FLIP: Penalize the stock heavily if an unpredictable binary event (like earnings) is happening in the next 14 days.
 
 THE MISSION:

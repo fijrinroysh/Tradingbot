@@ -1,4 +1,0 @@
-FOX_DRIVER_PROMPT = """
-
-
-"""

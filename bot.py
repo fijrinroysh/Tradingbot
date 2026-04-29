@@ -119,18 +119,22 @@ def maintain_portfolio():
         
         if trade_plan:
             # 👇 THE TRAPDOOR EXIT 👇
-            # CHANGED: Now looking at 'action' instead of 'portfolio_status'
             if trade_plan.get('action', '').upper() == "LIQUIDATE":
                 log_pipeline(f"   🚨 TOXIC ASSET DETECTED: Senior Agent triggered Kill Switch for {ticker}!")
-                trader.close_full_position(ticker)
                 
-                try:
-                    reasoning = trade_plan.get('rationale', 'Catastrophic fundamental failure.')
-                    senior_history.log_mechanical_trade(ticker, "EMERGENCY_EXIT", reasoning, current_price, 1)
-                    daily_ai_logic.append(f"🚨 TRAPDOOR (Liquidated {ticker}): {reasoning}")
-                except Exception as e:
-                    pass
-                continue # Skip the rest of the loop, stock is sold! Move to next ticker.
+                # Verify Alpaca actually sold it before logging
+                status = trader.close_full_position(ticker)
+                
+                if status == "FILLED":
+                    try:
+                        reasoning = trade_plan.get('rationale', 'Catastrophic fundamental failure.')
+                        senior_history.log_mechanical_trade(ticker, "EMERGENCY_EXIT", reasoning, current_price, 1)
+                        daily_ai_logic.append(f"🚨 TRAPDOOR (Liquidated {ticker}): {reasoning}")
+                    except Exception as e:
+                        pass
+                else:
+                    log_pipeline(f"   ❌ TRAPDOOR FAILED: Alpaca rejected liquidation for {ticker}.")
+                continue # Move to next ticker
 
             # 👇 NORMAL MAINTENANCE (Stock is SAFE) 👇
             trade_plan['ticker'] = ticker
@@ -187,7 +191,6 @@ def run_major_league():
     # 3. RUN HEAVYWEIGHT MATCHUPS
     matches_to_run = max(1, len(roster_data) // 2)
     
-    # 👇 NEW FUNCTION CALL (With Title Defense logic) 👇
     matchups = minor_league.get_major_league_matchups(
         candidates=roster_data, 
         owned_tickers=portfolio_tickers, 
@@ -205,10 +208,8 @@ def run_major_league():
         report = senior_agent.evaluate_matchup(cand_a, cand_b) 
         
         if report and 'winner' in report:
-            # Clean the text to prevent spacing/case errors
             winner = str(report['winner']).strip().upper()
             
-            # 👇 SAFETY CHECK: Did the AI hallucinate a random ticker? 👇
             if winner not in [cand_a['ticker'], cand_b['ticker']]:
                 log_pipeline(f"   ⚠️ AI hallucinated winner '{winner}'. Skipping match.")
                 continue 
@@ -254,17 +255,22 @@ def execute_swaps():
             budget = getattr(config, 'INVEST_PER_TRADE', 1000)
             
             try:
-                trader.execute_entry(
+                # Verify Entry was accepted
+                entry_status = trader.execute_entry(
                     ticker=best_ticker, investment_amount=budget,
                     buy_limit=trade_plan.get('entry_price'),
                     take_profit=trade_plan.get('take_profit'),
                     stop_loss=trade_plan.get('stop_loss')
                 )
-                payload = {"ceo_report": f"Initial Purchase: {best_ticker}", "final_execution_orders": [trade_plan]}
-                senior_history.log_detailed_decisions(payload, {best_ticker: 0})
                 
-                reasoning = trade_plan.get('rationale', 'No rationale provided.')
-                daily_ai_logic.append(f"🚀 COLD START (Bought {best_ticker}): {reasoning}")
+                if entry_status and entry_status[0].get("event") not in ["ERROR", "HOLD"]:
+                    payload = {"ceo_report": f"Initial Purchase: {best_ticker}", "final_execution_orders": [trade_plan]}
+                    senior_history.log_detailed_decisions(payload, {best_ticker: 0})
+                    
+                    reasoning = trade_plan.get('rationale', 'No rationale provided.')
+                    daily_ai_logic.append(f"🚀 COLD START (Bought {best_ticker}): {reasoning}")
+                else:
+                    log_pipeline(f"   ❌ Cold Start aborted: Alpaca rejected {best_ticker} order.")
             except Exception as e:
                 log_pipeline(f"   ❌ Alpaca Trade Failed: {e}")
         else:
@@ -294,40 +300,48 @@ def execute_swaps():
         log_pipeline(f" 🚨 SWAP TRIGGERED: {best_ticker} defeated {worst_ticker} by more than {ELO_THRESHOLD} pts!")
         
         current_loser_price = trader.get_current_price(worst_ticker)
-        trader.close_full_position(worst_ticker)
         
-        try:
-            senior_history.log_mechanical_trade(worst_ticker, "CLOSE_POSITION", f"Replaced by {best_ticker}", current_loser_price, 1)
-        except: pass
-
-        time.sleep(3) 
+        # 👇 WAIT & VERIFY THE LIQUIDATION 👇
+        close_status = trader.close_full_position(worst_ticker)
         
-        current_price = trader.get_current_price(best_ticker)
-        trade_plan = senior_agent.generate_execution_paperwork(best_ticker, current_price) 
-        
-        if trade_plan:
-            # 👇 INJECT STANDARDIZED DATA FOR THE LOGGER 👇
-            trade_plan['ticker'] = best_ticker
-            trade_plan['action'] = "OPEN_NEW"
-
-            budget = getattr(config, 'INVEST_PER_TRADE', 1000)
+        if close_status == "FILLED":
             try:
-                trader.execute_entry(
-                    ticker=best_ticker, investment_amount=budget,
-                    buy_limit=trade_plan.get('entry_price'), 
-                    take_profit=trade_plan.get('take_profit'),
-                    stop_loss=trade_plan.get('stop_loss')
-                )
-                
-                payload = {"ceo_report": f"Swap: {worst_ticker} -> {best_ticker}", "final_execution_orders": [trade_plan]}
-                senior_history.log_detailed_decisions(payload, {best_ticker: 0}) 
-                
-                reasoning = trade_plan.get('rationale', 'No rationale provided.')
-                daily_ai_logic.append(f"🔄 SWAP ({worst_ticker} -> {best_ticker}): {reasoning}")
-            except Exception as e:
-                log_pipeline(f"   ❌ Alpaca Trade Failed: {e}")
+                senior_history.log_mechanical_trade(worst_ticker, "CLOSE_POSITION", f"Replaced by {best_ticker}", current_loser_price, 1)
+            except: pass
+
+            time.sleep(3) # Let cash settle
+            
+            current_price = trader.get_current_price(best_ticker)
+            trade_plan = senior_agent.generate_execution_paperwork(best_ticker, current_price) 
+            
+            if trade_plan:
+                trade_plan['ticker'] = best_ticker
+                trade_plan['action'] = "OPEN_NEW"
+
+                budget = getattr(config, 'INVEST_PER_TRADE', 1000)
+                try:
+                    # Verify Entry was accepted
+                    entry_status = trader.execute_entry(
+                        ticker=best_ticker, investment_amount=budget,
+                        buy_limit=trade_plan.get('entry_price'), 
+                        take_profit=trade_plan.get('take_profit'),
+                        stop_loss=trade_plan.get('stop_loss')
+                    )
+                    
+                    if entry_status and entry_status[0].get("event") not in ["ERROR", "HOLD"]:
+                        payload = {"ceo_report": f"Swap: {worst_ticker} -> {best_ticker}", "final_execution_orders": [trade_plan]}
+                        senior_history.log_detailed_decisions(payload, {best_ticker: 0}) 
+                        
+                        reasoning = trade_plan.get('rationale', 'No rationale provided.')
+                        daily_ai_logic.append(f"🔄 SWAP ({worst_ticker} -> {best_ticker}): {reasoning}")
+                    else:
+                        log_pipeline(f"   ❌ Swap incomplete: Alpaca liquidated {worst_ticker} but rejected buy order for {best_ticker}.")
+                except Exception as e:
+                    log_pipeline(f"   ❌ Alpaca Trade Failed: {e}")
+            else:
+                log_pipeline(f"   ❌ Senior Agent failed to write paperwork for {best_ticker}. Cash held.")
         else:
-            log_pipeline(f"   ❌ Senior Agent failed to write paperwork for {best_ticker}. Cash held.")
+             log_pipeline(f"   ❌ Swap Aborted: Failed to liquidate {worst_ticker}. Not entering new position.")
     else:
         log_pipeline(f" 🛡️ No swap. Challenger did not beat the +{ELO_THRESHOLD} pt margin of victory.")
 
@@ -354,42 +368,34 @@ if __name__ == "__main__":
         portfolio_tickers = get_live_portfolio()
         senior_board = minor_league.fetch_leaderboard("Senior_Elo")
         
-        # 👇 INTEGRATED SENIOR DRAFT LIMIT 👇
         draft_limit = getattr(config, 'SENIOR_DRAFT_LIMIT', 3)
         
-        # 👇 1. DYNAMICALLY PULL *TODAY'S* ROOKIES FROM JUNIOR BOARD 👇
         junior_board = minor_league.fetch_leaderboard("Junior_Elo")
         sorted_juniors = sorted(junior_board.items(), key=lambda x: x[1]['Elo_Rating'], reverse=True)
         unowned_juniors = [item[0] for item in sorted_juniors if item[0] not in portfolio_tickers]
         actual_promoted_rookies = unowned_juniors[:draft_limit] 
         
-        # 👇 2. BUILD THE ACTIVE ROSTER STANDINGS 👇
         active_standings = []
         for t in portfolio_tickers:
             if t in senior_board:
                 active_standings.append((t, senior_board[t]))
                 
-        # 👇 3. BUILD THE CHALLENGER STANDINGS (Syncing the scores) 👇
         challenger_standings = []
         for t in actual_promoted_rookies:
             if t in senior_board:
                 challenger_standings.append((t, senior_board[t]))
             else:
-                # If they are brand new and haven't fought yet, give them a clean slate score!
                 challenger_standings.append((t, {'Elo_Rating': 1500.0, 'Wins': 0, 'Losses': 0}))
         
-        # Combine and re-sort them so they display in proper Elo order
         presentation_standings = active_standings + challenger_standings
         presentation_standings.sort(key=lambda x: x[1]['Elo_Rating'], reverse=True)
         
-        # 👇 4. SEPARATE ACTIONS FROM SCOUTING NOTES 👇
         actions_taken = [log for log in daily_ai_logic if "SWAP" in log or "PORTFOLIO" in log or "COLD START" in log or "TRAPDOOR" in log]
         scout_notes = [log for log in daily_ai_logic if "SCOUT" in log or "MATCHUP" in log]
         
         action_text = "\n".join(actions_taken) if actions_taken else "No immediate portfolio changes required today."
         notes_text = "\n".join(scout_notes) if scout_notes else "Routine market conditions."
         
-        # Build the new categorized payload
         decision_payload = {
             "immediate_actions": action_text,
             "ceo_report": notes_text, 

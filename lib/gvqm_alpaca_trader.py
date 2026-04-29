@@ -327,6 +327,7 @@ def execute_update(ticker, take_profit, stop_loss, buy_limit=0):
     log_execution_matrix(ticker, "UPDATE", initial_state, req_data, final_state, final_res)
     return final_res
 
+
 def execute_entry(ticker, investment_amount, buy_limit, take_profit, stop_loss):
     alpaca_ticker = normalize_ticker(ticker)
     req_data = {"limit": buy_limit, "tp": take_profit, "sl": stop_loss, "amt": investment_amount}
@@ -360,25 +361,48 @@ def execute_entry(ticker, investment_amount, buy_limit, take_profit, stop_loss):
     log_execution_matrix(ticker, "ENTRY", initial_state, req_data, final_state, final_res)
     return final_res
 
+
 def is_market_open():
     try:
         clock = trading_client.get_clock()
         return clock.is_open
     except: return False
     
+    
+# 👇 NEW BULLETPROOF LIQUIDATION FUNCTION 👇
 def close_full_position(ticker):
+    """
+    Sells all shares of a specific ticker.
+    CRITICAL: Automatically cancels pending Take Profit / Stop Loss brackets first to unlock shares.
+    """
     try:
-        req = GetOrdersRequest(status=QueryOrderStatus.OPEN, symbols=[ticker])
-        open_orders = trading_client.get_orders(filter=req)
-        for order in open_orders: client.cancel_order_by_id(order.id)
+        alpaca_ticker = normalize_ticker(ticker)
         
-        pos = trading_client.get_open_position(ticker)
-        qty = float(pos.qty)
-        market_order = MarketOrderRequest(
-            symbol=ticker, qty=abs(qty), side=OrderSide.SELL, time_in_force=TimeInForce.DAY
-        )
-        trading_client.submit_order(market_order)
-    except: pass
+        # 1. Securely find open orders ONLY for this ticker
+        print(f"   🔍 [EXECUTION] Finding open orders for {alpaca_ticker}...")
+        req = GetOrdersRequest(status=QueryOrderStatus.OPEN, symbols=[alpaca_ticker])
+        open_orders = trading_client.get_orders(req)
+
+        # 2. Cancel them if they exist to unlock the shares
+        if open_orders:
+            print(f"   🧹 [EXECUTION] Canceling {len(open_orders)} open order(s) to unlock shares...")
+            for order in open_orders:
+                trading_client.cancel_order_by_id(order.id)
+            time.sleep(3) # Wait for Alpaca to clear the order book
+        else:
+            print(f"   ✅ [EXECUTION] No open orders found for {alpaca_ticker}. Shares are unlocked.")
+
+        # 3. Liquidate the position (Alpaca's native close_position handles selling all held quantity automatically)
+        print(f"   📉 [EXECUTION] Executing Market Sell for all shares of {alpaca_ticker}...")
+        trading_client.close_position(alpaca_ticker)
+        
+        print(f"   ✅ [EXECUTION] Successfully closed position for {alpaca_ticker}")
+        return "FILLED"
+
+    except Exception as e:
+        print(f"   ❌ [EXECUTION] Failed to close {ticker}: {e}")
+        return "FAILED"
+
 
 # --- ACCOUNT UTILS ---
 def get_account():
