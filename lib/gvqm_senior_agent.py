@@ -151,34 +151,41 @@ def evaluate_matchup(candidate_a, candidate_b, risk_factor="Neutral", prev_conte
         ticker_b=ticker_b
     )
     
-    # Removed the duplicate debug writing from here, since _call_gemini_api handles it natively!
     return _call_gemini_api(prompt, context_label=f"{ticker_a}_vs_{ticker_b}")
 
 
 # ==========================================
-# 📝 PHASE 3: THE PAPERWORK
+# 📝 PHASE 3: THE BATCH PAPERWORK
 # ==========================================
-def generate_execution_paperwork(ticker, current_price):
+def generate_batch_execution_paperwork(portfolio_dict):
+    """ 
+    The 'Batch Paperwork' Prompt. 
+    Accepts a dictionary of { "TICKER": current_price, "TICKER2": current_price }
+    Returns a dictionary of execution paperwork objects.
     """
-    The 'Paperwork' Prompt. 
-    Triggered ONLY when the math decides a swap is required, or a stop needs trailing.
-    """
-    log_debug(f"📝 Drafting execution paperwork for {ticker} at ${current_price}...")
+    from lib.gvqm_senior_paperwork_prompt import SENIOR_PAPERWORK_PROMPT
 
-    prompt = prompts.SENIOR_PAPERWORK_PROMPT.format(
-        ticker=ticker, 
-        current_price=current_price
-    )
+    # Convert the Python dictionary into a clean JSON string for the prompt
+    portfolio_json_str = json.dumps(portfolio_dict, indent=2)
+    prompt = SENIOR_PAPERWORK_PROMPT.format(portfolio_json=portfolio_json_str)
+
+    log_debug(f"📝 Submitting Batch Paperwork Request for: {list(portfolio_dict.keys())}...")
     
-    trade_plan = _call_gemini_api(prompt, context_label=f"Paperwork_{ticker}")
-    
-    # Extra safety net to prevent 0.00 stop loss executions
-    if trade_plan:
-        if trade_plan.get("stop_loss") == 0.0 or trade_plan.get("take_profit") == 0.0:
-            log_debug(f"⚠️ AI returned 0.00 for stops. Rejecting paperwork.")
-            return None
+    # We expect a dictionary back where keys are the tickers
+    response_data = _call_gemini_api(prompt, "Batch_Paperwork")
+
+    if not response_data:
+        return {}
+
+    # Safety Check: Did the AI return a list instead of a dict by mistake?
+    if isinstance(response_data, list):
+        log_debug("⚠️ AI returned a list instead of a dictionary. Attempting to parse...")
+        fixed_dict = {}
+        for item in response_data:
+            # Try to find the ticker name inside the list item if it exists
+            if isinstance(item, dict) and 'ticker' in item:
+                fixed_dict[item['ticker']] = item
+        return fixed_dict
         
-        # 👇 TRAP REMOVED: No longer looking for the 'action' key from the AI
-        log_debug(f"✅ Paperwork Approved. Stop Loss: ${trade_plan.get('stop_loss')}.")
-        
-    return trade_plan
+    log_debug(f"✅ Successfully parsed batch paperwork for {len(response_data)} stocks.")
+    return response_data

@@ -275,10 +275,14 @@ def execute_update(ticker, take_profit, stop_loss, buy_limit=0):
     curr_sl = initial_state['sl'] or 0.0
     curr_buy = initial_state['pending_buy'] or 0.0
     
-    # Check if the change is less than $2.00 (to avoid micro-adjustments that could trigger broker rejections or fees)
-    tp_diff = abs(curr_tp - take_profit)
-    sl_diff = abs(curr_sl - stop_loss)
-    buy_diff = abs(curr_buy - buy_limit)
+    # STRICT TYPE CASTING to prevent LLM JSON hallucination crashes
+    safe_tp = float(take_profit) if take_profit is not None else 0.0
+    safe_sl = float(stop_loss) if stop_loss is not None else 0.0
+    safe_buy = float(buy_limit) if buy_limit is not None else 0.0
+    
+    tp_diff = abs(curr_tp - safe_tp)
+    sl_diff = abs(curr_sl - safe_sl)
+    buy_diff = abs(curr_buy - safe_buy)
 
     if tp_diff < 2.00 and sl_diff < 2.00 and buy_diff < 2.00:
         res = _enforce_contract({"event": "HOLD", "info": "STOPS UNCHANGED (Tolerance)"})
@@ -381,7 +385,7 @@ def close_full_position(ticker):
         # 1. Securely find open orders ONLY for this ticker
         print(f"   🔍 [EXECUTION] Finding open orders for {alpaca_ticker}...")
         req = GetOrdersRequest(status=QueryOrderStatus.OPEN, symbols=[alpaca_ticker])
-        open_orders = trading_client.get_orders(req)
+        open_orders = trading_client.get_orders(filter=req) # Fixed missing filter= arg
 
         # 2. Cancel them if they exist to unlock the shares
         if open_orders:
@@ -403,6 +407,30 @@ def close_full_position(ticker):
         print(f"   ❌ [EXECUTION] Failed to close {ticker}: {e}")
         return "FAILED"
 
+# 👇 NEW ARCHITECTURAL HELPER FUNCTION 👇
+def get_all_active_and_pending_tickers():
+    """
+    Returns a deduplicated list of all tickers we currently own, 
+    PLUS any tickers we are actively trying to buy (Pending Limit Orders).
+    Keeps API logic out of bot.py.
+    """
+    try:
+        # 1. Fetch explicitly owned shares
+        positions = trading_client.get_all_positions()
+        live_tickers = [p.symbol for p in positions]
+        
+        # 2. Fetch resting Limit Buy orders so we don't duplicate buys!
+        req = GetOrdersRequest(status=QueryOrderStatus.OPEN)
+        open_orders = trading_client.get_orders(filter=req)
+        pending_buys = [o.symbol for o in open_orders if o.side == OrderSide.BUY]
+        
+        # 3. Combine and deduplicate
+        all_active_tickers = list(set(live_tickers + pending_buys))
+        
+        return all_active_tickers, len(live_tickers), len(pending_buys)
+    except Exception as e:
+        print(f"⚠️ [TRADER] Failed to fetch full portfolio context: {e}")
+        return [], 0, 0
 
 # --- ACCOUNT UTILS ---
 def get_account():

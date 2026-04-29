@@ -64,52 +64,69 @@ def log_matchup(cand_a, cand_b, winner, rationale):
 # ==========================================
 def log_detailed_decisions(decision_data, holdings_map=None):
     """Logs the Senior Agent's execution paperwork to the Trade_Log."""
-    if holdings_map is None: holdings_map = {}
-    
-    for attempt in range(3):
-        try:
-            client = get_client()
-            if not client: return
-            sh = client.open(SHEET_NAME)
+    if holdings_map is None:
+        holdings_map = {}
+        
+    client = get_client()
+    if not client: return
+
+    try:
+        sh = client.open(SHEET_NAME)
+        
+        # Master headers for the Front Office
+        headers = [
+            "Date", "Ticker", "Action", "Entry_Price", 
+            "Stop_Loss", "Take_Profit", "Rationale", "Shares_Held"
+        ]
+        
+        try: sheet = sh.worksheet(TRADE_LOG_TAB)
+        except: 
+            sheet = sh.add_worksheet(title=TRADE_LOG_TAB, rows=2000, cols=8)
+            sheet.append_row(headers)
+        
+        if sheet.row_count < 1 or not sheet.row_values(1):
+             sheet.append_row(headers)
+
+        now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        orders = decision_data.get("final_execution_orders", [])
+        if not orders: return
+
+        rows_to_add = []
+        for order in orders:
+            if not order: continue
+            ticker = order.get("ticker", "UNKNOWN")
             
-            # Master headers for the Front Office
-            headers = [
-                "Date", "Ticker", "Action", "Entry_Price", 
-                "Stop_Loss", "Take_Profit", "Rationale", "Shares_Held"
+            # 👇 THE FIX: Fallback to the top-level action if it's not nested inside
+            action = order.get("action", decision_data.get("action", "UPDATE_EXISTING"))
+            
+            ep = order.get("entry_price", 0)
+            sl = order.get("stop_loss", 0)
+            tp = order.get("take_profit", 0)
+            
+            # Fallback to the overarching CEO report if the individual order lacks a rationale
+            rationale = order.get("rationale", decision_data.get("ceo_report", "N/A"))
+
+            # Stringify checklists if they exist
+            threats = order.get("dynamic_threat_checklist", [])
+            threats_str = " | ".join(threats) if isinstance(threats, list) else str(threats)
+            
+            # If there's a threat checklist, prepend it to the rationale for the sheet
+            full_rationale = f"[{threats_str}] {rationale}" if threats else rationale
+
+            # Determine share count (0 if liquidating, otherwise use current holdings)
+            shares = 0 if action == "LIQUIDATE" else holdings_map.get(ticker, 0)
+
+            row = [
+                now_str, ticker, action, ep, sl, tp, full_rationale, shares
             ]
-            
-            try: sheet = sh.worksheet(TRADE_LOG_TAB)
-            except: 
-                sheet = sh.add_worksheet(title=TRADE_LOG_TAB, rows=2000, cols=8)
-                sheet.append_row(headers)
-            
-            if sheet.row_count < 1 or not sheet.row_values(1):
-                 sheet.append_row(headers)
+            rows_to_add.append(row)
 
-            orders = decision_data.get('final_execution_orders', [])
-            timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-            rows_to_append = []
-            
-            for order in orders:
-                if not order: continue
-                ticker = order.get('ticker', 'UNKNOWN')
-                shares_held = holdings_map.get(ticker, 0)
-                
-                rows_to_append.append([
-                    timestamp, ticker, order.get('action', 'UNKNOWN'),
-                    order.get('entry_price', 0), order.get('stop_loss', 0),
-                    order.get('take_profit', 0), order.get('rationale', 'N/A'),
-                    shares_held
-                ])
-
-            if rows_to_append:
-                sheet.append_rows(rows_to_append)
+        if rows_to_add:
+            sheet.append_rows(rows_to_add)
             print(f"   ✅ [FRONT OFFICE] Trade Paperwork Logged to {TRADE_LOG_TAB}.")
-            return
-            
-        except Exception as e:
-            print(f"   ⚠️ Trade Log Error (Attempt {attempt+1}/3): {e}")
-            time.sleep(2)
+
+    except Exception as e:
+        print(f"   ⚠️ [SENIOR HISTORY] Failed to log to Trade_Log: {e}")
 
 def log_mechanical_trade(ticker, action, reason, price=0, shares=0):
     """Logs purely mathematical Front Office actions (like firing a loser) to Trade_Log."""

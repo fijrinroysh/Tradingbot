@@ -32,12 +32,13 @@ def log_pipeline(message):
 
 def get_live_portfolio():
     try:
-        positions = trader.trading_client.get_all_positions()
-        live_tickers = [p.symbol for p in positions]
-        log_pipeline(f"💼 Portfolio Context: {len(live_tickers)} active positions.")
-        return live_tickers
+        # Delegate the heavy lifting to the Trader script
+        tickers, live_count, pending_count = trader.get_all_active_and_pending_tickers()
+        
+        log_pipeline(f"💼 Portfolio Context: {live_count} filled, {pending_count} pending buys.")
+        return tickers
     except Exception as e:
-        log_pipeline(f"⚠️ Failed to fetch portfolio: {e}")
+        log_pipeline(f"⚠️ Failed to fetch portfolio context: {e}")
         return []
 
 # ==========================================
