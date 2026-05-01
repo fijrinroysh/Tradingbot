@@ -16,3 +16,8 @@ backtesting/cache/
 # ---
 
 *debug*
+TradingBot_History_Test.gsheet
+TradingBot_History.gsheet
+*driveupload*
+*drivedownload*
+

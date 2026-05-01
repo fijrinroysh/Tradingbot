@@ -101,7 +101,7 @@ def run_minor_league():
             daily_ai_logic.append(f"🌱 SCOUT ({winner} vs {loser}): {reasoning[:200]}...")
 
 # ==========================================
-# 🛡️ PHASE 2.5: PORTFOLIO MAINTENANCE
+# 🛡️ PHASE 2.5: PORTFOLIO MAINTENANCE (BATCHED)
 # ==========================================
 def maintain_portfolio():
     log_pipeline("\n🛡️ PHASE 2.5: PORTFOLIO MAINTENANCE")
@@ -111,12 +111,31 @@ def maintain_portfolio():
         log_pipeline(" 💼 No active positions to maintain.")
         return
 
+    # 1. Gather all current prices into a dictionary
+    portfolio_data = {}
     for ticker in portfolio_tickers:
-        current_price = trader.get_current_price(ticker)
+        price = trader.get_current_price(ticker)
+        if price:
+            portfolio_data[ticker] = price
+
+    if not portfolio_data:
+        log_pipeline(" ⚠️ Could not fetch current prices. Skipping maintenance.")
+        return
+
+    log_pipeline(f"   📦 Sending BATCH Analysis Request for {len(portfolio_data)} stocks...")
+    
+    # 2. ⚡ ONE SINGLE API CALL ⚡
+    batch_trade_plans = senior_agent.generate_batch_execution_paperwork(portfolio_data)
+
+    if not batch_trade_plans:
+        log_pipeline("   ⚠️ Senior Agent failed to return batch paperwork.")
+        return
+
+    # 3. Process the results efficiently
+    for ticker, current_price in portfolio_data.items():
         log_pipeline(f"   🔍 Auditing active holding: {ticker}")
         
-        # 1 API Call does the fundamental physical AND the technical paperwork!
-        trade_plan = senior_agent.generate_execution_paperwork(ticker, current_price)
+        trade_plan = batch_trade_plans.get(ticker)
         
         if trade_plan:
             # 👇 THE TRAPDOOR EXIT 👇
@@ -156,7 +175,7 @@ def maintain_portfolio():
             except Exception as e:
                 log_pipeline(f"   ⚠️ Failed to log maintenance to sheets: {e}")
         else:
-            log_pipeline(f"   ⚠️ Senior Agent failed to return paperwork for {ticker}.")
+            log_pipeline(f"   ⚠️ Senior Agent failed to return paperwork for {ticker} in the batch response.")
 
 # ==========================================
 # 🏟️ PHASE 2: THE MAJOR LEAGUE (The Heavyweights)
@@ -248,7 +267,10 @@ def execute_swaps():
         best_ticker, best_data = ranked_majors[0] # Grab the absolute #1 stock
         
         current_price = trader.get_current_price(best_ticker)
-        trade_plan = senior_agent.generate_execution_paperwork(best_ticker, current_price)
+        
+        # 👇 FIX: Use Batch Function for a Single Target 👇
+        batch_plan = senior_agent.generate_batch_execution_paperwork({best_ticker: current_price})
+        trade_plan = batch_plan.get(best_ticker)
         
         if trade_plan:
             trade_plan['ticker'] = best_ticker
@@ -313,7 +335,10 @@ def execute_swaps():
             time.sleep(3) # Let cash settle
             
             current_price = trader.get_current_price(best_ticker)
-            trade_plan = senior_agent.generate_execution_paperwork(best_ticker, current_price) 
+            
+            # 👇 FIX: Use Batch Function for a Single Target 👇
+            batch_plan = senior_agent.generate_batch_execution_paperwork({best_ticker: current_price}) 
+            trade_plan = batch_plan.get(best_ticker)
             
             if trade_plan:
                 trade_plan['ticker'] = best_ticker
