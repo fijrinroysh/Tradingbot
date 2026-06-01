@@ -41,7 +41,7 @@ CRITICAL TIE-BREAKER RULE:
 If Candidate A and Candidate B achieve the exact same total score, the winner MUST be the candidate that scored higher in PILLAR 1 (Safety). 
 
 MISSION BRIEFING:
-Evaluate the two tickers using the exact weights provided. Pick exactly ONE winner. The loser is entirely discarded.
+Evaluate the two tickers using the exact weights provided. Pick exactly ONE winner. The loser is entirely discarded. Think step by step, and provide a detailed scratchpad of your reasoning along with the final decision.
 
 OUTPUT FORMAT:
 {{
