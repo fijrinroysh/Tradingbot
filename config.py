@@ -98,6 +98,7 @@ SENIOR_DRAFT_LIMIT = int(os.getenv("SENIOR_DRAFT_LIMIT", 3))# How many top candi
 
 # Dollar amount to invest in each "High Conviction" Buy
 INVEST_PER_TRADE = int(os.getenv("INVEST_PER_TRADE"))
+MAX_PORTFOLIO_POSITIONS = int(os.getenv("MAX_PORTFOLIO_POSITIONS", 5)) # Max number of positions in the portfolio at any time
 
 
 GOOGLE_SHEET_STRATEGY_TAB = "Executive_Briefs"
