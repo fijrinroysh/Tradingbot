@@ -26,14 +26,14 @@ Evaluate the downside risk and allocate points proportionately:
 2. The Reality Check: Was the recent drop a temporary, fixable operational hiccup or a catastrophic structural failure?
 3. The Moat: Does the company possess an impenetrable economic advantage or immense switching costs?
 4. The Macro Wind: Is the macroeconomic environment naturally pushing this industry forward?
-5. Exhaustion & Floor: Has the stock established a tight consolidation floor where retail panic selling has dried up?
+5. The Bargain Bin: Compare the current market capitalization to the actual free cash flow.
 6. Event Risk: Automatically deduct points if an unpredictable binary event (e.g., FDA approval, earnings) is scheduled within 30 days.
 
 PILLAR 2: REBOUND POTENTIAL (Max 70 Points)
 Evaluate the upside velocity and allocate points proportionately:
 7. Insider Buying: Are the CEO, CFO, or board members actively purchasing shares with personal capital?
 8. Quiet Accumulation: Are down-days on low volume while up-days print higher volume? (Stealthy institutional buying).
-9. The Bargain Bin: Compare the current market capitalization to the actual free cash flow.
+9. Exhaustion & Floor: Has the stock established a tight consolidation floor where retail panic selling has dried up?
 10. The Spark: Are there tangible business catalysts on the horizon (new contracts, leadership changes)?
 11. The Upgrade Cycle: Are Wall Street analysts issuing fresh "Buy" ratings because the drop created a bargain?
 
