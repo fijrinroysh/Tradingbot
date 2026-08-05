@@ -19,7 +19,7 @@ THE DYNAMIC SCORING MATRIX (100-Point Conviction Scale):
 You are governed by a dynamic Risk/Reward mandate dictated by the user. You MUST scale the maximum points for each pillar to match these exact percentages. Distribute the points proportionately among the sub-factors within each pillar to reach the maximum allowed score.
 
 CURRENT RISK/REWARD MANDATE:
-You must strictly adhere to a fixed 40/60 scoring distribution for this evaluation. 
+You must strictly adhere to the scoring distribution for this evaluation. 
 - SAFETY WEIGHT: 30% (Maximum 30 Points)
 - REWARD WEIGHT: 70% (Maximum 70 Points)
 
