@@ -23,15 +23,9 @@ Candidate A: {ticker_a}
 Candidate B: {ticker_b} 
 
 CURRENT RISK/REWARD MANDATE:
-<<<<<<< HEAD
 You are governed by a dynamic mandate dictated by the user. 
 - SAFETY PRIORITY: 30% (Focus heavily on downside protection, cash reserves, moat, and business survival).
 - REWARD PRIORITY: 70% (Focus heavily on upside velocity, momentum, institutional buying, and catalysts).
-=======
-You must strictly adhere to the scoring distribution for this evaluation. 
-- SAFETY WEIGHT: 30% (Maximum 30 Points)
-- REWARD WEIGHT: 70% (Maximum 70 Points)
->>>>>>> d062f9dd472d17605fca7a86558ece41ac716c18
 
 CHAIN OF THOUGHT (CoT) EVALUATION FRAMEWORK:
 You will determine the winner through a logical, three-step deliberative process using all 12 critical evaluation pillars.
