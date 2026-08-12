@@ -175,3 +175,117 @@ def send_executive_brief(decision, account_info, portfolio):
         print(f"   ✅ [NOTIFIER] Email Sent! ID: {r.get('id')}")
     except Exception as e:
         print(f"   ❌ [NOTIFIER] Failed to send email: {e}")
+
+
+import lib.gvqm_junior_history as history_manager
+from datetime import datetime, timedelta
+
+def get_rising_stars(current_standings):
+    """
+    Downloads history from Drive, calculates biggest movers, saves new snapshot to Drive.
+    """
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    
+    # 1. Download Memory Bank from Google Drive
+    print("☁️ [NOTIFIER] Loading Minor League history from Google Drive...")
+    history = history_manager.load_history_from_drive()
+
+    # 2. Save today's snapshot
+    today_ranks = {ticker: rank for rank, (ticker, data) in enumerate(current_standings, start=1)}
+    history[today_str] = today_ranks
+
+    # 3. Upload Memory Bank back to Google Drive
+    print("☁️ [NOTIFIER] Saving updated history to Google Drive...")
+    history_manager.save_history_to_drive(history)
+
+    # 4. Look back 3 to 7 days
+    target_date = (datetime.now() - timedelta(days=3)).strftime("%Y-%m-%d")
+    past_ranks = history.get(target_date)
+    
+    if not past_ranks:
+        available_dates = sorted(history.keys())
+        if len(available_dates) > 1:
+            # Use the oldest date we have if 3 days doesn't exist yet
+            past_ranks = history[available_dates[0]] 
+        else:
+            return [] # Need more days to calculate!
+
+    # 5. Calculate Jumps
+    rising_stars = []
+    for ticker, current_rank in today_ranks.items():
+        if ticker in past_ranks:
+            past_rank = past_ranks[ticker]
+            jump = past_rank - current_rank
+            if jump > 0:
+                rising_stars.append({
+                    "ticker": ticker, "jump": jump, "current": current_rank, "past": past_rank
+                })
+
+    # Return top 3 jumpers
+    return sorted(rising_stars, key=lambda x: x['jump'], reverse=True)[:3]
+
+
+def send_minor_league_scouting_report(daily_matchups, minor_league_standings):
+    """Sends the daily Minor League email with Rising Stars."""
+    if not getattr(config, 'RESEND_API_KEY', None): return
+    resend.api_key = config.RESEND_API_KEY
+    
+    today = datetime.now().strftime("%b %d, %Y")
+    
+    # Get Rising Stars
+    rising_stars = get_rising_stars(minor_league_standings)
+    
+    # Format Rising Stars HTML
+    html_stars = ""
+    if not rising_stars:
+        html_stars = "<p style='font-size:13px;'><i>Building memory bank... check back tomorrow for Rising Stars!</i></p>"
+    else:
+        for star in rising_stars:
+            html_stars += f"""
+            <div style="padding: 10px; background: #e8f5e9; border-left: 4px solid #2ecc71; margin-bottom: 10px;">
+                <b>🚀 {star['ticker']}</b> jumped <b>+{star['jump']} spots</b> (Rank {star['past']} ➡️ {star['current']})
+            </div>
+            """
+
+    # Format Heavyweights (Top 5)
+    html_standings = ""
+    TD_STYLE = "padding: 8px; border-bottom: 1px solid #ddd;"
+    for rank, (ticker, data) in enumerate(minor_league_standings[:5], start=1):
+        html_standings += f"<tr><td style='{TD_STYLE}'>{rank}</td><td style='{TD_STYLE}'><b>{ticker}</b></td><td style='{TD_STYLE}'>{data.get('Elo_Rating', 1500):.1f}</td></tr>"
+
+    # Format Battle Rationales
+    html_battles = ""
+    for match in daily_matchups:
+        html_battles += f"""
+        <div style="background: #f9f9f9; padding: 15px; margin-bottom: 10px; border-radius: 5px;">
+            <h4 style="margin: 0 0 5px 0;">🥊 {match.get('winner', 'N/A')} def. {match.get('loser', 'N/A')}</h4>
+            <p style="font-size: 13px; margin: 0; color: #555;">{match.get('rationale', '')}</p>
+        </div>
+        """
+
+    html_content = f"""
+    <body style="font-family: Arial; padding: 20px; background-color: #f4f4f4;">
+        <div style="max-width: 600px; margin: auto; background: #fff; padding: 20px; border-radius: 8px;">
+            <h2 style="color: #2c3e50; border-bottom: 2px solid #2980b9; padding-bottom: 10px;">⚾ Minor League Scouting Report</h2>
+            
+            <h3 style="color: #2980b9;">🚀 The Rising Stars</h3>
+            {html_stars}
+
+            <h3 style="color: #2980b9;">🏆 Top 5 Heavyweights</h3>
+            <table style="width: 100%; border-collapse: collapse; text-align: center; margin-bottom: 20px;">
+                <tr style="background: #ecf0f1;"><th>Rank</th><th>Ticker</th><th>Elo</th></tr>
+                {html_standings}
+            </table>
+
+            <h3 style="color: #2980b9;">📊 Matchup Learning Lab</h3>
+            {html_battles}
+        </div>
+    </body>
+    """
+
+    resend.Emails.send({
+        "from": getattr(config, 'RESEND_FROM_EMAIL', "onboarding@resend.dev"),
+        "to": [config.USER_EMAIL],
+        "subject": "⚾ Minor League Scouting Report",
+        "html": html_content
+    })

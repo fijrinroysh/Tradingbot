@@ -111,3 +111,91 @@ def filter_candidates(distressed_tickers, limit=20):
     drafted_tickers = [item['ticker'] for item in prioritized_list[:limit]]
     
     return drafted_tickers
+
+
+import io
+import json
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseUpload, MediaIoBaseDownload
+
+# ==========================================
+# 🧠 GOOGLE DRIVE MEMORY BANK (JSON)
+# ==========================================
+def get_drive_service():
+    """Builds the Google Drive API Service using your existing credentials."""
+    creds_json = os.getenv("GOOGLE_SHEETS_CREDENTIALS")
+    if not creds_json:
+        if os.path.exists("google_credentials.json"):
+            creds_json = open("google_credentials.json").read()
+        else:
+            return None
+    
+    creds_dict = json.loads(creds_json)
+    creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
+    return build('drive', 'v3', credentials=creds)
+
+def get_or_create_folder(drive_service, folder_name="GVQM_Memory_Bank"):
+    """Finds the subfolder in Drive, or creates it if it doesn't exist."""
+    query = f"name='{folder_name}' and mimeType='application/vnd.google-apps.folder' and trashed=false"
+    results = drive_service.files().list(q=query, fields="nextPageToken, files(id, name)").execute()
+    items = results.get('files', [])
+
+    if not items:
+        # Create it
+        file_metadata = {
+            'name': folder_name,
+            'mimeType': 'application/vnd.google-apps.folder'
+        }
+        folder = drive_service.files().create(body=file_metadata, fields='id').execute()
+        return folder.get('id')
+    else:
+        return items[0].get('id')
+
+def load_history_from_drive(filename="minor_league_history.json"):
+    """Downloads the memory bank from Google Drive."""
+    service = get_drive_service()
+    if not service: return {}
+
+    folder_id = get_or_create_folder(service)
+    
+    # Check if file exists in the folder
+    query = f"name='{filename}' and '{folder_id}' in parents and trashed=false"
+    results = service.files().list(q=query, fields="files(id, name)").execute()
+    items = results.get('files', [])
+
+    if not items:
+        return {} # File doesn't exist yet (first run)
+
+    file_id = items[0].get('id')
+    request = service.files().get_media(fileId=file_id)
+    fh = io.BytesIO()
+    downloader = MediaIoBaseDownload(fh, request)
+    done = False
+    while done is False:
+        status, done = downloader.next_chunk()
+    
+    return json.loads(fh.getvalue().decode('utf-8'))
+
+def save_history_to_drive(data, filename="minor_league_history.json"):
+    """Uploads the updated memory bank back to Google Drive."""
+    service = get_drive_service()
+    if not service: return
+
+    folder_id = get_or_create_folder(service)
+    
+    # Check if file exists to update it, otherwise create it
+    query = f"name='{filename}' and '{folder_id}' in parents and trashed=false"
+    results = service.files().list(q=query, fields="files(id, name)").execute()
+    items = results.get('files', [])
+
+    file_metadata = {'name': filename, 'parents': [folder_id]}
+    media = MediaIoBaseUpload(io.BytesIO(json.dumps(data, indent=4).encode('utf-8')),
+                              mimetype='application/json', resumable=True)
+
+    if not items:
+        # Create new file
+        service.files().create(body=file_metadata, media_body=media, fields='id').execute()
+    else:
+        # Update existing file
+        file_id = items[0].get('id')
+        service.files().update(fileId=file_id, media_body=media).execute()

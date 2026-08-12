@@ -450,21 +450,43 @@ if __name__ == "__main__":
         presentation_standings = active_standings + challenger_standings
         presentation_standings.sort(key=lambda x: x[1]['Elo_Rating'], reverse=True)
         
-        # Categorize actions vs scouting notes for the dispatch brief
+      
+        # ==========================================
+        # 📧 SPLIT REPORTING & EMAIL DISPATCH
+        # ==========================================
+        
+        # 1. Gather all Minor League match results for the Scouting Report
+        # (Assuming your loop appends matchup dicts to a list called 'daily_matchups')
+        # If your daily_matchups is named something else in Phase 2, use that variable.
+        current_minor_standings = minor_league.fetch_leaderboard("Junior_Elo")
+        
+        print("⚾ Triggering Minor League Scouting Report...")
+        # Note: Ensure 'daily_matchups' contains the list of dicts with winner, loser, rationale
+        try:
+            notifier.send_minor_league_scouting_report(daily_matchups, current_minor_standings)
+        except Exception as e:
+            print(f"⚠️ Could not send Minor League Report: {e}")
+
+        # 2. Categorize actions for the Major League Briefing
         actions_taken = [log for log in daily_ai_logic if "SWAP" in log or "PORTFOLIO" in log or "ALLOCATION" in log or "TRAPDOOR" in log]
-        scout_notes = [log for log in daily_ai_logic if "SCOUT" in log or "MATCHUP" in log]
+        
+        # Pull out ONLY Major League reasoning (and the Trading Lesson)
+        major_league_notes = [log for log in daily_ai_logic if "MAJOR LEAGUE" in log or "LESSON" in log or "CEO" in log]
         
         action_text = "\n".join(actions_taken) if actions_taken else "No structural portfolio allocation shifts executed today."
-        notes_text = "\n".join(scout_notes) if scout_notes else "Routine quantitative tournament pairings."
+        notes_text = "\n".join(major_league_notes) if major_league_notes else "Holding steady. No major structural changes today."
         
         decision_payload = {
             "immediate_actions": action_text,
-            "ceo_report": notes_text, 
+            "ceo_report": notes_text, # Now strictly Major League + Lessons!
             "major_league_standings": presentation_standings
         }
         
+        # 3. Log to History and Send Executive Brief
         senior_history.log_strategy(decision_payload)
         notifier.send_executive_brief(decision_payload, trader.get_account(), trader.get_portfolio())
-        log_pipeline("✅ Multi-asset corporate briefing email successfully dispatched.")
-    except Exception as e:
-        log_pipeline(f"❌ Reporting Pipeline Failed: {e}")
+        
+        log_pipeline("🏁 GVQM Daily Run Complete.")
+
+if __name__ == "__main__":
+    main()
