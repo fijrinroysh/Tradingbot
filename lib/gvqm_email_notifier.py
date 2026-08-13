@@ -1,6 +1,44 @@
 import resend
 import config
-import datetime
+from datetime import date, datetime, timedelta
+import lib.gvqm_junior_history as junior_history_manager
+import lib.gvqm_senior_history as senior_history_manager
+
+def get_senior_momentum(current_standings):
+    """Calculates momentum shifts specifically for the Major League."""
+    today_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
+    print("☁️ [NOTIFIER] Loading Major League memory from Google Sheets...")
+    history = senior_history_manager.load_senior_history_from_sheets()
+
+    # Save today's snapshot (Rank 1 is the best)
+    today_ranks = {ticker: rank for rank, (ticker, data) in enumerate(current_standings, start=1)}
+    history[today_str] = today_ranks
+
+    print("☁️ [NOTIFIER] Saving updated Major League memory...")
+    senior_history_manager.save_senior_history_to_sheets(history)
+
+    # Look back 3 to 7 days
+    target_date = (datetime.now() - timedelta(days=3)).strftime("%Y-%m-%d")
+    past_ranks = history.get(target_date)
+    
+    if not past_ranks:
+        available_dates = sorted(history.keys())
+        if len(available_dates) > 1:
+            past_ranks = history[available_dates[0]] 
+        else:
+            return [] 
+
+    # Calculate Jumps (Only keep positive jumps)
+    movers = []
+    for ticker, current_rank in today_ranks.items():
+        if ticker in past_ranks:
+            past_rank = past_ranks[ticker]
+            jump = past_rank - current_rank
+            if jump > 0:
+                movers.append({"ticker": ticker, "jump": jump, "current": current_rank, "past": past_rank})
+
+    return sorted(movers, key=lambda x: x['jump'], reverse=True)[:3]
 
 def send_executive_brief(decision, account_info, portfolio):
     """
@@ -14,7 +52,7 @@ def send_executive_brief(decision, account_info, portfolio):
     print("📧 [NOTIFIER] Formatting Executive Briefing (Einstein Simplified)...")
     resend.api_key = config.RESEND_API_KEY
     
-    today = datetime.date.today().strftime("%b %d, %Y")
+    today = date.today().strftime("%b %d, %Y")
     
     # 1. Extract the Pre-Cleaned Data from bot.py
     actions_text = decision.get("immediate_actions", "No immediate actions today.")
@@ -146,6 +184,26 @@ def send_executive_brief(decision, account_info, portfolio):
             """
     html_content += "</tbody></table>"
 
+
+# 2.5: Calculate Major League Momentum
+    senior_momentum = get_senior_momentum(standings)
+    html_momentum = ""
+    if not senior_momentum:
+        html_momentum = "<p style='font-size:12px; color: #7f8c8d; font-style: italic;'>Building memory bank... check back in a few days for momentum shifts!</p>"
+    else:
+        for star in senior_momentum:
+            html_momentum += f"""
+            <div style="padding: 10px; background: #fff3e0; border-left: 4px solid #f39c12; margin-bottom: 8px; border-radius: 4px;">
+                <span style="font-size: 14px;">🔥</span> <b>{star['ticker']}</b> advanced <b>+{star['jump']} spots</b> <span style="color: #6b7280; font-size: 11px;">(Rank {star['past']} ➡️ {star['current']})</span>
+            </div>
+            """
+
+    # Inject it into the main HTML flow (put this right after the Portfolio table closes)
+    html_content += f"""
+        <h3 style="color: #f39c12; border-bottom: 2px solid #f39c12; padding-bottom: 5px; margin-top: 25px;">🔥 Major League Momentum</h3>
+        <p style="font-size: 12px; color: #6b7280; margin-bottom: 10px;">Tracking the fastest rising Challengers inside the VIP room.</p>
+        {html_momentum}
+    """
     # ==========================================================
     # 🧠 SECTION 4: SENIOR MANAGER NOTES (THE AI DIARY)
     # ==========================================================
@@ -158,7 +216,7 @@ def send_executive_brief(decision, account_info, portfolio):
         </div>
         
         <p style="font-size: 10px; color: #999; text-align: center; margin-top: 25px;">
-            GVQM Auto-Generated | {datetime.datetime.now().strftime("%H:%M EST")}
+            GVQM Auto-Generated | {datetime.now().strftime("%H:%M EST")}
         </p>
         </div>
     </body>
@@ -167,7 +225,7 @@ def send_executive_brief(decision, account_info, portfolio):
     # --- SEND ---
     try:
         r = resend.Emails.send({
-            "from": "onboarding@resend.dev",
+            "from": getattr(config, 'EMAIL_SENDER', "onboarding@resend.dev"),
             "to": getattr(config, 'NOTIFY_EMAIL', "fijrinroysh@gmail.com"), 
             "subject": subject,
             "html": html_content
@@ -177,35 +235,35 @@ def send_executive_brief(decision, account_info, portfolio):
         print(f"   ❌ [NOTIFIER] Failed to send email: {e}")
 
 
-import lib.gvqm_junior_history as history_manager
-from datetime import datetime, timedelta
 
 def get_rising_stars(current_standings):
     """
-    Downloads history from Drive, calculates biggest movers, saves new snapshot to Drive.
+    Downloads history from Sheets, calculates biggest movers, saves new snapshot.
     """
-    today_str = datetime.now().strftime("%Y-%m-%d")
+    today_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    # today_str = datetime.datetime.now().strftime("%Y-%m-%d")
     
-    # 1. Download Memory Bank from Google Drive
-    print("☁️ [NOTIFIER] Loading Minor League history from Google Drive...")
-    history = history_manager.load_history_from_drive()
+    # 1. Download Memory Bank from Google Sheets
+    print("☁️ [NOTIFIER] Loading Minor League memory from Google Sheets...")
+    history = junior_history_manager.load_history_from_sheets()
 
     # 2. Save today's snapshot
     today_ranks = {ticker: rank for rank, (ticker, data) in enumerate(current_standings, start=1)}
     history[today_str] = today_ranks
 
-    # 3. Upload Memory Bank back to Google Drive
-    print("☁️ [NOTIFIER] Saving updated history to Google Drive...")
-    history_manager.save_history_to_drive(history)
+    # 3. Upload Memory Bank back to Google Sheets
+    print("☁️ [NOTIFIER] Saving updated memory to Google Sheets...")
+    junior_history_manager.save_history_to_sheets(history)
 
     # 4. Look back 3 to 7 days
+    
+    # target_date = (datetime.datetime.now() - datetime.timedelta(days=3)).strftime("%Y-%m-%d")
     target_date = (datetime.now() - timedelta(days=3)).strftime("%Y-%m-%d")
     past_ranks = history.get(target_date)
     
     if not past_ranks:
         available_dates = sorted(history.keys())
         if len(available_dates) > 1:
-            # Use the oldest date we have if 3 days doesn't exist yet
             past_ranks = history[available_dates[0]] 
         else:
             return [] # Need more days to calculate!
@@ -221,7 +279,6 @@ def get_rising_stars(current_standings):
                     "ticker": ticker, "jump": jump, "current": current_rank, "past": past_rank
                 })
 
-    # Return top 3 jumpers
     return sorted(rising_stars, key=lambda x: x['jump'], reverse=True)[:3]
 
 
@@ -231,61 +288,73 @@ def send_minor_league_scouting_report(daily_matchups, minor_league_standings):
     resend.api_key = config.RESEND_API_KEY
     
     today = datetime.now().strftime("%b %d, %Y")
+    match_count = len(daily_matchups) if daily_matchups else 0
     
     # Get Rising Stars
     rising_stars = get_rising_stars(minor_league_standings)
     
-    # Format Rising Stars HTML
+    # Format Rising Stars HTML (Cleaner UI)
     html_stars = ""
     if not rising_stars:
-        html_stars = "<p style='font-size:13px;'><i>Building memory bank... check back tomorrow for Rising Stars!</i></p>"
+        html_stars = "<p style='font-size:13px; color: #7f8c8d;'><i>Building memory bank... check back tomorrow for momentum shifts!</i></p>"
     else:
         for star in rising_stars:
             html_stars += f"""
-            <div style="padding: 10px; background: #e8f5e9; border-left: 4px solid #2ecc71; margin-bottom: 10px;">
-                <b>🚀 {star['ticker']}</b> jumped <b>+{star['jump']} spots</b> (Rank {star['past']} ➡️ {star['current']})
+            <div style="padding: 12px; background: #f0fdf4; border-left: 4px solid #22c55e; margin-bottom: 8px; border-radius: 4px;">
+                <span style="font-size: 16px;">🚀</span> <b>{star['ticker']}</b> jumped <b>+{star['jump']} spots</b> <span style="color: #6b7280; font-size: 12px;">(Rank {star['past']} ➡️ {star['current']})</span>
             </div>
             """
 
-    # Format Heavyweights (Top 5)
+    # Format Heavyweights
     html_standings = ""
-    TD_STYLE = "padding: 8px; border-bottom: 1px solid #ddd;"
+    TD_STYLE = "padding: 10px; border-bottom: 1px solid #eaeaea;"
     for rank, (ticker, data) in enumerate(minor_league_standings[:5], start=1):
-        html_standings += f"<tr><td style='{TD_STYLE}'>{rank}</td><td style='{TD_STYLE}'><b>{ticker}</b></td><td style='{TD_STYLE}'>{data.get('Elo_Rating', 1500):.1f}</td></tr>"
+        html_standings += f"<tr><td style='{TD_STYLE} color: #6b7280;'>{rank}</td><td style='{TD_STYLE} font-weight: bold;'>{ticker}</td><td style='{TD_STYLE}'>{data.get('Elo_Rating', 1500):.1f}</td></tr>"
 
-    # Format Battle Rationales
+    # Format Battle Rationales (Now accepts the FULL uncut string, formatted beautifully)
     html_battles = ""
-    for match in daily_matchups:
-        html_battles += f"""
-        <div style="background: #f9f9f9; padding: 15px; margin-bottom: 10px; border-radius: 5px;">
-            <h4 style="margin: 0 0 5px 0;">🥊 {match.get('winner', 'N/A')} def. {match.get('loser', 'N/A')}</h4>
-            <p style="font-size: 13px; margin: 0; color: #555;">{match.get('rationale', '')}</p>
-        </div>
-        """
+    if not daily_matchups:
+        html_battles = "<p style='font-size: 13px;'>No Minor League battles occurred today.</p>"
+    else:
+        for match_string in daily_matchups:
+            # Strip out the "🌱 SCOUT (AAA vs BBB):" part to format it cleaner
+            parts = match_string.split("):", 1)
+            header = parts[0].replace("🌱 SCOUT (", "").strip() if len(parts) > 1 else "Matchup"
+            body = parts[1].strip() if len(parts) > 1 else match_string
+
+            html_battles += f"""
+            <div style="background: #ffffff; padding: 15px; margin-bottom: 12px; border-left: 4px solid #3b82f6; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+                <h4 style="margin: 0 0 8px 0; color: #1e3a8a; font-size: 14px;">🥊 {header}</h4>
+                <p style="font-size: 13px; margin: 0; color: #4b5563; line-height: 1.6;">{body}</p>
+            </div>
+            """
 
     html_content = f"""
-    <body style="font-family: Arial; padding: 20px; background-color: #f4f4f4;">
-        <div style="max-width: 600px; margin: auto; background: #fff; padding: 20px; border-radius: 8px;">
-            <h2 style="color: #2c3e50; border-bottom: 2px solid #2980b9; padding-bottom: 10px;">⚾ Minor League Scouting Report</h2>
+    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding: 20px; background-color: #f3f4f6;">
+        <div style="max-width: 600px; margin: auto; background: #ffffff; padding: 25px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+            <h2 style="color: #111827; border-bottom: 2px solid #e5e7eb; padding-bottom: 12px; margin-top: 0;">⚾ Minor League Scouting</h2>
             
-            <h3 style="color: #2980b9;">🚀 The Rising Stars</h3>
+            <h3 style="color: #374151; font-size: 15px; margin-top: 20px;">🚀 The Rising Stars (Momentum)</h3>
             {html_stars}
 
-            <h3 style="color: #2980b9;">🏆 Top 5 Heavyweights</h3>
-            <table style="width: 100%; border-collapse: collapse; text-align: center; margin-bottom: 20px;">
-                <tr style="background: #ecf0f1;"><th>Rank</th><th>Ticker</th><th>Elo</th></tr>
+            <h3 style="color: #374151; font-size: 15px; margin-top: 25px;">🏆 Top 5 Heavyweights</h3>
+            <table style="width: 100%; border-collapse: collapse; text-align: left; margin-bottom: 25px; font-size: 14px;">
+                <tr style="background: #f9fafb; color: #6b7280; font-size: 12px; text-transform: uppercase;">
+                    <th style="padding: 10px;">Rank</th><th style="padding: 10px;">Ticker</th><th style="padding: 10px;">Elo Score</th>
+                </tr>
                 {html_standings}
             </table>
 
-            <h3 style="color: #2980b9;">📊 Matchup Learning Lab</h3>
+            <h3 style="color: #374151; font-size: 15px; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px;">🧠 Scouting Rationales</h3>
+            <p style="font-size: 12px; color: #6b7280; margin-bottom: 15px;">Read the AI's full justification for why one stock beat the other based on safety and reward.</p>
             {html_battles}
         </div>
     </body>
     """
 
     resend.Emails.send({
-        "from": getattr(config, 'RESEND_FROM_EMAIL', "onboarding@resend.dev"),
-        "to": [config.USER_EMAIL],
-        "subject": "⚾ Minor League Scouting Report",
+        "from": getattr(config, 'EMAIL_SENDER', "onboarding@resend.dev"),
+        "to": getattr(config, 'NOTIFY_EMAIL', "fijrinroysh@gmail.com"), 
+        "subject": f"⚾ Minor League Scouting: {match_count} Battles Today",
         "html": html_content
     })

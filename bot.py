@@ -52,6 +52,16 @@ def run_minor_league():
         log_pipeline(" ⚠️ Scanner found zero distressed stocks today. Skipping Minor League.")
         return
 
+
+# 👇  Update just the tickers that are today's active contenders to the active contender flag in the Junior Elo tab in Google sheet 👇
+
+    try:
+        # Call the helper to update 'Junior_Elo' tab flags to Y or N in Google Sheets
+        junior_history.update_active_contenders_flag("Junior_Elo", distressed_tickers)
+    except Exception as e:
+        log_pipeline(f" ⚠️ Failed to update Junior Elo active contender flags: {e}")
+    
+
     limit = getattr(config, 'DAILY_SCAN_LIMIT', 20)
     priority_tickers = junior_history.filter_candidates(distressed_tickers, limit=limit)
     
@@ -98,7 +108,8 @@ def run_minor_league():
             junior_history.log_report(winner, report, opponent=loser)
             
             reasoning = report.get('rationale', 'No rationale provided.')
-            daily_ai_logic.append(f"🌱 SCOUT ({winner} vs {loser}): {reasoning[:200]}...")
+            
+            daily_ai_logic.append(f"🌱 SCOUT ({winner} vs {loser}): {reasoning}")
 
 # ==========================================
 # 🛡️ PHASE 2.5: PORTFOLIO MAINTENANCE (BATCHED)
@@ -244,6 +255,14 @@ def run_major_league():
                 senior_history.log_matchup(cand_a['ticker'], cand_b['ticker'], winner, reasoning)
             except Exception as e:
                 log_pipeline(f" ⚠️ Failed to log matchup rationale: {e}")
+
+    # 👇  Update just the tickers that are today's active contenders (active contender flag) in the Senior Elo tab in Google sheet 👇
+
+    try:
+        # Call the helper to update 'Senior_Elo' tab flags to Y or N in Google Sheets
+        junior_history.update_active_contenders_flag("Senior_Elo", major_league_roster)
+    except Exception as e:
+        log_pipeline(f" ⚠️ Failed to update Senior Elo active contender flags: {e}")
 
 # ==========================================
 # ⚙️ PHASE 3: THE FRONT OFFICE (Execution Engine)
@@ -452,41 +471,35 @@ if __name__ == "__main__":
         
       
         # ==========================================
-        # 📧 SPLIT REPORTING & EMAIL DISPATCH
+        # 📧 THE CLEAN SPLIT: EMAIL DISPATCH
         # ==========================================
         
-        # 1. Gather all Minor League match results for the Scouting Report
-        # (Assuming your loop appends matchup dicts to a list called 'daily_matchups')
-        # If your daily_matchups is named something else in Phase 2, use that variable.
-        current_minor_standings = minor_league.fetch_leaderboard("Junior_Elo")
-        
-        print("⚾ Triggering Minor League Scouting Report...")
-        # Note: Ensure 'daily_matchups' contains the list of dicts with winner, loser, rationale
-        try:
-            notifier.send_minor_league_scouting_report(daily_matchups, current_minor_standings)
-        except Exception as e:
-            print(f"⚠️ Could not send Minor League Report: {e}")
-
-        # 2. Categorize actions for the Major League Briefing
+        # 1. Gather Major League Data (Actions + Senior Matchups)
         actions_taken = [log for log in daily_ai_logic if "SWAP" in log or "PORTFOLIO" in log or "ALLOCATION" in log or "TRAPDOOR" in log]
-        
-        # Pull out ONLY Major League reasoning (and the Trading Lesson)
-        major_league_notes = [log for log in daily_ai_logic if "MAJOR LEAGUE" in log or "LESSON" in log or "CEO" in log]
-        
         action_text = "\n".join(actions_taken) if actions_taken else "No structural portfolio allocation shifts executed today."
-        notes_text = "\n".join(major_league_notes) if major_league_notes else "Holding steady. No major structural changes today."
+        
+        major_league_notes = [log for log in daily_ai_logic if "MATCHUP" in log]
+        major_notes_text = "\n".join(major_league_notes) if major_league_notes else "No Major League title defenses today."
         
         decision_payload = {
             "immediate_actions": action_text,
-            "ceo_report": notes_text, # Now strictly Major League + Lessons!
+            "ceo_report": major_notes_text, # Purely Major League logic
             "major_league_standings": presentation_standings
         }
+
+        # 2. Gather Minor League Data (Scouting Matches + Sorted Leaderboard)
+        minor_league_notes = [log for log in daily_ai_logic if "SCOUT" in log]
         
-        # 3. Log to History and Send Executive Brief
-        senior_history.log_strategy(decision_payload)
+        # Convert the junior_board dictionary into the sorted list format the email expects
+        sorted_juniors = sorted(junior_board.items(), key=lambda x: x[1].get('Elo_Rating', 1500), reverse=True)
+
+        # 3. Dispatch Both Emails
+        log_pipeline("📧 Dispatching Major and Minor League Briefs...")
+        notifier.send_minor_league_scouting_report(minor_league_notes, sorted_juniors)
         notifier.send_executive_brief(decision_payload, trader.get_account(), trader.get_portfolio())
         
-        log_pipeline("🏁 GVQM Daily Run Complete.")
-
-if __name__ == "__main__":
-    main()
+        senior_history.log_strategy(decision_payload)
+        log_pipeline("✅ Multi-asset corporate briefing emails successfully dispatched.")
+        
+    except Exception as e:
+        log_pipeline(f"❌ Reporting Pipeline Failed: {e}")

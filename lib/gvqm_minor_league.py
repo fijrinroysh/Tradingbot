@@ -64,14 +64,24 @@ def fetch_leaderboard(league_name="Junior_Elo"):
             data = worksheet.get_all_records()
             leaderboard = {}
             for row in data:
-                ticker = row.get('Ticker')
-                if ticker:
-                    leaderboard[ticker] = {
-                        'Elo_Rating': float(row.get('Elo_Rating', 1500)),
-                        'Wins': int(row.get('Wins', 0)),
-                        'Losses': int(row.get('Losses', 0)),
-                        'Last_Match': row.get('Last_Match', '')
-                    }
+                # 👇 THE NEW FILTER: Check the Active_Contender column
+                # We strip spaces and make it uppercase just in case of typos in the sheet (e.g. ' y ')
+                active_status = str(row.get("Active_Contenders", "N")).strip().upper()
+                
+                # 🛑 BOUNCER CHECK: Is it a 'Y'?
+                if active_status == "Y":
+                    ticker = row.get("Ticker")
+                    
+                    if ticker:
+                        # ✅ It's active! Add it to our bot's memory for the day.
+                        leaderboard[ticker] = {
+                            "Elo_Rating": float(row.get("Elo_Rating", 1500)),
+                            "Wins": int(row.get("Wins", 0)),
+                            "Losses": int(row.get("Losses", 0)),
+                            "Last_Match": str(row.get("Last_Match", ""))
+                        }
+                        
+            # 4. Return only the filtered list of active players back to bot.py
             return leaderboard
 
         except gspread.exceptions.WorksheetNotFound:

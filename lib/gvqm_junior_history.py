@@ -80,6 +80,9 @@ def filter_candidates(distressed_tickers, limit=20):
     Acts as a Priority Queue. 
     Reads the 'Last_Match' date directly from the Minor League Elo Scoreboard
     so BOTH winners and losers get their staleness accurately tracked.
+
+    It ensures that fresh stocks and stocks that haven't been checked in a long time get priority, 
+    while preventing the bot from looking at the exact same stocks day after day.
     """
     import lib.gvqm_minor_league as minor_league 
     
@@ -115,87 +118,108 @@ def filter_candidates(distressed_tickers, limit=20):
 
 import io
 import json
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseUpload, MediaIoBaseDownload
+# ==========================================
+# 🧠 GOOGLE SHEETS MEMORY BANK (JSON IN A CELL)
+# ==========================================
+def load_history_from_sheets():
+    """Downloads the memory bank from a dedicated tab in Google Sheets."""
+    client = get_client() # Uses your existing gspread authentication!
+    if not client: return {}
 
-# ==========================================
-# 🧠 GOOGLE DRIVE MEMORY BANK (JSON)
-# ==========================================
-def get_drive_service():
-    """Builds the Google Drive API Service using your existing credentials."""
-    creds_json = os.getenv("GOOGLE_SHEETS_CREDENTIALS")
-    if not creds_json:
-        if os.path.exists("google_credentials.json"):
-            creds_json = open("google_credentials.json").read()
+    try:
+        sheet = client.open(SHEET_NAME)
+        # Try to find the Junior_Memory_Bank tab, create it if it doesn't exist
+        try:
+            worksheet = sheet.worksheet("Junior_Memory_Bank")
+        except:
+            print("☁️ [MEMORY] Creating new 'Junior_Memory_Bank' tab in Google Sheets...")
+            worksheet = sheet.add_worksheet(title="Junior_Memory_Bank", rows="10", cols="5")
+        
+        # Read the JSON string from Cell A1
+        val = worksheet.acell('A1').value
+        if val:
+            return json.loads(val)
+        return {}
+    except Exception as e:
+        print(f"⚠️ [MEMORY] Failed to load memory from sheets: {e}")
+        return {}
+
+def save_history_to_sheets(data):
+    """Uploads the updated memory bank back to Cell A1 in Google Sheets."""
+    client = get_client()
+    if not client: return
+
+    try:
+        sheet = client.open(SHEET_NAME)
+        try:
+            worksheet = sheet.worksheet("Junior_Memory_Bank")
+        except:
+            worksheet = sheet.add_worksheet(title="Junior_Memory_Bank", rows="10", cols="5")
+        
+        # Convert dictionary to string and dump it into Cell A1
+        json_str = json.dumps(data)
+        worksheet.update('A1', [[json_str]])
+    except Exception as e:
+        print(f"⚠️ [MEMORY] Failed to save memory to sheets: {e}")
+
+def update_active_contenders_flag(tab_name, todays_active_tickers):
+    """
+    Looks at the Master ELO tab, finds (or creates) the 'Active_Contender' column, 
+    and updates the active status (Y/N) for all stocks at once.
+    """
+    print(f"📋 Updating active contenders on the {tab_name} tab...")
+    client = get_client()
+    if not client: return
+    
+    sheet = client.open(SHEET_NAME)
+    worksheet = sheet.worksheet(tab_name)
+    
+    # 1. Look at the very top row (The Headers)
+    headers = worksheet.row_values(1)
+    target_col_name = "Active_Contenders"
+    
+    # 2. Check if our column exists. If not, add it!
+    if target_col_name not in headers:
+        print(f"   ⚠️ '{target_col_name}' column missing. Adding it now...")
+        headers.append(target_col_name)
+        # Update row 1 with the new header list
+        worksheet.update('1:1', [headers]) 
+        # The new column is at the very end
+        col_index = len(headers) 
+    else:
+        # Find exactly where it is (Add 1 because Google Sheets starts counting at 1, not 0)
+        col_index = headers.index(target_col_name) + 1 
+        
+    # Convert the column number to a letter (e.g., 1 = A, 2 = B, ... 7 = G)
+    # Note: chr(65) is 'A' in computer logic, so we add 64 to our index!
+    col_letter = chr(64 + col_index)
+
+    # 3. Download the rest of the data so we know who is on the list
+    all_data = worksheet.get_all_records()
+    
+    updates = []
+    
+    # 4. Go row by row and hand out the 'Y' and 'N' badges
+    for row_index, row_data in enumerate(all_data):
+        ticker = row_data.get("Ticker", "")
+        
+        if ticker in todays_active_tickers:
+            new_status = 'Y'
         else:
-            return None
-    
-    creds_dict = json.loads(creds_json)
-    creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
-    return build('drive', 'v3', credentials=creds)
-
-def get_or_create_folder(drive_service, folder_name="GVQM_Memory_Bank"):
-    """Finds the subfolder in Drive, or creates it if it doesn't exist."""
-    query = f"name='{folder_name}' and mimeType='application/vnd.google-apps.folder' and trashed=false"
-    results = drive_service.files().list(q=query, fields="nextPageToken, files(id, name)").execute()
-    items = results.get('files', [])
-
-    if not items:
-        # Create it
-        file_metadata = {
-            'name': folder_name,
-            'mimeType': 'application/vnd.google-apps.folder'
-        }
-        folder = drive_service.files().create(body=file_metadata, fields='id').execute()
-        return folder.get('id')
-    else:
-        return items[0].get('id')
-
-def load_history_from_drive(filename="minor_league_history.json"):
-    """Downloads the memory bank from Google Drive."""
-    service = get_drive_service()
-    if not service: return {}
-
-    folder_id = get_or_create_folder(service)
-    
-    # Check if file exists in the folder
-    query = f"name='{filename}' and '{folder_id}' in parents and trashed=false"
-    results = service.files().list(q=query, fields="files(id, name)").execute()
-    items = results.get('files', [])
-
-    if not items:
-        return {} # File doesn't exist yet (first run)
-
-    file_id = items[0].get('id')
-    request = service.files().get_media(fileId=file_id)
-    fh = io.BytesIO()
-    downloader = MediaIoBaseDownload(fh, request)
-    done = False
-    while done is False:
-        status, done = downloader.next_chunk()
-    
-    return json.loads(fh.getvalue().decode('utf-8'))
-
-def save_history_to_drive(data, filename="minor_league_history.json"):
-    """Uploads the updated memory bank back to Google Drive."""
-    service = get_drive_service()
-    if not service: return
-
-    folder_id = get_or_create_folder(service)
-    
-    # Check if file exists to update it, otherwise create it
-    query = f"name='{filename}' and '{folder_id}' in parents and trashed=false"
-    results = service.files().list(q=query, fields="files(id, name)").execute()
-    items = results.get('files', [])
-
-    file_metadata = {'name': filename, 'parents': [folder_id]}
-    media = MediaIoBaseUpload(io.BytesIO(json.dumps(data, indent=4).encode('utf-8')),
-                              mimetype='application/json', resumable=True)
-
-    if not items:
-        # Create new file
-        service.files().create(body=file_metadata, media_body=media, fields='id').execute()
-    else:
-        # Update existing file
-        file_id = items[0].get('id')
-        service.files().update(fileId=file_id, media_body=media).execute()
+            new_status = 'N'
+            
+        # Add 2 because row 1 is the header, and data starts on row 2
+        actual_sheet_row = row_index + 2 
+        
+        # Now it dynamically builds the exact cell (e.g., "G2", "H3", etc.)
+        cell_to_update = f"{col_letter}{actual_sheet_row}" 
+        
+        updates.append({
+            'range': cell_to_update,
+            'values': [[new_status]]
+        })
+        
+    # 5. Upload all the badges back to Google Sheets in one giant batch!
+    if updates:
+        worksheet.batch_update(updates)
+        print(f"✅ Active contenders successfully updated in column '{col_letter}' on the {tab_name} tab!")

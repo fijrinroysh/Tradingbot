@@ -170,3 +170,44 @@ def log_strategy(decision_payload):
         print("   ✅ [SENIOR] Strategy/Email Logged.")
     except Exception as e:
         print(f"   ⚠️ Strategy Log Error: {e}")
+
+# ==========================================
+# 🧠 GOOGLE SHEETS MEMORY BANK (MAJOR LEAGUE)
+# ==========================================
+def load_senior_history_from_sheets():
+    """Downloads the Major League memory bank from Google Sheets."""
+    client = get_client() 
+    if not client: return {}
+
+    try:
+        sheet = client.open(SHEET_NAME)
+        try:
+            worksheet = sheet.worksheet("Senior_Memory_Bank")
+        except:
+            print("☁️ [MEMORY] Creating new 'Senior_Memory_Bank' tab...")
+            worksheet = sheet.add_worksheet(title="Senior_Memory_Bank", rows="10", cols="5")
+        
+        val = worksheet.acell('A1').value
+        if val:
+            return json.loads(val)
+        return {}
+    except Exception as e:
+        print(f"⚠️ [MEMORY] Failed to load senior memory from sheets: {e}")
+        return {}
+
+def save_senior_history_to_sheets(data):
+    """Uploads the updated Major League memory bank to Google Sheets."""
+    client = get_client()
+    if not client: return
+
+    try:
+        sheet = client.open(SHEET_NAME)
+        try:
+            worksheet = sheet.worksheet("Senior_Memory_Bank")
+        except:
+            worksheet = sheet.add_worksheet(title="Senior_Memory_Bank", rows="10", cols="5")
+        
+        json_str = json.dumps(data)
+        worksheet.update('A1', [[json_str]])
+    except Exception as e:
+        print(f"⚠️ [MEMORY] Failed to save senior memory to sheets: {e}")
