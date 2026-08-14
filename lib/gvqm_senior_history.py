@@ -4,7 +4,7 @@ import config
 import datetime
 import json
 import os
-import time
+import time 
 
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
 SHEET_NAME = getattr(config, 'GOOGLE_SHEET_NAME', "TradingBot_History")

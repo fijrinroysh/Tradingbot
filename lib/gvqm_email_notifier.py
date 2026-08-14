@@ -6,7 +6,8 @@ import lib.gvqm_senior_history as senior_history_manager
 
 def get_senior_momentum(current_standings):
     """Calculates momentum shifts specifically for the Major League."""
-    today_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+  
+    today_str = datetime.now().strftime("%Y-%m-%d")
     
     print("☁️ [NOTIFIER] Loading Major League memory from Google Sheets...")
     history = senior_history_manager.load_senior_history_from_sheets()
@@ -240,8 +241,9 @@ def get_rising_stars(current_standings):
     """
     Downloads history from Sheets, calculates biggest movers, saves new snapshot.
     """
-    today_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    # today_str = datetime.datetime.now().strftime("%Y-%m-%d")
+    #today_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    today_str = datetime.now().strftime("%Y-%m-%d")
+   
     
     # 1. Download Memory Bank from Google Sheets
     print("☁️ [NOTIFIER] Loading Minor League memory from Google Sheets...")
