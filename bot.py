@@ -17,6 +17,7 @@ import lib.gvqm_senior_agent as senior_agent
 import lib.gvqm_senior_history as senior_history
 import lib.gvqm_email_notifier as notifier
 import lib.gvqm_minor_league as minor_league
+import lib.gvqm_league_common as league_common
 
 # ==========================================
 # 📝 THE AI DIARY (For final email report)
@@ -57,7 +58,8 @@ def run_minor_league():
 
     try:
         # Call the helper to update 'Junior_Elo' tab flags to Y or N in Google Sheets
-        junior_history.update_active_contenders_flag("Junior_Elo", distressed_tickers)
+        ##junior_history.update_active_contenders_flag("Junior_Elo", distressed_tickers)
+        league_common.update_active_contenders_flag("Junior_Elo", distressed_tickers, wipe_inactive_elo=False)
     except Exception as e:
         log_pipeline(f" ⚠️ Failed to update Junior Elo active contender flags: {e}")
     
@@ -260,7 +262,9 @@ def run_major_league():
 
     try:
         # Call the helper to update 'Senior_Elo' tab flags to Y or N in Google Sheets
-        junior_history.update_active_contenders_flag("Senior_Elo", major_league_roster)
+        ##junior_history.update_active_contenders_flag("Senior_Elo", major_league_roster)
+        league_common.update_active_contenders_flag("Senior_Elo", major_league_roster, wipe_inactive_elo=True)
+        
     except Exception as e:
         log_pipeline(f" ⚠️ Failed to update Senior Elo active contender flags: {e}")
 

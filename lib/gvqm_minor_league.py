@@ -120,13 +120,36 @@ def record_match_result(league_name, winner_ticker, loser_ticker):
             
             try:
                 worksheet = sh.worksheet(league_name)
+                headers = worksheet.row_values(1)
+                # Ensure our column exists just in case
+                if "Active_Contenders" not in headers:
+                    headers.append("Active_Contenders")
+                    worksheet.update('1:1', [headers])
             except gspread.exceptions.WorksheetNotFound:
-                worksheet = sh.add_worksheet(title=league_name, rows=1000, cols=6)
-                worksheet.append_row(["Ticker", "Elo_Rating", "Wins", "Losses", "Win_Rate", "Last_Match"])
+                # If creating from scratch, establish the headers immediately
+                worksheet = sh.add_worksheet(title=league_name, rows=1000, cols=7)
+                headers = ["Ticker", "Elo_Rating", "Wins", "Losses", "Win_Rate", "Last_Match", "Active_Contenders"]
+                worksheet.append_row(headers)
 
             def update_row_in_sheet(ticker, stats):
                 win_rate = f"{(stats['Wins'] / max(1, stats['Wins'] + stats['Losses'])) * 100:.1f}%"
-                row_data = [ticker, stats['Elo_Rating'], stats['Wins'], stats['Losses'], win_rate, stats['Last_Match']]
+                
+                # 👇 THE UPGRADE: Map our data exactly to the column names
+                data_map = {
+                    "Ticker": ticker,
+                    "Elo_Rating": stats['Elo_Rating'],
+                    "Wins": stats['Wins'],
+                    "Losses": stats['Losses'],
+                    "Win_Rate": win_rate,
+                    "Last_Match": stats['Last_Match'],
+                    "Active_Contenders": "Y"
+                }
+                
+                # Build the row array dynamically based on the actual header order
+                row_data = [data_map.get(header_name, "") for header_name in headers]
+                
+                # Dynamically calculate the final column letter (e.g., 7 headers = 'G')
+                end_col_letter = chr(64 + len(headers))
                 
                 cell = None
                 try: 
@@ -135,8 +158,8 @@ def record_match_result(league_name, winner_ticker, loser_ticker):
                     pass
                 
                 if cell: 
-                    # 🛠️ UPDATED FOR GSPREAD 6.0+ COMPATIBILITY
-                    worksheet.update(values=[row_data], range_name=f"A{cell.row}:F{cell.row}")
+                    # Dynamically update from 'A' to whatever our last column letter is
+                    worksheet.update(values=[row_data], range_name=f"A{cell.row}:{end_col_letter}{cell.row}")
                 else: 
                     worksheet.append_row(row_data)
 

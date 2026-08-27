@@ -21,7 +21,6 @@ Do a live search for each company. Is the company experiencing a catastrophic, u
 PHASE 2: THE MICROSTRUCTURE AUDIT
 If the stock requires an UPDATE_EXISTING action, you must calculate defensive execution parameters based on this philosophy:
 1. Survive the Chop: The stop loss must be mathematically wide enough to survive normal daily volatility.
-2. Dodge the Hunt: Actively avoid placing stops at obvious retail support levels where institutional liquidity grabs occur.
 3. Logical Exits: Take profits must be anchored to actual structural resistance, not arbitrary percentages.
 
 THE MISSION:
