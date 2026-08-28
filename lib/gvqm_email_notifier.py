@@ -39,7 +39,9 @@ def get_senior_momentum(current_standings):
             if jump > 0:
                 movers.append({"ticker": ticker, "jump": jump, "current": current_rank, "past": past_rank})
 
-    return sorted(movers, key=lambda x: x['jump'], reverse=True)[:3]
+    # DYNAMIC LIMIT UPDATE
+    draft_limit = getattr(config, 'SENIOR_DRAFT_LIMIT', 3)
+    return sorted(movers, key=lambda x: x['jump'], reverse=True)[:draft_limit]
 
 def send_executive_brief(decision, account_info, portfolio):
     """
@@ -186,7 +188,7 @@ def send_executive_brief(decision, account_info, portfolio):
     html_content += "</tbody></table>"
 
 
-# 2.5: Calculate Major League Momentum
+    # 2.5: Calculate Major League Momentum
     senior_momentum = get_senior_momentum(standings)
     html_momentum = ""
     if not senior_momentum:
@@ -241,7 +243,6 @@ def get_rising_stars(current_standings):
     """
     Downloads history from Sheets, calculates biggest movers, saves new snapshot.
     """
-    #today_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     today_str = datetime.now().strftime("%Y-%m-%d")
    
     
@@ -258,8 +259,6 @@ def get_rising_stars(current_standings):
     junior_history_manager.save_history_to_sheets(history)
 
     # 4. Look back 3 to 7 days
-    
-    # target_date = (datetime.datetime.now() - datetime.timedelta(days=3)).strftime("%Y-%m-%d")
     target_date = (datetime.now() - timedelta(days=3)).strftime("%Y-%m-%d")
     past_ranks = history.get(target_date)
     
@@ -281,13 +280,18 @@ def get_rising_stars(current_standings):
                     "ticker": ticker, "jump": jump, "current": current_rank, "past": past_rank
                 })
 
-    return sorted(rising_stars, key=lambda x: x['jump'], reverse=True)[:3]
+    # DYNAMIC LIMIT UPDATE
+    draft_limit = getattr(config, 'SENIOR_DRAFT_LIMIT', 3)
+    return sorted(rising_stars, key=lambda x: x['jump'], reverse=True)[:draft_limit]
 
 
 def send_minor_league_scouting_report(daily_matchups, minor_league_standings):
     """Sends the daily Minor League email with Rising Stars."""
     if not getattr(config, 'RESEND_API_KEY', None): return
     resend.api_key = config.RESEND_API_KEY
+    
+    # DYNAMIC LIMIT UPDATE
+    draft_limit = getattr(config, 'SENIOR_DRAFT_LIMIT', 3)
     
     today = datetime.now().strftime("%b %d, %Y")
     match_count = len(daily_matchups) if daily_matchups else 0
@@ -307,10 +311,10 @@ def send_minor_league_scouting_report(daily_matchups, minor_league_standings):
             </div>
             """
 
-    # Format Heavyweights
+    # Format Heavyweights (DYNAMIC LIMIT APPLIED HERE)
     html_standings = ""
     TD_STYLE = "padding: 10px; border-bottom: 1px solid #eaeaea;"
-    for rank, (ticker, data) in enumerate(minor_league_standings[:5], start=1):
+    for rank, (ticker, data) in enumerate(minor_league_standings[:draft_limit], start=1):
         html_standings += f"<tr><td style='{TD_STYLE} color: #6b7280;'>{rank}</td><td style='{TD_STYLE} font-weight: bold;'>{ticker}</td><td style='{TD_STYLE}'>{data.get('Elo_Rating', 1500):.1f}</td></tr>"
 
     # Format Battle Rationales (Now accepts the FULL uncut string, formatted beautifully)
@@ -331,6 +335,7 @@ def send_minor_league_scouting_report(daily_matchups, minor_league_standings):
             </div>
             """
 
+    # DYNAMIC LIMIT APPLIED TO HTML HEADER BELOW
     html_content = f"""
     <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding: 20px; background-color: #f3f4f6;">
         <div style="max-width: 600px; margin: auto; background: #ffffff; padding: 25px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
@@ -339,7 +344,7 @@ def send_minor_league_scouting_report(daily_matchups, minor_league_standings):
             <h3 style="color: #374151; font-size: 15px; margin-top: 20px;">🚀 The Rising Stars (Momentum)</h3>
             {html_stars}
 
-            <h3 style="color: #374151; font-size: 15px; margin-top: 25px;">🏆 Top 5 Heavyweights</h3>
+            <h3 style="color: #374151; font-size: 15px; margin-top: 25px;">🏆 Top {draft_limit} Heavyweights</h3>
             <table style="width: 100%; border-collapse: collapse; text-align: left; margin-bottom: 25px; font-size: 14px;">
                 <tr style="background: #f9fafb; color: #6b7280; font-size: 12px; text-transform: uppercase;">
                     <th style="padding: 10px;">Rank</th><th style="padding: 10px;">Ticker</th><th style="padding: 10px;">Elo Score</th>
