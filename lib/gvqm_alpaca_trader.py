@@ -440,3 +440,66 @@ def get_account():
 def get_portfolio():
     try: return trading_client.get_all_positions()
     except: return []
+
+# ==========================================================
+# 🛡️ PORTFOLIO VERIFICATION & SETTLEMENT HELPERS
+# ==========================================================
+
+def get_live_portfolio():
+    """
+    Fetches filled positions and pending buys, logging the portfolio context.
+    """
+    try:
+        tickers, live_count, pending_count = get_all_active_and_pending_tickers()
+        log_trader(f"💼 Portfolio Context: {live_count} filled, {pending_count} pending buys.")
+        return tickers
+    except Exception as e:
+        log_trader(f"⚠️ Failed to fetch portfolio context: {e}")
+        return []
+
+def wait_for_cash_settlement(required_cash, max_wait_seconds=60):
+    """
+    Repeatedly checks the broker account to see if the cash from a recent sale 
+    has officially cleared and is ready to be spent.
+    """
+    log_trader(f"⏳ Waiting for broker to clear at least ${required_cash} in buying power...")
+    elapsed = 0
+    
+    while elapsed < max_wait_seconds:
+        try:
+            account = get_account()
+            if account and float(account.buying_power) >= required_cash:
+                log_trader(f"✅ Cash cleared! Broker confirms sufficient buying power.")
+                return True
+        except Exception as e:
+            pass # Ignore temporary broker glitches and keep trying
+            
+        time.sleep(5) # Wait 5 seconds before asking the broker again
+        elapsed += 5
+        
+    log_trader("⚠️ Timed out waiting for broker to clear the cash.")
+    return False
+
+def wait_for_position_fill(ticker, max_wait_seconds=60):
+    """
+    Repeatedly checks the active portfolio to ensure a newly purchased stock 
+    actually arrived in our inventory before moving forward.
+    """
+    normalized_target = normalize_ticker(ticker)
+    log_trader(f"⏳ Waiting for broker to confirm {normalized_target} is officially in the portfolio...")
+    elapsed = 0
+    
+    while elapsed < max_wait_seconds:
+        # Check the live portfolio inventory using normalization
+        live_portfolio = get_live_portfolio()
+        normalized_portfolio = [normalize_ticker(t) for t in live_portfolio]
+        
+        if normalized_target in normalized_portfolio:
+            log_trader(f"✅ Success! {normalized_target} is secured in the portfolio.")
+            return True
+            
+        time.sleep(5)
+        elapsed += 5
+        
+    log_trader(f"⚠️ Timed out waiting for {normalized_target} to show up in the portfolio.")
+    return False

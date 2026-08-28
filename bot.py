@@ -31,16 +31,6 @@ def log_pipeline(message):
     timestamp = datetime.datetime.now().strftime("%H:%M:%S")
     print(f"[{timestamp}] [PIPELINE] {message}")
 
-def get_live_portfolio():
-    try:
-        # Delegate the heavy lifting to the Trader script to find filled + pending tickers
-        tickers, live_count, pending_count = trader.get_all_active_and_pending_tickers()
-        
-        log_pipeline(f"💼 Portfolio Context: {live_count} filled, {pending_count} pending buys.")
-        return tickers
-    except Exception as e:
-        log_pipeline(f"⚠️ Failed to fetch portfolio context: {e}")
-        return []
 
 # ==========================================
 # ⚾ PHASE 1: THE MINOR LEAGUE (The Scout)
@@ -118,7 +108,7 @@ def run_minor_league():
 # ==========================================
 def maintain_portfolio():
     log_pipeline("\n🛡️ PHASE 2.5: PORTFOLIO MAINTENANCE")
-    portfolio_tickers = get_live_portfolio()
+    portfolio_tickers = trader.get_live_portfolio()
     
     if not portfolio_tickers:
         log_pipeline(" 💼 No active positions to maintain.")
@@ -199,7 +189,7 @@ def run_major_league():
     junior_board = minor_league.fetch_leaderboard("Junior_Elo")
     if not junior_board: return
     
-    portfolio_tickers = get_live_portfolio()
+    portfolio_tickers = trader.get_live_portfolio()
     
     # INTEGRATED SENIOR DRAFT LIMIT
     draft_limit = getattr(config, 'SENIOR_DRAFT_LIMIT', 3)
@@ -278,7 +268,7 @@ def execute_swaps():
     if not senior_board: return
     
     ranked_majors = sorted(senior_board.items(), key=lambda x: x[1]['Elo_Rating'], reverse=True)
-    portfolio_tickers = get_live_portfolio()
+    portfolio_tickers = trader.get_live_portfolio()
 
     # Read capital parameters and target limits securely from config
     max_portfolio_positions = getattr(config, 'MAX_PORTFOLIO_POSITIONS', 3)
@@ -293,14 +283,9 @@ def execute_swaps():
     if len(portfolio_tickers) < max_portfolio_positions:
         open_slots = max_portfolio_positions - len(portfolio_tickers)
         log_pipeline(f" 🪟 Found {open_slots} open slot(s). Initiating Fill-Up Execution Phase...")
-		
-																			  
-		
-															 
         
         # Filter down to top-ranked assets that we do not currently own or have pending orders for
         unowned_majors = [item for item in ranked_majors if item[0] not in portfolio_tickers]
-												
         
         if not unowned_majors:
             log_pipeline(" ⏸️ No unowned Major League assets available to fill open slots today.")
@@ -338,6 +323,9 @@ def execute_swaps():
                     )
                     
                     if entry_status and entry_status[0].get("event") not in ["ERROR", "HOLD"]:
+                        # 👇 NEW: Wait for the stock to physically arrive in the account
+                        trader.wait_for_position_fill(best_ticker)
+                        
                         payload = {"ceo_report": f"Slot Fill Purchase: {best_ticker}", "final_execution_orders": [trade_plan]}
                         senior_history.log_detailed_decisions(payload, {best_ticker: 0})
                         
@@ -369,8 +357,6 @@ def execute_swaps():
     log_pipeline(f" 🏆 Best Unowned: {best_ticker} ({best_data['Elo_Rating']:.1f} Elo)")
     log_pipeline(f" 🗑️ Worst Owned: {worst_ticker} ({worst_data['Elo_Rating']:.1f} Elo)")
 
-								
-																
 
     if best_data['Elo_Rating'] > (worst_data['Elo_Rating'] + elo_swap_threshold):
         log_pipeline(f" 🚨 SWAP TRIGGERED: {best_ticker} defeated {worst_ticker} by more than {elo_swap_threshold} pts!")
@@ -386,7 +372,12 @@ def execute_swaps():
             except: 
                 pass
 
-            time.sleep(3) # Safe cooldown interval for broker cash clearing
+            # 👇 NEW: Smartly wait for the cash register to clear the exact amount we need
+            cash_ready = trader.wait_for_cash_settlement(budget)
+            
+            if not cash_ready:
+                log_pipeline(f" ❌ Swap Aborted: Sold {worst_ticker}, but broker did not release funds fast enough to buy {best_ticker}.")
+                return
             
             current_price = trader.get_current_price(best_ticker)
             
@@ -398,7 +389,6 @@ def execute_swaps():
                 trade_plan['ticker'] = best_ticker
                 trade_plan['action'] = "OPEN_NEW"
 
-																  
                 try:
                     # Fire entry order and lock verification contract
                     entry_status = trader.execute_entry(
@@ -410,6 +400,9 @@ def execute_swaps():
                     )
                     
                     if entry_status and entry_status[0].get("event") not in ["ERROR", "HOLD"]:
+                        # 👇 NEW: Wait for the stock to physically arrive in the account
+                        trader.wait_for_position_fill(best_ticker)
+                        
                         payload = {"ceo_report": f"Swap: {worst_ticker} -> {best_ticker}", "final_execution_orders": [trade_plan]}
                         senior_history.log_detailed_decisions(payload, {best_ticker: 0}) 
 
@@ -446,7 +439,7 @@ if __name__ == "__main__":
     try:
         log_pipeline("\n📧 Dispatching Executive Brief...")
         
-        portfolio_tickers = get_live_portfolio()
+        portfolio_tickers = trader.get_live_portfolio()
         senior_board = minor_league.fetch_leaderboard("Senior_Elo")
         
         draft_limit = getattr(config, 'SENIOR_DRAFT_LIMIT', 3)
