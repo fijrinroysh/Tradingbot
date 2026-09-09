@@ -1,47 +1,8 @@
 import resend
 import config
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 import lib.gvqm_junior_history as junior_history_manager
 import lib.gvqm_senior_history as senior_history_manager
-
-def get_senior_momentum(current_standings):
-    """Calculates momentum shifts specifically for the Major League."""
-  
-    today_str = datetime.now().strftime("%Y-%m-%d")
-    
-    print("☁️ [NOTIFIER] Loading Major League memory from Google Sheets...")
-    history = senior_history_manager.load_senior_history_from_sheets()
-
-    # Save today's snapshot (Rank 1 is the best)
-    today_ranks = {ticker: rank for rank, (ticker, data) in enumerate(current_standings, start=1)}
-    history[today_str] = today_ranks
-
-    print("☁️ [NOTIFIER] Saving updated Major League memory...")
-    senior_history_manager.save_senior_history_to_sheets(history)
-
-    # Look back 3 to 7 days
-    target_date = (datetime.now() - timedelta(days=3)).strftime("%Y-%m-%d")
-    past_ranks = history.get(target_date)
-    
-    if not past_ranks:
-        available_dates = sorted(history.keys())
-        if len(available_dates) > 1:
-            past_ranks = history[available_dates[0]] 
-        else:
-            return [] 
-
-    # Calculate Jumps (Only keep positive jumps)
-    movers = []
-    for ticker, current_rank in today_ranks.items():
-        if ticker in past_ranks:
-            past_rank = past_ranks[ticker]
-            jump = past_rank - current_rank
-            if jump > 0:
-                movers.append({"ticker": ticker, "jump": jump, "current": current_rank, "past": past_rank})
-
-    # DYNAMIC LIMIT UPDATE
-    draft_limit = getattr(config, 'SENIOR_DRAFT_LIMIT', 3)
-    return sorted(movers, key=lambda x: x['jump'], reverse=True)[:draft_limit]
 
 def send_executive_brief(decision, account_info, portfolio):
     """
@@ -187,9 +148,12 @@ def send_executive_brief(decision, account_info, portfolio):
             """
     html_content += "</tbody></table>"
 
-
-    # 2.5: Calculate Major League Momentum
-    senior_momentum = get_senior_momentum(standings)
+    # ==========================================================
+    # 🔥 SECTION 3.5: MAJOR LEAGUE MOMENTUM
+    # ==========================================================
+    # Call the newly relocated function
+    senior_momentum = senior_history_manager.get_senior_momentum(standings)
+    
     html_momentum = ""
     if not senior_momentum:
         html_momentum = "<p style='font-size:12px; color: #7f8c8d; font-style: italic;'>Building memory bank... check back in a few days for momentum shifts!</p>"
@@ -201,12 +165,12 @@ def send_executive_brief(decision, account_info, portfolio):
             </div>
             """
 
-    # Inject it into the main HTML flow (put this right after the Portfolio table closes)
     html_content += f"""
         <h3 style="color: #f39c12; border-bottom: 2px solid #f39c12; padding-bottom: 5px; margin-top: 25px;">🔥 Major League Momentum</h3>
         <p style="font-size: 12px; color: #6b7280; margin-bottom: 10px;">Tracking the fastest rising Challengers inside the VIP room.</p>
         {html_momentum}
     """
+    
     # ==========================================================
     # 🧠 SECTION 4: SENIOR MANAGER NOTES (THE AI DIARY)
     # ==========================================================
@@ -238,68 +202,18 @@ def send_executive_brief(decision, account_info, portfolio):
         print(f"   ❌ [NOTIFIER] Failed to send email: {e}")
 
 
-
-def get_rising_stars(current_standings):
-    """
-    Downloads history from Sheets, calculates biggest movers, saves new snapshot.
-    """
-    today_str = datetime.now().strftime("%Y-%m-%d")
-   
-    
-    # 1. Download Memory Bank from Google Sheets
-    print("☁️ [NOTIFIER] Loading Minor League memory from Google Sheets...")
-    history = junior_history_manager.load_history_from_sheets()
-
-    # 2. Save today's snapshot
-    today_ranks = {ticker: rank for rank, (ticker, data) in enumerate(current_standings, start=1)}
-    history[today_str] = today_ranks
-
-    # 3. Upload Memory Bank back to Google Sheets
-    print("☁️ [NOTIFIER] Saving updated memory to Google Sheets...")
-    junior_history_manager.save_history_to_sheets(history)
-
-    # 4. Look back 3 to 7 days
-    target_date = (datetime.now() - timedelta(days=3)).strftime("%Y-%m-%d")
-    past_ranks = history.get(target_date)
-    
-    if not past_ranks:
-        available_dates = sorted(history.keys())
-        if len(available_dates) > 1:
-            past_ranks = history[available_dates[0]] 
-        else:
-            return [] # Need more days to calculate!
-
-    # 5. Calculate Jumps
-    rising_stars = []
-    for ticker, current_rank in today_ranks.items():
-        if ticker in past_ranks:
-            past_rank = past_ranks[ticker]
-            jump = past_rank - current_rank
-            if jump > 0:
-                rising_stars.append({
-                    "ticker": ticker, "jump": jump, "current": current_rank, "past": past_rank
-                })
-
-    # DYNAMIC LIMIT UPDATE
-    draft_limit = getattr(config, 'SENIOR_DRAFT_LIMIT', 3)
-    return sorted(rising_stars, key=lambda x: x['jump'], reverse=True)[:draft_limit]
-
-
 def send_minor_league_scouting_report(daily_matchups, minor_league_standings):
     """Sends the daily Minor League email with Rising Stars."""
     if not getattr(config, 'RESEND_API_KEY', None): return
     resend.api_key = config.RESEND_API_KEY
     
-    # DYNAMIC LIMIT UPDATE
     draft_limit = getattr(config, 'SENIOR_DRAFT_LIMIT', 3)
-    
     today = datetime.now().strftime("%b %d, %Y")
     match_count = len(daily_matchups) if daily_matchups else 0
     
-    # Get Rising Stars
-    rising_stars = get_rising_stars(minor_league_standings)
+    # Call the newly relocated function
+    rising_stars = junior_history_manager.get_rising_stars(minor_league_standings)
     
-    # Format Rising Stars HTML (Cleaner UI)
     html_stars = ""
     if not rising_stars:
         html_stars = "<p style='font-size:13px; color: #7f8c8d;'><i>Building memory bank... check back tomorrow for momentum shifts!</i></p>"
@@ -311,19 +225,16 @@ def send_minor_league_scouting_report(daily_matchups, minor_league_standings):
             </div>
             """
 
-    # Format Heavyweights (DYNAMIC LIMIT APPLIED HERE)
     html_standings = ""
     TD_STYLE = "padding: 10px; border-bottom: 1px solid #eaeaea;"
     for rank, (ticker, data) in enumerate(minor_league_standings[:draft_limit], start=1):
         html_standings += f"<tr><td style='{TD_STYLE} color: #6b7280;'>{rank}</td><td style='{TD_STYLE} font-weight: bold;'>{ticker}</td><td style='{TD_STYLE}'>{data.get('Elo_Rating', 1500):.1f}</td></tr>"
 
-    # Format Battle Rationales (Now accepts the FULL uncut string, formatted beautifully)
     html_battles = ""
     if not daily_matchups:
         html_battles = "<p style='font-size: 13px;'>No Minor League battles occurred today.</p>"
     else:
         for match_string in daily_matchups:
-            # Strip out the "🌱 SCOUT (AAA vs BBB):" part to format it cleaner
             parts = match_string.split("):", 1)
             header = parts[0].replace("🌱 SCOUT (", "").strip() if len(parts) > 1 else "Matchup"
             body = parts[1].strip() if len(parts) > 1 else match_string
@@ -335,7 +246,6 @@ def send_minor_league_scouting_report(daily_matchups, minor_league_standings):
             </div>
             """
 
-    # DYNAMIC LIMIT APPLIED TO HTML HEADER BELOW
     html_content = f"""
     <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding: 20px; background-color: #f3f4f6;">
         <div style="max-width: 600px; margin: auto; background: #ffffff; padding: 25px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">

@@ -162,3 +162,51 @@ def save_history_to_sheets(data):
     except Exception as e:
         print(f"⚠️ [MEMORY] Failed to save memory to sheets: {e}")
 
+def get_rising_stars(current_standings):
+    """
+    Downloads history from Sheets, calculates biggest movers, saves new snapshot.
+    Enforces a strict 7-day memory limit to avoid using outdated ranks.
+    """
+    from datetime import datetime, timedelta
+    import config
+    
+    today_str = datetime.now().strftime("%Y-%m-%d")
+   
+    # 1. Download Memory Bank from Google Sheets
+    print("☁️ [NOTIFIER] Loading Minor League memory from Google Sheets...")
+    history = load_history_from_sheets()
+
+    # 2. Save today's snapshot
+    today_ranks = {ticker: rank for rank, (ticker, data) in enumerate(current_standings, start=1)}
+    history[today_str] = today_ranks
+
+    # 3. Upload Memory Bank back to Google Sheets
+    print("☁️ [NOTIFIER] Saving updated memory to Google Sheets...")
+    save_history_to_sheets(history)
+
+    # 4. Bounded Lookback: Check 3 days ago, then 4, up to a maximum of 7 days
+    past_ranks = None
+    for days_back in range(3, 8):
+        target_date = (datetime.now() - timedelta(days=days_back)).strftime("%Y-%m-%d")
+        if target_date in history:
+            past_ranks = history[target_date]
+            break
+            
+    # If no data was found within the last 7 days, abandon the momentum check
+    if not past_ranks:
+        return [] 
+
+    # 5. Calculate Jumps
+    rising_stars = []
+    for ticker, current_rank in today_ranks.items():
+        if ticker in past_ranks:
+            past_rank = past_ranks[ticker]
+            jump = past_rank - current_rank
+            if jump > 0:
+                rising_stars.append({
+                    "ticker": ticker, "jump": jump, "current": current_rank, "past": past_rank
+                })
+
+    # DYNAMIC LIMIT UPDATE
+    draft_limit = getattr(config, 'SENIOR_DRAFT_LIMIT', 3)
+    return sorted(rising_stars, key=lambda x: x['jump'], reverse=True)[:draft_limit]

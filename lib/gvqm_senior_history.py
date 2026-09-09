@@ -211,3 +211,48 @@ def save_senior_history_to_sheets(data):
         worksheet.update('A1', [[json_str]])
     except Exception as e:
         print(f"⚠️ [MEMORY] Failed to save senior memory to sheets: {e}")
+
+def get_senior_momentum(current_standings):
+    """
+    Calculates momentum shifts specifically for the Major League.
+    Enforces a strict 7-day memory limit to avoid using outdated ranks.
+    """
+    from datetime import datetime, timedelta 
+    import config
+    
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    
+    print("☁️ [NOTIFIER] Loading Major League memory from Google Sheets...")
+    history = load_senior_history_from_sheets()
+
+    # Save today's snapshot (Rank 1 is the best)
+    today_ranks = {ticker: rank for rank, (ticker, data) in enumerate(current_standings, start=1)}
+    history[today_str] = today_ranks
+
+    print("☁️ [NOTIFIER] Saving updated Major League memory...")
+    save_senior_history_to_sheets(history)
+
+    # Bounded Lookback: Check 3 days ago, then 4, up to a maximum of 7 days
+    past_ranks = None
+    for days_back in range(3, 8):
+        target_date = (datetime.now() - timedelta(days=days_back)).strftime("%Y-%m-%d")
+        if target_date in history:
+            past_ranks = history[target_date]
+            break
+            
+    # If no data was found within the last 7 days, abandon the momentum check
+    if not past_ranks:
+        return [] 
+
+    # Calculate Jumps (Only keep positive jumps)
+    movers = []
+    for ticker, current_rank in today_ranks.items():
+        if ticker in past_ranks:
+            past_rank = past_ranks[ticker]
+            jump = past_rank - current_rank
+            if jump > 0:
+                movers.append({"ticker": ticker, "jump": jump, "current": current_rank, "past": past_rank})
+
+    # DYNAMIC LIMIT UPDATE
+    draft_limit = getattr(config, 'SENIOR_DRAFT_LIMIT', 3)
+    return sorted(movers, key=lambda x: x['jump'], reverse=True)[:draft_limit]
