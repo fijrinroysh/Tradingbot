@@ -35,8 +35,8 @@ def get_client():
 def update_active_contenders_flag(tab_name, todays_active_tickers, wipe_inactive_elo=False):
     """
     The Smart Bouncer: Updates the 'Active_Contenders' flag incrementally.
-    If wipe_inactive_elo is True (Major League), it also resets demoted stocks to 1500.
-    If False (Minor League), it preserves historical Elo scores for inactive stocks.
+    If wipe_inactive_elo is True (both Major and Minor Leagues), it resets inactive/demoted stocks to 1500 
+    to prevent stale historical scores from biasing future match evaluations.
     """
     print(f"📋 Checking active contenders on the {tab_name} tab...")
     client = get_client()

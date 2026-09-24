@@ -49,7 +49,7 @@ def run_minor_league():
     try:
         # Call the helper to update 'Junior_Elo' tab flags to Y or N in Google Sheets
         ##junior_history.update_active_contenders_flag("Junior_Elo", distressed_tickers)
-        league_common.update_active_contenders_flag("Junior_Elo", distressed_tickers, wipe_inactive_elo=False)
+        league_common.update_active_contenders_flag("Junior_Elo", distressed_tickers, wipe_inactive_elo=True)
     except Exception as e:
         log_pipeline(f" ⚠️ Failed to update Junior Elo active contender flags: {e}")
     
