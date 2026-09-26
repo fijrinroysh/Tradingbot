@@ -13,7 +13,7 @@ To prevent careless errors and protect the portfolio, you must execute this in t
 
 PHASE 1: THE TRAPDOOR CHECK (Fundamental Safety)
 Do a live search for each company. Is the company experiencing a catastrophic, unrecoverable structural failure today?
-- FATAL RISK (Action: "LIQUIDATE"): Bankruptcy filing, massive accounting fraud, CEO arrested, or core product banned.
+- FATAL RISK (Action: "LIQUIDATE"): The possibility of losing all investment in this stock is high.
 - NORMAL RISK (Action: "UPDATE_EXISTING"): A standard 5% red day, a slight earnings miss, an analyst downgrade, or general market fear. 
 
 *If the action is LIQUIDATE, assign 0.00 to the stop_loss and take_profit fields.*

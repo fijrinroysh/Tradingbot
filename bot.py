@@ -47,9 +47,21 @@ def run_minor_league():
 # 👇  Update just the tickers that are today's active contenders to the active contender flag in the Junior Elo tab in Google sheet 👇
 
     try:
+        # 🛡️ THE EXEMPTION CLAUSE: Protect the Top N from premature disqualification
+        junior_board = minor_league.fetch_leaderboard("Junior_Elo")
+        if junior_board:
+            # Sort by Elo descending to find the top tier
+            sorted_juniors = sorted(junior_board.items(), key=lambda x: x[1].get('Elo_Rating', 1500.0), reverse=True)
+            draft_limit = getattr(config, 'SENIOR_DRAFT_LIMIT', 3)
+            # Identify tickers that have earned the right to stay due to high Elo
+            protected_tickers = [t[0] for t in sorted_juniors[:draft_limit]]
+            # Combine the distressed list with the protected list (removing duplicates)
+            active_and_protected = list(set(distressed_tickers + protected_tickers))
+        else:
+            active_and_protected = distressed_tickers
+
         # Call the helper to update 'Junior_Elo' tab flags to Y or N in Google Sheets
-        ##junior_history.update_active_contenders_flag("Junior_Elo", distressed_tickers)
-        league_common.update_active_contenders_flag("Junior_Elo", distressed_tickers, wipe_inactive_elo=True)
+        league_common.update_active_contenders_flag("Junior_Elo", active_and_protected, wipe_inactive_elo=True)
     except Exception as e:
         log_pipeline(f" ⚠️ Failed to update Junior Elo active contender flags: {e}")
     
