@@ -113,3 +113,37 @@ def update_active_contenders_flag(tab_name, todays_active_tickers, wipe_inactive
         print(f"✅ Incremental clean-up complete! Pushed {len(updates)} specific updates to {tab_name}.")
     else:
         print(f"✅ No updates needed! The {tab_name} locker room is perfectly synced.")
+
+def banish_ticker(ticker):
+    """
+    Emergency Trapdoor Protocol: Forcefully banishes a ticker from both Junior and Senior leagues.
+    Sets Active_Contenders = 'N' and Elo_Rating = 1500.0 immediately to prevent re-buys.
+    """
+    print(f"🚨 Banishing {ticker} from all leaderboards...")
+    client = get_client()
+    if not client: return
+    
+    sheet = client.open(SHEET_NAME)
+    
+    for tab_name in ["Junior_Elo", "Senior_Elo"]:
+        try:
+            worksheet = sheet.worksheet(tab_name)
+            headers = worksheet.row_values(1)
+            
+            if "Active_Contenders" in headers and "Elo_Rating" in headers:
+                status_col = chr(64 + headers.index("Active_Contenders") + 1)
+                elo_col = chr(64 + headers.index("Elo_Rating") + 1)
+                
+                cell = worksheet.find(ticker, in_column=1)
+                if cell:
+                    actual_row = cell.row
+                    updates = [
+                        {'range': f"{status_col}{actual_row}", 'values': [['N']]},
+                        {'range': f"{elo_col}{actual_row}", 'values': [[1500.0]]}
+                    ]
+                    worksheet.batch_update(updates)
+                    print(f"   🔨 Reset {ticker} to 1500.0 Elo in {tab_name}.")
+        except gspread.exceptions.WorksheetNotFound:
+            pass
+        except Exception as e:
+            print(f"   ⚠️ Failed to banish {ticker} from {tab_name}: {e}")

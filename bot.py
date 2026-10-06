@@ -120,11 +120,13 @@ def run_minor_league():
 # ==========================================
 def maintain_portfolio():
     log_pipeline("\n🛡️ PHASE 2.5: PORTFOLIO MAINTENANCE")
+    liquidated_today = set()
+    
     portfolio_tickers = trader.get_live_portfolio()
     
     if not portfolio_tickers:
         log_pipeline(" 💼 No active positions to maintain.")
-        return
+        return liquidated_today
 
     # 1. Gather all current prices into a dictionary
     portfolio_data = {}
@@ -135,7 +137,7 @@ def maintain_portfolio():
 
     if not portfolio_data:
         log_pipeline(" ⚠️ Could not fetch current prices. Skipping maintenance.")
-        return
+        return liquidated_today
 
     log_pipeline(f" 📦 Sending BATCH Analysis Request for {len(portfolio_data)} stocks...")
     
@@ -144,7 +146,7 @@ def maintain_portfolio():
 
     if not batch_trade_plans:
         log_pipeline(" ⚠️ Senior Agent failed to return batch paperwork.")
-        return
+        return liquidated_today
 
     # 3. Process the results efficiently across all active assets
     for ticker, current_price in portfolio_data.items():
@@ -161,6 +163,9 @@ def maintain_portfolio():
                 status = trader.close_full_position(ticker)
                 
                 if status == "FILLED":
+                    liquidated_today.add(ticker)
+                    league_common.banish_ticker(ticker)
+                    
                     try:
                         reasoning = trade_plan.get('rationale', 'Catastrophic fundamental failure.')
                         senior_history.log_mechanical_trade(ticker, "EMERGENCY_EXIT", reasoning, current_price, 1)
@@ -192,10 +197,13 @@ def maintain_portfolio():
         else:
             log_pipeline(f" ⚠️ Senior Agent failed to return paperwork for {ticker} in the batch response.")
 
+    return liquidated_today
+
 # ==========================================
 # 🏟️ PHASE 2: THE MAJOR LEAGUE (The Heavyweights)
 # ==========================================
-def run_major_league():
+def run_major_league(liquidated_today=None):
+    if liquidated_today is None: liquidated_today = set()
     log_pipeline("\n👨‍💼 PHASE 2: MAJOR LEAGUE (SENIOR ELO)")
     
     junior_board = minor_league.fetch_leaderboard("Junior_Elo")
@@ -208,7 +216,7 @@ def run_major_league():
     
     # 1. THE CALL-UP: Promote top unowned Minor Leaguers
     sorted_juniors = sorted(junior_board.items(), key=lambda x: x[1]['Elo_Rating'], reverse=True)
-    unowned_juniors = [item[0] for item in sorted_juniors if item[0] not in portfolio_tickers]
+    unowned_juniors = [item[0] for item in sorted_juniors if item[0] not in portfolio_tickers and item[0] not in liquidated_today]
     
     # Cap the total Major League roster size. 
     # If we already have 2 portfolio tickers and limit is 6, we only draft 4 rookies.
@@ -277,7 +285,8 @@ def run_major_league():
 # ==========================================
 # ⚙️ PHASE 3: THE FRONT OFFICE (Execution Engine)
 # ==========================================
-def execute_swaps():
+def execute_swaps(liquidated_today=None):
+    if liquidated_today is None: liquidated_today = set()
     log_pipeline("\n⚖️ PHASE 3: FRONT OFFICE (ASSET ALLOCATION ENGINE)")
     
     senior_board = minor_league.fetch_leaderboard("Senior_Elo")
@@ -301,7 +310,7 @@ def execute_swaps():
         log_pipeline(f" 🪟 Found {open_slots} open slot(s). Initiating Fill-Up Execution Phase...")
         
         # Filter down to top-ranked assets that we do not currently own or have pending orders for
-        unowned_majors = [item for item in ranked_majors if item[0] not in portfolio_tickers]
+        unowned_majors = [item for item in ranked_majors if item[0] not in portfolio_tickers and item[0] not in liquidated_today]
         
         if not unowned_majors:
             log_pipeline(" ⏸️ No unowned Major League assets available to fill open slots today.")
@@ -360,7 +369,7 @@ def execute_swaps():
     # ---------------------------------------------------------
     # ⚖️ SCENARIO B: THE SWAP PROTOCOL (Portfolio at Max Capacity)
     # ---------------------------------------------------------
-    best_unowned = next((item for item in ranked_majors if item[0] not in portfolio_tickers), None)
+    best_unowned = next((item for item in ranked_majors if item[0] not in portfolio_tickers and item[0] not in liquidated_today), None)
     worst_owned = next((item for item in reversed(ranked_majors) if item[0] in portfolio_tickers), None)
 
     if not best_unowned or not worst_owned: 
@@ -447,9 +456,9 @@ if __name__ == "__main__":
 
     # 1. Pipeline Execution Sequences
     run_minor_league()
-    maintain_portfolio()
-    run_major_league()
-    execute_swaps()
+    liquidated_today = maintain_portfolio()
+    run_major_league(liquidated_today)
+    execute_swaps(liquidated_today)
 
     # 2. Comprehensive Multi-Asset Reporting Strategy
     try:
