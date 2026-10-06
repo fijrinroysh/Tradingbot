@@ -1,10 +1,10 @@
 name: Market Execution Bot
 
-# ⏰ Wakes up at 9:47 AM EDT (13:30 UTC) Monday-Friday
+# ⏰ Wakes up at exactly 9:30 AM EDT (13:30 UTC) Monday-Friday at Market Open
 # 🚀 'workflow_dispatch' allows you to manually click "Run" to test it anytime
 on:
   schedule:
-    - cron: '47 13 * * 1-5'
+    - cron: '30 13 * * 1-5'
   workflow_dispatch: 
 
 # 👇 ADD THIS BLOCK TO SILENCE THE NODE.JS WARNING 👇

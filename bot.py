@@ -209,7 +209,11 @@ def run_major_league():
     # 1. THE CALL-UP: Promote top unowned Minor Leaguers
     sorted_juniors = sorted(junior_board.items(), key=lambda x: x[1]['Elo_Rating'], reverse=True)
     unowned_juniors = [item[0] for item in sorted_juniors if item[0] not in portfolio_tickers]
-    promoted_rookies = unowned_juniors[:draft_limit] 
+    
+    # Cap the total Major League roster size. 
+    # If we already have 2 portfolio tickers and limit is 6, we only draft 4 rookies.
+    available_draft_slots = max(1, draft_limit - len(portfolio_tickers))
+    promoted_rookies = unowned_juniors[:available_draft_slots] 
 
     major_league_roster = list(set(portfolio_tickers + promoted_rookies))
     log_pipeline(f" 📈 Major League Roster: {major_league_roster}")
@@ -459,7 +463,8 @@ if __name__ == "__main__":
         junior_board = minor_league.fetch_leaderboard("Junior_Elo")
         sorted_juniors = sorted(junior_board.items(), key=lambda x: x[1]['Elo_Rating'], reverse=True)
         unowned_juniors = [item[0] for item in sorted_juniors if item[0] not in portfolio_tickers]
-        actual_promoted_rookies = unowned_juniors[:draft_limit] 
+        available_draft_slots = max(1, draft_limit - len(portfolio_tickers))
+        actual_promoted_rookies = unowned_juniors[:available_draft_slots] 
 
         # Gather complete standings for all active champions in the portfolio
         active_standings = []
