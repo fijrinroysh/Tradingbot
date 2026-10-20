@@ -21,3 +21,10 @@ TradingBot_History.gsheet
 *driveupload*
 *drivedownload*
 
+# Custom Skills
+.agents/skills/tradingbot-githublog-auditor/
+.agents/skills/tradingbot-signoff/
+
+# Test Suites & Integration Scripts
+tests/
+test_scripts/

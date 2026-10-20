@@ -1,6 +1,8 @@
 import config
 import datetime
 import time
+import textwrap
+import json
     
 import pandas as pd 
   
@@ -66,7 +68,17 @@ def log_execution_matrix(ticker, command, initial_state, request_data, final_sta
     
     if evt in ["ERROR", "HOLD", "CANCEL_PENDING"]:
         res_lines.append(f"Status: {evt}")
-        res_lines.append(f"Info:   {exec_result[0].get('info', '')[:25]}")
+        info_text = str(exec_result[0].get('info', '')) if exec_result else ""
+        col_width = 32
+        wrapped_lines = textwrap.wrap(info_text, width=col_width - 8)
+        if wrapped_lines:
+            for idx, line in enumerate(wrapped_lines[:4]):
+                if idx == 0:
+                    res_lines.append(f"Info:   {line}")
+                else:
+                    res_lines.append(f"        {line}")
+        else:
+            res_lines.append("Info:   ")
     else:
         # Calculate Icons
         tp_icon = get_status_icon(request_data['tp'], final_state['tp'])
@@ -110,9 +122,61 @@ def log_trader(message):
         timestamp = datetime.datetime.now().strftime("%H:%M:%S")
         print(f"[{timestamp}] [TRADER_MAIN] {message}")
 
+def _extract_broker_error(e):
+    """
+    Extracts a clean, unmasked broker error message from an exception.
+    Checks Alpaca-specific exception attributes (e.g. e.message, e.error, e._error)
+    before falling back to str(e).
+    """
+    # 1. Check e.message (could be attribute or property)
+    try:
+        msg = getattr(e, 'message', None)
+        if msg and isinstance(msg, str) and msg.strip():
+            return msg.strip()
+    except Exception:
+        pass
+
+    # 2. Check e.error (could be dict or json string)
+    try:
+        err = getattr(e, 'error', None)
+        if isinstance(err, dict) and 'message' in err:
+            return str(err['message']).strip()
+        elif isinstance(err, str):
+            parsed = json.loads(err)
+            if isinstance(parsed, dict) and 'message' in parsed:
+                return str(parsed['message']).strip()
+    except Exception:
+        pass
+
+    # 3. Check e._error (could be dict or json string)
+    try:
+        under_err = getattr(e, '_error', None)
+        if isinstance(under_err, dict) and 'message' in under_err:
+            return str(under_err['message']).strip()
+        elif isinstance(under_err, str):
+            parsed = json.loads(under_err)
+            if isinstance(parsed, dict) and 'message' in parsed:
+                return str(parsed['message']).strip()
+    except Exception:
+        pass
+
+    # 4. Try parsing str(e) if it happens to be a json string
+    raw_str = str(e).strip()
+    if raw_str.startswith("{") and raw_str.endswith("}"):
+        try:
+            parsed = json.loads(raw_str)
+            if isinstance(parsed, dict) and 'message' in parsed:
+                return str(parsed['message']).strip()
+        except Exception:
+            pass
+
+    # 5. Clean fallback
+    return raw_str if raw_str else "Unknown broker error"
+
 def _enforce_contract(data):
     if hasattr(data, 'id'): return [{"event": "NEW_ENTRY", "order_id": str(data.id)}]
     if isinstance(data, list): return data if data else []
+    if isinstance(data, dict): return [data]
     return [{"event": "ERROR", "info": str(data)}]
 
    
@@ -322,7 +386,8 @@ def execute_update(ticker, take_profit, stop_loss, buy_limit=0):
                     item['info'] = f"{item.get('info','')} | {', '.join(deltas)}"
 
     except Exception as e:
-        final_res = _enforce_contract({"event": "ERROR", "info": str(e)})
+        error_reason = _extract_broker_error(e)
+        final_res = _enforce_contract({"event": "ERROR", "info": error_reason})
 
     if final_res[0].get("event") not in ["ERROR", "HOLD"]:
         time.sleep(2) 
@@ -358,7 +423,8 @@ def execute_entry(ticker, investment_amount, buy_limit, take_profit, stop_loss):
         _inject_log_params(final_res, qty, buy_limit, take_profit, stop_loss)
         for item in final_res: item['info'] = f"New Entry | Limit: {buy_limit}"
     except Exception as e:
-        final_res = _enforce_contract({"event": "ERROR", "info": str(e)})
+        error_reason = _extract_broker_error(e)
+        final_res = _enforce_contract({"event": "ERROR", "info": error_reason})
 
     time.sleep(2) 
     final_state = _fetch_snapshot(ticker)

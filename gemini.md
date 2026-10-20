@@ -40,7 +40,7 @@ The Good Value Quick Money (GVQM) engine decomposes automated equity trading int
   -> Portfolio Capacity Check (Max Position Sizing)
   -> Scenario A: Slot Fill-Up Orders via Alpaca Broker
   -> Scenario B: Swap Hurdle Verification (Challenger Elo > Champion Elo + Threshold)
-  -> Sequenced Liquidation, Cash Settlement Cooldown, and Entry Execution
+  -> Sequenced Liquidation, Cash Settlement Cooldown, Entry Execution, and ORDER_REJECTED Audit Logging
           |
           v
 [ MODULE 7: EXECUTIVE BRIEFING & MULTI-DAY MEMORY ]
@@ -228,6 +228,10 @@ Performs daily structural risk audits on active positions before new capital dep
      * Submits market exit via `trader.close_full_position(ticker)`.
      * If filled, logs exit to `Trade_Log` tab via `senior_history.log_mechanical_trade(ticker, "EMERGENCY_EXIT", rationale, price, shares)`.
      * Injects trapdoor alert into `daily_ai_logic`.
+     * **Trapdoor Demotion Protocol (Re-Buy Prevention & League Isolation):**
+       - Injects `ticker` into the runtime session set `liquidated_today`, strictly suppressing same-day re-drafting in Major League (Module 5) and same-day re-allocation / capacity fill-ups (Module 6).
+       - Invokes `league_common.banish_ticker(ticker)`, which locates the ticker in `Senior_Elo`, sets `Active_Contenders = 'N'`, and resets `Elo_Rating = 1500.0` (terminating its Major League tenure and removing its Champion status).
+       - **Grassroots Minor League Preservation:** Crucially, `banish_ticker` does **NOT** alter or wipe `Junior_Elo`. The asset's grassroots Minor League match history (accumulated wins, losses, win rate, and Junior Elo rating) remains strictly preserved. Once the liquidation trading session clears, if the asset's fundamentals recover, its preserved Junior standing allows it to naturally qualify for future Rookie Call-Up drafts rather than being permanently locked out of the trading pipeline.
    * **Maintenance Branch (`action == "MAINTAIN"` / `"UPDATE_EXISTING"`):**
      * Adjusts broker stop-loss and take-profit orders via `trader.execute_update(ticker, take_profit, stop_loss)`.
      * Logs updated risk thresholds to `Trade_Log` via `senior_history.log_detailed_decisions()`.
@@ -307,24 +311,36 @@ Drafts top-performing unowned assets from the Minor League, combines them with a
                   |                                                   |
      [trader.execute_entry()]                         +---------------+---------------+
                   |                                   |                               |
-     [senior_history.log_detailed_decisions()]      [YES]                            [NO]
-                                                      |                               |
-                                        [1. Liquidate Worst Champion]       [Maintain Roster]
-                                                      |
-                                        [2. Settle Delay: sleep(3)]
-                                                      |
-                                        [3. Generate Winner Paperwork]
-                                                      |
-                                        [4. Execute Winner Entry]
+     +------------+------------+                    [YES]                            [NO]
+     |                         |                      |                               |
+ [SUCCESS]                 [REJECTED]   [1. Liquidate Worst Champion]       [Maintain Roster]
+     |                         |                      |                               |
+[Log Trade_Log]       [Log ORDER_REJECTED] [2. Settle Delay: sleep(3)]                |
+(detailed_decisions)   (log_mechanical)               |                               |
+     |                         |        [3. Generate Winner Paperwork]                |
+     |                         |                      |                               |
+     |                         |        [4. Execute Winner Entry]                     |
+     |                         |                      |                               |
+     |                         |         +------------+------------+                  |
+     |                         |         |                         |                  |
+     |                         |     [SUCCESS]                 [REJECTED]             |
+     |                         |         |                         |                  |
+     |                         |   [Log Trade_Log]        [Log ORDER_REJECTED]        |
+     |                         | (detailed_decisions)      (log_mechanical)           |
+     |                         |         |                         |                  |
+     +------------+------------+---------+-------------------------+------------------+
+                                         |
+                                         v
+                         [Proceed Cleanly to Module 7 Briefings]
 ```
 
 ### Core Responsibility
-Governs capital deployment. Determines whether to allocate cash into empty portfolio slots or trigger asset replacement swaps based on Elo rating differentials.
+Governs capital deployment. Determines whether to allocate cash into empty portfolio slots or trigger asset replacement swaps based on Elo rating differentials. Unmasks granular broker rejections, maintains an immutable failure audit trail in Google Sheets, and preserves pipeline continuity so downstream executive briefings execute without interruption.
 
 ### Primary Source Files
 * `bot.py` (Orchestration in `execute_swaps`)
 * `gvqm_senior_agent.py`
-* `gvqm_senior_history.py`
+* `lib/gvqm_senior_history.py`
 * `lib/gvqm_alpaca_trader.py`
 
 ### Inputs & Configuration Parameters
@@ -335,23 +351,103 @@ Governs capital deployment. Determines whether to allocate cash into empty portf
 ### Execution Logic Flow
 
 #### Scenario A: Capacity Fill-Up (Empty Slots Available)
-1. Checks open slots: `open_slots = MAX_PORTFOLIO_POSITIONS - len(portfolio_tickers)`.
-2. Selects highest-ranked unowned tickers from `Senior_Elo`.
-3. Calls `senior_agent.generate_batch_execution_paperwork({ticker: current_price})`.
-4. Submits bracket order via `trader.execute_entry(ticker, amount, buy_limit, take_profit, stop_loss)`.
-5. Logs trade to `Trade_Log` via `senior_history.log_detailed_decisions()`.
+1. **Capacity Audit:** Checks open slots: `open_slots = MAX_PORTFOLIO_POSITIONS - len(portfolio_tickers)`.
+2. **Drafting:** Selects highest-ranked unowned tickers from `Senior_Elo`.
+3. **Paperwork Request:** Calls `senior_agent.generate_batch_execution_paperwork({ticker: current_price})`.
+4. **Broker Entry Submission:** Submits bracket order via `trader.execute_entry(ticker, amount, buy_limit, take_profit, stop_loss)`.
+5. **Outcome Evaluation & Audit Trail:**
+   * **Success Branch:** If entry order succeeds, logs trade details to `Trade_Log` via `senior_history.log_detailed_decisions()` and records allocation thesis in `daily_ai_logic`.
+   * **Rejection / Exception Branch (Broker Error Unmasking):** If Alpaca rejects the order or an exception occurs:
+     * Unmasks the exact broker rationale via `_extract_broker_error()` and `entry_status[0].get("info")`.
+     * Logs the specific broker rejection reason directly to stdout: `log_pipeline(f" ❌ Allocation Fill aborted: Alpaca rejected order for {best_ticker}. Reason: {error_reason}")`.
+     * Records an audit row in Google Sheets `Trade_Log` via `senior_history.log_mechanical_trade(best_ticker, "ORDER_REJECTED", error_reason, current_price, 0)`.
+     * If an unhandled exception occurs in the entry pipeline, logs `ORDER_REJECTED` with rationale `Pipeline Exception: {e}`.
+     * Leaves the slot available in cash and proceeds cleanly without crashing execution.
 
 #### Scenario B: The Swap Protocol (Portfolio Full)
-1. Extracts `best_unowned` challenger and `worst_owned` champion from `Senior_Elo`.
-2. Tests the Hurdle Condition: `Elo_challenger > Elo_champion + ELO_SWAP_THRESHOLD`
-3. Execution Sequence:
+1. **Target Identification:** Extracts `best_unowned` challenger and `worst_owned` champion from `Senior_Elo`.
+2. **Hurdle Verification:** Tests the Hurdle Condition: `Elo_challenger > Elo_champion + ELO_SWAP_THRESHOLD`.
+3. **Execution Sequence:**
    * **Step 1 (Liquidation):** Calls `trader.close_full_position(worst_ticker)`. Logs exit to `Trade_Log` via `senior_history.log_mechanical_trade()`.
    * **Step 2 (Cash Settlement Cooldown):** Executes `time.sleep(3)` to allow broker balance clearing.
-   * **Step 3 (Paperwork Generation):** Obtains entry limits and stop levels for the incoming asset via `senior_agent.generate_batch_execution_paperwork()`.
-   * **Step 4 (Acquisition):** Fires entry order via `trader.execute_entry()`. Logs transaction via `senior_history.log_detailed_decisions()`.
+   * **Step 3 (Paperwork Generation):** Obtains entry limits and stop levels for incoming asset via `senior_agent.generate_batch_execution_paperwork()`.
+   * **Step 4 (Acquisition & Outcome Handling):** Fires entry order via `trader.execute_entry()`.
+     * **Success Branch:** Logs swap transaction to `Trade_Log` via `senior_history.log_detailed_decisions()` and records replacement in `daily_ai_logic`.
+     * **Rejection / Exception Branch (Capital Preservation):** If Alpaca rejects the buy order or an exception occurs:
+       * The incumbent champion has been liquidated, preserving capital in cash.
+       * Unmasks the exact broker rejection explanation via `entry_status[0].get("info")` or pipeline exception string.
+       * Logs full failure context to stdout: `log_pipeline(f" ❌ Swap incomplete: Alpaca liquidated {worst_ticker} but rejected buy order for {best_ticker}. Reason: {error_reason}")`.
+       * Appends an audit row to `Trade_Log` via `senior_history.log_mechanical_trade(best_ticker, "ORDER_REJECTED", error_reason, current_price, 0)`.
+       * Gracefully bypasses position creation while maintaining pipeline continuity to Module 7.
+
+---
+
+### Broker Rejection Handling & Audit Trail Protocol (`GVQM-TICKET-01`)
+
+To guarantee complete operational transparency and ensure that downstream modules never suffer catastrophic failures due to broker-level rejections (e.g., margin limits, pattern day trading rules, minimum order constraints, or invalid symbol status), Module 6 enforces a dedicated five-step rejection handling and audit protocol:
+
+```text
+[Broker Exception / Rejection]
+              |
+              v
+[1. Deep Error Extraction (_extract_broker_error)]
+  -> Inspects: e.message, e.error['message'], e._error['message'], JSON string, or raw fallback
+              |
+              v
+[2. Contract Enforcer Dict Preservation (_enforce_contract)]
+  -> Preserves dict payload: isinstance(data, dict) -> [data]
+  -> Eliminates stringified dictionary representations (e.g., "{'event': 'ERROR'}")
+              |
+              v
+[3. Multi-Line Terminal Formatting (log_execution_matrix)]
+  -> Wraps info text across up to 4 lines using textwrap (width: 24, boundary: 32 columns)
+  -> Zero character cutoff; renders complete broker explanation in stdout
+              |
+              v
+[4. Google Sheets Audit Persistence & Pipeline Safety]
+  -> Appends ORDER_REJECTED row to Trade_Log via log_mechanical_trade()
+  -> Catches pipeline exceptions; guarantees seamless progression to Module 7 Briefings
+```
+
+#### 1. Broker Error Unmasking (`_extract_broker_error`)
+Legacy implementations often masked broker rejections behind generic status strings or truncated error codes. The `_extract_broker_error(e)` utility extracts the root explanation from Alpaca SDK exceptions:
+* **Attribute Inspection:** Sequentially checks `e.message`, `e.error`, and `e._error` for structured dictionary payloads or JSON strings containing a `message` key.
+* **JSON Envelope Parsing:** If `str(e)` begins and ends with curly braces, safely parses the payload as JSON to retrieve `parsed['message']`.
+* **Clean Fallback:** Returns clean unmasked error text (e.g., `"insufficient buying power: require $10000.00 but available is $4520.10"`, `"order is not fractionable"`), falling back to `"Unknown broker error"` only if no string representation exists.
+
+#### 2. Contract Enforcer Dictionary Preservation (`_enforce_contract`)
+Trader responses must adhere to a standardized contract list `[{"event": ..., "info": ...}]`:
+* Ensures that dictionary payloads passed into `_enforce_contract` are preserved directly: `if isinstance(data, dict): return [data]`.
+* Eliminates the issue where passing an error dict converted it into stringified dictionary representations (e.g., `"{'event': 'ERROR', 'info': '...'}"`), ensuring callers can cleanly access `entry_status[0].get("info")` directly without regex parsing.
+
+#### 3. Multi-Line Terminal Execution Matrix (`log_execution_matrix`)
+When an order event terminates in `"ERROR"`, `"HOLD"`, or `"CANCEL_PENDING"`, the terminal execution matrix logs diagnostic information:
+* Replaces legacy 25-character hard truncation (`[:25]`) with word-wrapping via Python's `textwrap.wrap(info_text, width=col_width - 8)`.
+* Wraps across up to 4 lines within the 32-column boundary (`col_width = 32`), displaying the full broker rejection explanation without breaking the visual alignment of the execution table.
+
+#### 4. Audit Trail Persistence in `Trade_Log`
+Every rejected entry order (both in Scenario A and Scenario B) is recorded in Google Sheets `Trade_Log` via `senior_history.log_mechanical_trade()` with 8-column alignment:
+
+| Column Position | Header Name | Recorded Value | Description |
+| :---: | :--- | :--- | :--- |
+| **Col 1** | `Date` | `YYYY-MM-DD HH:MM:SS` | Timestamp of rejection event. |
+| **Col 2** | `Ticker` | `{best_ticker}` | Target equity candidate. |
+| **Col 3** | `Action` | `"ORDER_REJECTED"` | Explicit rejection status identifier. |
+| **Col 4** | `Entry_Price` | `{current_price}` | Market price at time of order attempt. |
+| **Col 5** | `Stop_Loss` | `""` | Empty string (no order filled). |
+| **Col 6** | `Take_Profit` | `""` | Empty string (no order filled). |
+| **Col 7** | `Rationale` | `{error_reason}` | Exact unmasked broker rejection explanation. |
+| **Col 8** | `Shares_Held` | `0` | Explicit 0 shares held indication. |
+
+#### 5. Graceful Pipeline Continuation to Module 7
+Broker rejections and entry pipeline exceptions are fully isolated within Module 6:
+* All order execution and logging calls in `execute_swaps()` are protected with nested `try/except` blocks.
+* A rejected buy order does not halt bot execution or raise unhandled exceptions.
+* The pipeline seamlessly proceeds to **Module 7: Executive Briefing & Multi-Day Memory**, allowing CEO reports, account balances, and scouting notifications to be generated and dispatched without interruption.
 
 ### Module Interface & Clean Boundary
-* **Output:** Real-world capital allocation via broker API, update of `Trade_Log`, and emission of allocation audit messages.
+* **Output:** Real-world capital allocation via broker API, update of `Trade_Log` (including successful entries, exits, and unmasked `ORDER_REJECTED` audit entries), and emission of allocation audit messages.
+* **Decoupling Boundary:** Operates exclusively at the trade execution and broker interface boundary. Does not modify candidate scouting or recalculate Elo ratings.
 
 ---
 
@@ -414,7 +510,7 @@ Central Google Sheet: `TradingBot_History`
 | `Senior_Elo` | Module 5 | `Ticker`, `Elo_Rating`, `Wins`, `Losses`, `Win_Rate`, `Last_Match`, `Active_Contenders` | `str`, `float`, `int`, `int`, `str`, `str (YYYY-MM-DD HH:MM:SS)`, `str (Y/N)` | Major League master leaderboard and roster status. Transition to `Active_Contenders = 'N'` resets `Elo_Rating` to `1500.0`. |
 | `Senior_Decisions` | Module 5 | `Date`, `Matchup`, `Winner`, `Rationale` | `str (YYYY-MM-DD HH:MM)`, `str`, `str`, `str` | Title defense match rationale archive. |
 | `Senior_Memory_Bank` | Module 7 | Raw cell `A1` | `JSON String` | Multi-day rank histories for Major League momentum calculations. |
-| `Trade_Log` | Module 4 & 6 | `Date`, `Ticker`, `Action`, `Entry_Price`, `Stop_Loss`, `Take_Profit`, `Rationale`, `Shares_Held` | `str (YYYY-MM-DD HH:MM:SS)`, `str`, `str`, `float`, `float`, `float`, `str`, `int` | Comprehensive execution ledger for trades, maintenance, and trapdoors. |
+| `Trade_Log` | Module 4 & 6 | `Date`, `Ticker`, `Action`, `Entry_Price`, `Stop_Loss`, `Take_Profit`, `Rationale`, `Shares_Held` | `str (YYYY-MM-DD HH:MM:SS)`, `str`, `str`, `float`, `float`, `float`, `str`, `int` | Comprehensive execution ledger for trades, maintenance, trapdoors, and unmasked broker rejections (`ORDER_REJECTED`). |
 | `Strategy_Brief` | Module 7 | `Date`, `CEO_Report` | `str (YYYY-MM-DD HH:MM)`, `str` | Archive of daily executive briefings. |
 
 ---
@@ -432,11 +528,12 @@ Central Google Sheet: `TradingBot_History`
 | **Alter Risk/Reward Balance Prompts** | **Module 3 & 5** | None | `gvqm_junior_prompts.py`, `gvqm_senior_prompts.py` | Preserve Dual-Layer notation directive to maintain beginner educational utility. |
 | **Modify Trailing Stop or Take-Profit Logic** | **Module 4** | Module 6 | `gvqm_senior_paperwork_prompt.py`, `bot.py` | Ensure LLM returns numerical values for `stop_loss` and `take_profit` to prevent broker submission crashes. |
 | **Adjust Portfolio Capacity or Swap Hurdle** | **Module 6** | None | `config.py`, `bot.py` (`execute_swaps`) | Ensure account cash balance supports expanded position counts. Keep `ELO_SWAP_THRESHOLD >= 10.0` to prevent over-trading. |
+| **Broker Error Unmasking & ORDER_REJECTED Audit** | **Module 6** | Module 4 & 7 | `lib/gvqm_alpaca_trader.py`, `bot.py`, `lib/gvqm_senior_history.py` | Unmasks granular Alpaca error messages via `_extract_broker_error`, preserves dicts in `_enforce_contract`, wraps matrix info across 4 lines, logs `ORDER_REJECTED` to `Trade_Log`, and guarantees pipeline progression to Module 7. |
 | **Redesign Email Layouts or Notification Channels** | **Module 7** | None | `gvqm_email_notifier.py` | Maintain HTML table structures and retain dictionary key mappings passed from `bot.py`. |
 
 ---
 
-## 10. Testing & Validation Strategy
+## 11. Testing & Validation Strategy
 
 When making updates to database interactions, Google Sheets logic, or module synchronization, the standard validation procedure is:
 1. **Target the Test Environment**: Ensure `.env` is configured with `GOOGLE_SHEET_NAME = "TradingBot_History_Test"`.

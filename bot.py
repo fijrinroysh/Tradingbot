@@ -357,9 +357,18 @@ def execute_swaps(liquidated_today=None):
                         reasoning = trade_plan.get('rationale', 'No rationale provided.')
                         daily_ai_logic.append(f"🚀 ALLOCATION FILL (Bought {best_ticker}): {reasoning}")
                     else:
-                        log_pipeline(f" ❌ Allocation Fill aborted: Alpaca rejected order for {best_ticker}.")
+                        error_reason = entry_status[0].get("info", "Unknown broker rejection") if entry_status else "No status returned"
+                        log_pipeline(f" ❌ Allocation Fill aborted: Alpaca rejected order for {best_ticker}. Reason: {error_reason}")
+                        try:
+                            senior_history.log_mechanical_trade(best_ticker, "ORDER_REJECTED", error_reason, current_price, 0)
+                        except Exception as log_err:
+                            log_pipeline(f" ⚠️ Failed to log ORDER_REJECTED to Trade_Log: {log_err}")
                 except Exception as e:
                     log_pipeline(f" ❌ Alpaca Entry Pipeline Failed for {best_ticker}: {e}")
+                    try:
+                        senior_history.log_mechanical_trade(best_ticker, "ORDER_REJECTED", f"Pipeline Exception: {e}", current_price, 0)
+                    except Exception as log_err:
+                        log_pipeline(f" ⚠️ Failed to log ORDER_REJECTED to Trade_Log: {log_err}")
             else:
                 log_pipeline(f" ❌ Senior Agent failed paperwork generation for {best_ticker}.")
         
@@ -434,9 +443,18 @@ def execute_swaps(liquidated_today=None):
                         reasoning = trade_plan.get('rationale', 'No rationale provided.')
                         daily_ai_logic.append(f"🔄 SWAP ({worst_ticker} -> {best_ticker}): {reasoning}")
                     else:
-                        log_pipeline(f" ❌ Swap incomplete: Alpaca liquidated {worst_ticker} but rejected buy order for {best_ticker}.")
+                        error_reason = entry_status[0].get("info", "Unknown broker rejection") if entry_status else "No status returned"
+                        log_pipeline(f" ❌ Swap incomplete: Alpaca liquidated {worst_ticker} but rejected buy order for {best_ticker}. Reason: {error_reason}")
+                        try:
+                            senior_history.log_mechanical_trade(best_ticker, "ORDER_REJECTED", error_reason, current_price, 0)
+                        except Exception as log_err:
+                            log_pipeline(f" ⚠️ Failed to log ORDER_REJECTED to Trade_Log: {log_err}")
                 except Exception as e:
                     log_pipeline(f" ❌ Alpaca Trade Failed on Swap Entry: {e}")
+                    try:
+                        senior_history.log_mechanical_trade(best_ticker, "ORDER_REJECTED", f"Pipeline Exception: {e}", current_price, 0)
+                    except Exception as log_err:
+                        log_pipeline(f" ⚠️ Failed to log ORDER_REJECTED to Trade_Log: {log_err}")
             else:
                 log_pipeline(f" ❌ Senior Agent failed to write paperwork for {best_ticker}. Capital preserved in cash.")
         else:
