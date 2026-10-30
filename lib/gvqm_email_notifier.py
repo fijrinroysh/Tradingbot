@@ -4,6 +4,15 @@ from datetime import date, datetime
 import lib.gvqm_junior_history as junior_history_manager
 import lib.gvqm_senior_history as senior_history_manager
 
+def _is_debug_mode() -> bool:
+    val = getattr(config, 'DEBUG_MODE', False)
+    if isinstance(val, str):
+        return val.strip().lower() in ("true", "1", "yes", "t")
+    return bool(val)
+
+def _get_subject_prefix() -> str:
+    return "[TEST] " if _is_debug_mode() else ""
+
 def send_executive_brief(decision, account_info, portfolio):
     """
     Einstein Simplified Executive Briefing.
@@ -31,7 +40,8 @@ def send_executive_brief(decision, account_info, portfolio):
     
     # Subject Line Logic
     action_count = actions_text.count("SWAP") + actions_text.count("PORTFOLIO")
-    subject = f"🔔 GVQM Signal: {action_count} Actions | {today}" if action_count > 0 else f"📊 GVQM Daily Brief: {today}"
+    base_subject = f"🔔 GVQM Signal: {action_count} Actions | {today}" if action_count > 0 else f"📊 GVQM Daily Brief: {today}"
+    subject = f"{_get_subject_prefix()}{base_subject}"
 
     # --- STYLES ---
     TH_STYLE = "background-color: #f4f4f4; color: #555; font-size: 11px; text-transform: uppercase; padding: 8px; border: 1px solid #ddd;"
@@ -272,6 +282,6 @@ def send_minor_league_scouting_report(daily_matchups, minor_league_standings):
     resend.Emails.send({
         "from": getattr(config, 'EMAIL_SENDER', "onboarding@resend.dev"),
         "to": getattr(config, 'NOTIFY_EMAIL', "fijrinroysh@gmail.com"), 
-        "subject": f"⚾ Minor League Scouting: {match_count} Battles Today",
+        "subject": f"{_get_subject_prefix()}⚾ Minor League Scouting: {match_count} Battles Today",
         "html": html_content
     })

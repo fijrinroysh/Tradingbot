@@ -46,6 +46,7 @@ def run_minor_league():
 
 # 👇  Update just the tickers that are today's active contenders to the active contender flag in the Junior Elo tab in Google sheet 👇
 
+    active_and_protected = list(distressed_tickers)
     try:
         # 🛡️ THE EXEMPTION CLAUSE: Protect the Top N from premature disqualification
         junior_board = minor_league.fetch_leaderboard("Junior_Elo")
@@ -67,7 +68,7 @@ def run_minor_league():
     
 
     limit = getattr(config, 'DAILY_SCAN_LIMIT', 20)
-    priority_tickers = junior_history.filter_candidates(distressed_tickers, limit=limit)
+    priority_tickers = junior_history.filter_candidates(active_and_protected, limit=limit)
     
     # EDGE CASE FIX: Fetch price ONCE per ticker to save API rate limits
     candidates_with_prices = []

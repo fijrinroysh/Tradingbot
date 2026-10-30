@@ -151,6 +151,7 @@ Executes automated fundamental and technical analysis between matched pairs usin
 ### Prompt & Analytical Directives (`JUNIOR_MATCHUP_PROMPT`)
 * **Role:** Senior Quantitative Manager & Mentor.
 * **Teaching Directive:** All technical metrics must use **Dual-Layer** notation: `Wall Street Term (Plain-English Analogy / Simple Explanation)`.
+* **Input Data & Price Grounding:** Injects live market prices fetched from the Alpaca Market Data API into the prompt (`Candidate A: {ticker_a} (Current Market Price: ${price_a})`), falling back to `N/A` if unavailable, grounding valuation and profit ceiling calculations in current reality.
 * **Mandate Weights:** Safety Priority: 30% | Reward Priority: 70%.
 * **12-Pillar Analytical Framework:**
   1. Financial Safety (Balance sheet liquidity / cash runway)
@@ -282,7 +283,7 @@ Drafts top-performing unowned assets from the Minor League, combines them with a
    * **Shuffle Protocol:** Applies `random.shuffle()` to both pools to eliminate deterministic rematch loops and minimize duplicate API costs.
    * Pairs each Champion with an available Challenger.
 4. **Senior Agent Evaluation:**
-   * Invokes `senior_agent.evaluate_matchup(cand_a, cand_b)` using `SENIOR_MATCHUP_PROMPT` under high reasoning settings (`thinkingLevel="HIGH"`).
+   * Invokes `senior_agent.evaluate_matchup(cand_a, cand_b)` using `SENIOR_MATCHUP_PROMPT` under high reasoning settings (`thinkingLevel="HIGH"`), injecting live Alpaca prices (`Candidate A: {ticker_a} (Current Market Price: ${price_a})`) for market grounding.
    * Validates winner against hallucinations.
    * Updates `Senior_Elo` tab via `minor_league.record_match_result("Senior_Elo", winner, loser)`.
    * Logs title defense decision to `Senior_Decisions` worksheet via `senior_history.log_matchup()`.

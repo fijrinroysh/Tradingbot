@@ -59,17 +59,11 @@ MAX_SENTIMENT_SCORE = -0.4 # How negative the news must be to sell
 # --- GOOD VALUE QUICK MONEY BOT SETTINGS ---
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") # <-- This is now safe
-# --- GEMINI SETTINGS (Pro Model) ---
-## JUNIOR ANALYST: High volume, initial filtering. 
-# Default: "gemini-3-flash-preview" (Free/Cheap). Can switch to "gemini-3-pro-preview" if needed.
-GEMINI_JUNIOR_MODEL = "gemini-3.1-pro-preview"
-#GEMINI_JUNIOR_MODEL = "gemini-3.1-flash-lite-preview"
-JUNIOR_THINKING_LEVEL = "MEDIUM"  # Fast, cheap scouting for the Minor League
 
-# SENIOR MANAGER: High reasoning, final decision.
-# Default: "gemini-3-pro-preview" (Smartest).
-GEMINI_SENIOR_MODEL = "gemini-3.1-pro-preview"
-#GEMINI_SENIOR_MODEL = "gemini-3.1-flash-lite-preview"
+
+GEMINI_JUNIOR_MODEL = os.getenv("GEMINI_JUNIOR_MODEL", "gemini-3.1-pro-preview")
+JUNIOR_THINKING_LEVEL = "MEDIUM"  # Fast, cheap scouting for the Minor League
+GEMINI_SENIOR_MODEL = os.getenv("GEMINI_SENIOR_MODEL", "gemini-3.1-pro-preview")
 SENIOR_THINKING_LEVEL = "MEDIUM" # Deep, rigorous reasoning for the Major League 
 
 # API Rate Limiting (Set to 15 for Free Tier, 0 for Paid Tier)
@@ -97,7 +91,7 @@ SENIOR_DRAFT_LIMIT = int(os.getenv("SENIOR_DRAFT_LIMIT", 3))# How many top candi
 
 
 # Dollar amount to invest in each "High Conviction" Buy
-INVEST_PER_TRADE = int(os.getenv("INVEST_PER_TRADE"))
+INVEST_PER_TRADE = int(os.getenv("INVEST_PER_TRADE", 10000))
 MAX_PORTFOLIO_POSITIONS = int(os.getenv("MAX_PORTFOLIO_POSITIONS", 5)) # Max number of positions in the portfolio at any time
 
 

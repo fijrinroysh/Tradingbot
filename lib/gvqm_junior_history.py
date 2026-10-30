@@ -75,9 +75,9 @@ def log_report(winner_ticker, analysis, opponent="Unknown"):
 # ==========================================
 # 🗂️ THE PRIORITY QUEUE (Staleness Filter)
 # ==========================================
-def filter_candidates(distressed_tickers, limit=20):
+def filter_candidates(active_contenders, limit=20):
     """
-    Acts as a Priority Queue. 
+    Acts as a Priority Queue for all active Minor League contenders (distressed + protected).
     Reads the 'Last_Match' date directly from the Minor League Elo Scoreboard
     so BOTH winners and losers get their staleness accurately tracked.
 
@@ -98,11 +98,11 @@ def filter_candidates(distressed_tickers, limit=20):
                     
     except Exception as e:
         print(f"   ⚠️ [JUNIOR HISTORY] Could not read Elo staleness. Defaulting to raw list. Error: {e}")
-        return distressed_tickers[:limit]
+        return active_contenders[:limit]
 
     prioritized_list = []
     
-    for t in distressed_tickers:
+    for t in active_contenders:
         if t not in last_played_map:
             # PRIORITY 1: ROOKIE 
             prioritized_list.append({'ticker': t, 'last_played': '1900-01-01'})
