@@ -1,6 +1,7 @@
 import resend
 import config
 from datetime import date, datetime
+from lib.gvqm_league_common import get_eastern_now
 import lib.gvqm_junior_history as junior_history_manager
 import lib.gvqm_senior_history as senior_history_manager
 
@@ -25,7 +26,7 @@ def send_executive_brief(decision, account_info, portfolio):
     print("📧 [NOTIFIER] Formatting Executive Briefing (Einstein Simplified)...")
     resend.api_key = config.RESEND_API_KEY
     
-    today = date.today().strftime("%b %d, %Y")
+    today = get_eastern_now().strftime("%b %d, %Y")
     
     # 1. Extract the Pre-Cleaned Data from bot.py
     actions_text = decision.get("immediate_actions", "No immediate actions today.")
@@ -193,7 +194,7 @@ def send_executive_brief(decision, account_info, portfolio):
         </div>
         
         <p style="font-size: 10px; color: #999; text-align: center; margin-top: 25px;">
-            GVQM Auto-Generated | {datetime.now().strftime("%H:%M EST")}
+            GVQM Auto-Generated | {get_eastern_now().strftime("%H:%M %Z")}
         </p>
         </div>
     </body>
@@ -218,7 +219,7 @@ def send_minor_league_scouting_report(daily_matchups, minor_league_standings):
     resend.api_key = config.RESEND_API_KEY
     
     draft_limit = getattr(config, 'SENIOR_DRAFT_LIMIT', 3)
-    today = datetime.now().strftime("%b %d, %Y")
+    today = get_eastern_now().strftime("%b %d, %Y")
     match_count = len(daily_matchups) if daily_matchups else 0
     
     # Call the newly relocated function

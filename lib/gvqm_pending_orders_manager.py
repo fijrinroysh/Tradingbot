@@ -1,10 +1,11 @@
 import time
 import datetime
+from lib.gvqm_league_common import get_eastern_time_str
 from alpaca.trading.requests import LimitOrderRequest, TakeProfitRequest, StopLossRequest, ReplaceOrderRequest, GetOrdersRequest
 from alpaca.trading.enums import OrderSide, TimeInForce, OrderClass, OrderType, QueryOrderStatus
 
 def log(message):
-    timestamp = datetime.datetime.now().strftime("%H:%M:%S")
+    timestamp = get_eastern_time_str("%H:%M:%S")
     print(f"[{timestamp}] [PENDING_MGR] {message}")
 
 # --- NEW: EXPLICIT KILL SWITCH ---

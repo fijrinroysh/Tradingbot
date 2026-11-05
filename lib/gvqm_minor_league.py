@@ -5,6 +5,7 @@ import json
 import config
 from datetime import datetime
 import time
+from lib.gvqm_league_common import get_eastern_time_str
 
 # --- SETUP ---
 SHEET_NAME = getattr(config, 'GOOGLE_SHEET_NAME', "TradingBot_History")
@@ -109,7 +110,7 @@ def record_match_result(league_name, winner_ticker, loser_ticker):
     new_w_elo, new_l_elo = calculate_elo(w_stats['Elo_Rating'], l_stats['Elo_Rating'])
 
     # 3. Update Stats dict
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    timestamp = get_eastern_time_str("%Y-%m-%d %H:%M:%S")
     w_stats.update({'Elo_Rating': new_w_elo, 'Wins': w_stats['Wins'] + 1, 'Last_Match': timestamp})
     l_stats.update({'Elo_Rating': new_l_elo, 'Losses': l_stats['Losses'] + 1, 'Last_Match': timestamp})
 

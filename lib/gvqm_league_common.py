@@ -2,7 +2,20 @@ import gspread
 from google.oauth2.service_account import Credentials
 import os
 import json
+from datetime import datetime
+from zoneinfo import ZoneInfo
 import config
+
+# --- US EASTERN TIMEZONE STANDARDIZATION ---
+EASTERN_TZ = ZoneInfo("America/New_York")
+
+def get_eastern_now() -> datetime:
+    """Returns the current datetime localized to US Eastern Time (EST/EDT)."""
+    return datetime.now(EASTERN_TZ)
+
+def get_eastern_time_str(fmt: str = "%Y-%m-%d %H:%M:%S") -> str:
+    """Returns the current timestamp string localized to US Eastern Time (EST/EDT)."""
+    return get_eastern_now().strftime(fmt)
 
 # --- SETUP ---
 SHEET_NAME = getattr(config, 'GOOGLE_SHEET_NAME', "TradingBot_History")

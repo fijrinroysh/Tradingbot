@@ -1,5 +1,6 @@
 import config
 import datetime
+from lib.gvqm_league_common import get_eastern_now, get_eastern_time_str
 import time
 import textwrap
 import json
@@ -27,7 +28,7 @@ data_client = StockHistoricalDataClient(config.ALPACA_KEY_ID, config.ALPACA_SECR
 #  🎨 THE 3-COLUMN EXECUTION MATRIX (NUMERIC VERIFICATION)
 # ==========================================================
 def log_execution_matrix(ticker, command, initial_state, request_data, final_state, exec_result):
-    timestamp = datetime.datetime.now().strftime("%H:%M:%S")
+    timestamp = get_eastern_time_str("%H:%M:%S")
     
     # --- HELPER: VALIDATION ICON ---
     def get_status_icon(target, actual):
@@ -119,7 +120,7 @@ def log_execution_matrix(ticker, command, initial_state, request_data, final_sta
 # --- SHARED UTILS ---
 def log_trader(message):
     if getattr(config, 'DEBUG_MODE', False):
-        timestamp = datetime.datetime.now().strftime("%H:%M:%S")
+        timestamp = get_eastern_time_str("%H:%M:%S")
         print(f"[{timestamp}] [TRADER_MAIN] {message}")
 
 def _extract_broker_error(e):
@@ -220,7 +221,7 @@ def get_bulk_market_data(tickers, lookback=14):
         print(f"[TRADER] ⚠️ Bulk Price Fetch Warning: {e}")
 
     try:
-        start_dt = datetime.datetime.now() - datetime.timedelta(days=45)
+        start_dt = get_eastern_now() - datetime.timedelta(days=45)
         
         bars_request = StockBarsRequest(
             symbol_or_symbols=alpaca_tickers,

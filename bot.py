@@ -4,6 +4,13 @@ import time
 import random
 import config
 
+# Ensure UTF-8 output encoding on Windows consoles
+if sys.platform == "win32":
+    if hasattr(sys.stdout, 'reconfigure'):
+        sys.stdout.reconfigure(encoding='utf-8')
+    if hasattr(sys.stderr, 'reconfigure'):
+        sys.stderr.reconfigure(encoding='utf-8')
+
 # Setup Paths
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(SCRIPT_DIR) # Simplified pathing
@@ -28,7 +35,7 @@ daily_ai_logic = []
 # 🛠️ HELPER FUNCTIONS
 # ==========================================
 def log_pipeline(message):
-    timestamp = datetime.datetime.now().strftime("%H:%M:%S")
+    timestamp = league_common.get_eastern_time_str("%H:%M:%S")
     print(f"[{timestamp}] [PIPELINE] {message}")
 
 

@@ -1,5 +1,6 @@
 import time
 import datetime
+from lib.gvqm_league_common import get_eastern_time_str
 from alpaca.trading.requests import (
     LimitOrderRequest, 
     TakeProfitRequest, 
@@ -10,7 +11,7 @@ from alpaca.trading.requests import (
 from alpaca.trading.enums import OrderSide, TimeInForce, OrderClass, OrderType, QueryOrderStatus
 
 def log(message):
-    timestamp = datetime.datetime.now().strftime("%H:%M:%S")
+    timestamp = get_eastern_time_str("%H:%M:%S")
     print(f"[{timestamp}] [FILLED_MGR] {message}")
 
 def manage_active_position(client, ticker, qty, take_profit, stop_loss, orders):

@@ -5,6 +5,7 @@ import datetime
 import json
 import os
 import time 
+from lib.gvqm_league_common import get_eastern_now, get_eastern_time_str
 
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
 SHEET_NAME = getattr(config, 'GOOGLE_SHEET_NAME', "TradingBot_History")
@@ -48,7 +49,7 @@ def log_matchup(cand_a, cand_b, winner, rationale):
             if sheet.row_count < 1 or not sheet.row_values(1):
                  sheet.append_row(headers)
 
-            timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+            timestamp = get_eastern_time_str("%Y-%m-%d %H:%M")
             matchup_str = f"{cand_a} vs {cand_b}"
             
             sheet.append_row([timestamp, matchup_str, winner, rationale])
@@ -87,7 +88,7 @@ def log_detailed_decisions(decision_data, holdings_map=None):
         if sheet.row_count < 1 or not sheet.row_values(1):
              sheet.append_row(headers)
 
-        now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        now_str = get_eastern_time_str("%Y-%m-%d %H:%M:%S")
         orders = decision_data.get("final_execution_orders", [])
         if not orders: return
 
@@ -139,7 +140,7 @@ def log_mechanical_trade(ticker, action, reason, price=0, shares=0):
         # If it doesn't exist, log_detailed_decisions will create it with the right headers.
         return 
 
-    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    timestamp = get_eastern_time_str("%Y-%m-%d %H:%M:%S")
     
     try:
         # Aligning perfectly with the 8 columns of the Trade_Log headers
@@ -163,7 +164,7 @@ def log_strategy(decision_payload):
             sheet = sh.add_worksheet(title=STRATEGY_TAB_NAME, rows=1000, cols=2)
             sheet.append_row(["Date", "CEO_Report"])
 
-        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+        timestamp = get_eastern_time_str("%Y-%m-%d %H:%M")
         report = decision_payload.get('ceo_report', 'No report.')
         
         sheet.append_row([timestamp, report])
@@ -220,7 +221,7 @@ def get_senior_momentum(current_standings):
     from datetime import datetime, timedelta 
     import config
     
-    today_str = datetime.now().strftime("%Y-%m-%d")
+    today_str = get_eastern_time_str("%Y-%m-%d")
     
     print("☁️ [NOTIFIER] Loading Major League memory from Google Sheets...")
     history = load_senior_history_from_sheets()
@@ -235,7 +236,7 @@ def get_senior_momentum(current_standings):
     # Bounded Lookback: Check 3 days ago, then 4, up to a maximum of 7 days
     past_ranks = None
     for days_back in range(3, 8):
-        target_date = (datetime.now() - timedelta(days=days_back)).strftime("%Y-%m-%d")
+        target_date = (get_eastern_now() - timedelta(days=days_back)).strftime("%Y-%m-%d")
         if target_date in history:
             past_ranks = history[target_date]
             break

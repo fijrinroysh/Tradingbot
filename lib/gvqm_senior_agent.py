@@ -9,6 +9,7 @@ import time
 import re
 
 import datetime
+from lib.gvqm_league_common import get_eastern_time_str
 
 import lib.gvqm_senior_prompts as prompts
 
@@ -48,7 +49,7 @@ BASE_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL_NAME
 
 def log_debug(message):
 
-    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    timestamp = get_eastern_time_str("%Y-%m-%d %H:%M:%S")
 
     print(f"[{timestamp}] [SENIOR_AGENT] {message}")
 

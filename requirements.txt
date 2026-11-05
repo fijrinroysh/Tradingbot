@@ -4,6 +4,7 @@ yfinance
 pandas
 numpy
 lxml
+tzdata
 
 # --- AI & LOGIC ---
 google-generativeai

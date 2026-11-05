@@ -5,6 +5,7 @@ import os
 import json
 import config
 import time
+from lib.gvqm_league_common import get_eastern_now, get_eastern_time_str
 
 SHEET_NAME = getattr(config, 'GOOGLE_SHEET_NAME', "TradingBot_History")
 JUNIOR_TAB_NAME = "Junior_Decisions"
@@ -59,7 +60,7 @@ def log_report(winner_ticker, analysis, opponent="Unknown"):
             if not first_row or len(first_row) < 4:
                 sheet.insert_row(headers, index=1)
 
-            timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+            timestamp = get_eastern_time_str("%Y-%m-%d %H:%M")
             matchup_str = f"{winner_ticker} vs {opponent}"
             rationale = analysis.get("rationale", "No rationale provided.")
 
@@ -170,7 +171,7 @@ def get_rising_stars(current_standings):
     from datetime import datetime, timedelta
     import config
     
-    today_str = datetime.now().strftime("%Y-%m-%d")
+    today_str = get_eastern_time_str("%Y-%m-%d")
    
     # 1. Download Memory Bank from Google Sheets
     print("☁️ [NOTIFIER] Loading Minor League memory from Google Sheets...")
@@ -187,7 +188,7 @@ def get_rising_stars(current_standings):
     # 4. Bounded Lookback: Check 3 days ago, then 4, up to a maximum of 7 days
     past_ranks = None
     for days_back in range(3, 8):
-        target_date = (datetime.now() - timedelta(days=days_back)).strftime("%Y-%m-%d")
+        target_date = (get_eastern_now() - timedelta(days=days_back)).strftime("%Y-%m-%d")
         if target_date in history:
             past_ranks = history[target_date]
             break
