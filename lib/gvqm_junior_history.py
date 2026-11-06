@@ -5,6 +5,7 @@ import os
 import json
 import config
 import time
+import math
 from lib.gvqm_league_common import get_eastern_now, get_eastern_time_str
 
 SHEET_NAME = getattr(config, 'GOOGLE_SHEET_NAME', "TradingBot_History")
@@ -210,4 +211,5 @@ def get_rising_stars(current_standings):
 
     # DYNAMIC LIMIT UPDATE
     draft_limit = getattr(config, 'SENIOR_DRAFT_LIMIT', 3)
-    return sorted(rising_stars, key=lambda x: x['jump'], reverse=True)[:draft_limit]
+    limit = int(draft_limit) if draft_limit >= 1.0 else 3
+    return sorted(rising_stars, key=lambda x: x['jump'], reverse=True)[:limit]

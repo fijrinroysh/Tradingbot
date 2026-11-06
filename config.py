@@ -84,15 +84,21 @@ SCANNER_SMA_MULTIPLIER = float(os.getenv("SCANNER_SMA_MULTIPLIER", 0.85))
 # 1. JUNIOR LIMIT: How many stocks to analyze per day.
 # If using Flash, set to 200+. If using Pro, set to ~20 to stay within limits.
 # This ensures you cover the 200-stock universe in chunks (e.g., 20/day = 10 days).
-DAILY_SCAN_LIMIT = int(os.getenv("DAILY_SCAN_LIMIT", 5))
-SENIOR_DRAFT_LIMIT = int(os.getenv("SENIOR_DRAFT_LIMIT", 3))# How many top candidates Senior Manager drafts for final review (e.g., 5-10)
+# DAILY_SCAN_LIMIT = int(os.getenv("DAILY_SCAN_LIMIT", 5))  # Deprecated: dynamic scaling via SENIOR_DRAFT_LIMIT * 2
+# --- LEAGUE ALLOCATION & PROMOTION PERCENTAGES ---
+# Decimal format: 0.10 = 10%, 0.30 = 30%
+SENIOR_DRAFT_LIMIT = float(os.getenv("SENIOR_DRAFT_LIMIT", 0.10))      # Top 10% of Minor League drafted to Major League
+MAJOR_LEAGUE_BUY_PCT = float(os.getenv("MAJOR_LEAGUE_BUY_PCT", 0.25))  # Top 30% of Major League eligible to buy
+MAJOR_LEAGUE_SELL_PCT = float(os.getenv("MAJOR_LEAGUE_SELL_PCT", 0.25))# Bottom 30% of Major League liquidated if owned
 
 
 
 
 # Dollar amount to invest in each "High Conviction" Buy
 INVEST_PER_TRADE = int(os.getenv("INVEST_PER_TRADE", 10000))
-MAX_PORTFOLIO_POSITIONS = int(os.getenv("MAX_PORTFOLIO_POSITIONS", 5)) # Max number of positions in the portfolio at any time
+# Deprecated in decoupled architecture (retained for backward compatibility)
+# MAX_PORTFOLIO_POSITIONS = int(os.getenv("MAX_PORTFOLIO_POSITIONS", 5)) # Deprecated: all Major League candidates eligible
+# ELO_SWAP_THRESHOLD = float(os.getenv("ELO_SWAP_THRESHOLD", 15.0))      # Deprecated: atomic swaps eliminated
 
 
 GOOGLE_SHEET_STRATEGY_TAB = "Executive_Briefs"

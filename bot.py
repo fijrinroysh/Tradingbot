@@ -1,4 +1,5 @@
 import sys, os
+import math
 import datetime
 import time
 import random
@@ -24,6 +25,7 @@ import lib.gvqm_senior_agent as senior_agent
 import lib.gvqm_senior_history as senior_history
 import lib.gvqm_email_notifier as notifier
 import lib.gvqm_minor_league as minor_league
+from lib.gvqm_minor_league import rank_senior_board as _rank_senior_board
 import lib.gvqm_league_common as league_common
 
 # ==========================================
@@ -37,6 +39,18 @@ daily_ai_logic = []
 def log_pipeline(message):
     timestamp = league_common.get_eastern_time_str("%H:%M:%S")
     print(f"[{timestamp}] [PIPELINE] {message}")
+
+def _resolve_count(total: int, limit_or_pct: float) -> int:
+    """
+    Resolves a draft/buy/sell setting that can be either a decimal percentage
+    (e.g., 0.10 for 10%, 0.30 for 30%) or a legacy integer count (e.g., 3).
+    Always returns an integer >= 1 if total > 0, else 0.
+    """
+    if total <= 0:
+        return 0
+    if isinstance(limit_or_pct, float) and limit_or_pct <= 1.0:
+        return max(1, math.ceil(total * limit_or_pct))
+    return max(1, int(limit_or_pct))
 
 
 # ==========================================
@@ -55,14 +69,15 @@ def run_minor_league():
 
     active_and_protected = list(distressed_tickers)
     try:
-        # 🛡️ THE EXEMPTION CLAUSE: Protect the Top N from premature disqualification
+        # 🛡️ THE EXEMPTION CLAUSE: Protect the Top 10% from premature disqualification
         junior_board = minor_league.fetch_leaderboard("Junior_Elo")
         if junior_board:
             # Sort by Elo descending to find the top tier
             sorted_juniors = sorted(junior_board.items(), key=lambda x: x[1].get('Elo_Rating', 1500.0), reverse=True)
-            draft_limit = getattr(config, 'SENIOR_DRAFT_LIMIT', 3)
+            draft_limit = getattr(config, 'SENIOR_DRAFT_LIMIT', 0.10)
+            num_protected = _resolve_count(len(sorted_juniors), draft_limit)
             # Identify tickers that have earned the right to stay due to high Elo
-            protected_tickers = [t[0] for t in sorted_juniors[:draft_limit]]
+            protected_tickers = [t[0] for t in sorted_juniors[:num_protected]]
             # Combine the distressed list with the protected list (removing duplicates)
             active_and_protected = list(set(distressed_tickers + protected_tickers))
         else:
@@ -74,8 +89,13 @@ def run_minor_league():
         log_pipeline(f" ⚠️ Failed to update Junior Elo active contender flags: {e}")
     
 
-    limit = getattr(config, 'DAILY_SCAN_LIMIT', 20)
-    priority_tickers = junior_history.filter_candidates(active_and_protected, limit=limit)
+    # Dynamic Minor League Scan Limit based on SENIOR_DRAFT_LIMIT * 2
+    draft_limit = getattr(config, 'SENIOR_DRAFT_LIMIT', 0.10)
+    match_pct = (draft_limit * 2) if isinstance(draft_limit, float) and draft_limit <= 1.0 else 0.20
+    target_minor_matches = max(1, math.ceil(len(active_and_protected) * match_pct))
+    candidates_to_scan = min(len(active_and_protected), target_minor_matches * 2)
+    log_pipeline(f" 📊 Minor League Dynamic Scan: {len(active_and_protected)} contenders -> targeting {target_minor_matches} matches ({candidates_to_scan} candidates scanned)")
+    priority_tickers = junior_history.filter_candidates(active_and_protected, limit=candidates_to_scan)
     
     # EDGE CASE FIX: Fetch price ONCE per ticker to save API rate limits
     candidates_with_prices = []
@@ -219,17 +239,15 @@ def run_major_league(liquidated_today=None):
     
     portfolio_tickers = trader.get_live_portfolio()
     
-    # INTEGRATED SENIOR DRAFT LIMIT
-    draft_limit = getattr(config, 'SENIOR_DRAFT_LIMIT', 3)
+    # INTEGRATED SENIOR DRAFT LIMIT (Top 10% of active Minor League candidates)
+    draft_limit = getattr(config, 'SENIOR_DRAFT_LIMIT', 0.10)
     
-    # 1. THE CALL-UP: Promote top unowned Minor Leaguers
+    # 1. THE CALL-UP: Promote top 10% unowned Minor Leaguers directly
     sorted_juniors = sorted(junior_board.items(), key=lambda x: x[1]['Elo_Rating'], reverse=True)
     unowned_juniors = [item[0] for item in sorted_juniors if item[0] not in portfolio_tickers and item[0] not in liquidated_today]
     
-    # Cap the total Major League roster size. 
-    # If we already have 2 portfolio tickers and limit is 6, we only draft 4 rookies.
-    available_draft_slots = max(1, draft_limit - len(portfolio_tickers))
-    promoted_rookies = unowned_juniors[:available_draft_slots] 
+    rookie_count = _resolve_count(len(junior_board), draft_limit)
+    promoted_rookies = unowned_juniors[:rookie_count] 
 
     major_league_roster = list(set(portfolio_tickers + promoted_rookies))
     log_pipeline(f" 📈 Major League Roster: {major_league_roster}")
@@ -243,8 +261,11 @@ def run_major_league(liquidated_today=None):
         if price:
             roster_data.append({'ticker': t, 'current_price': price})
 
-    # 3. RUN HEAVYWEIGHT MATCHUPS (Title Defenses scale with portfolio size)
-    matches_to_run = max(1, len(roster_data) // 2)
+    # 3. RUN HEAVYWEIGHT MATCHUPS (Dynamically scaled by MAJOR_LEAGUE_BUY_PCT)
+    buy_pct = getattr(config, 'MAJOR_LEAGUE_BUY_PCT', 0.30)
+    target_matches = _resolve_count(len(roster_data), buy_pct)
+    matches_to_run = min(len(roster_data) // 2, max(1, target_matches))
+    log_pipeline(f" 🥊 Major League Dynamic Matches: {len(roster_data)} contenders -> running {matches_to_run} matches")
     
     matchups = minor_league.get_major_league_matchups(
         candidates=roster_data, 
@@ -298,177 +319,147 @@ def execute_swaps(liquidated_today=None):
     log_pipeline("\n⚖️ PHASE 3: FRONT OFFICE (ASSET ALLOCATION ENGINE)")
     
     senior_board = minor_league.fetch_leaderboard("Senior_Elo")
-    if not senior_board: return
+    if not senior_board:
+        log_pipeline(" ⏸️ Senior_Elo leaderboard is empty. Skipping Front Office execution.")
+        return []
     
-    ranked_majors = sorted(senior_board.items(), key=lambda x: x[1]['Elo_Rating'], reverse=True)
+    junior_board = minor_league.fetch_leaderboard("Junior_Elo")
+    ranked_majors = _rank_senior_board(senior_board, junior_board if isinstance(junior_board, dict) else {})
+    total_majors = len(ranked_majors)
     portfolio_tickers = trader.get_live_portfolio()
 
-    # Read capital parameters and target limits securely from config
-    max_portfolio_positions = getattr(config, 'MAX_PORTFOLIO_POSITIONS', 3)
+    # Read capital parameters and allocation percentages
     budget = getattr(config, 'INVEST_PER_TRADE', 1000)
-    elo_swap_threshold = getattr(config, 'ELO_SWAP_THRESHOLD', 15.0)
+    major_buy_pct = getattr(config, 'MAJOR_LEAGUE_BUY_PCT', 0.30)
+    major_sell_pct = getattr(config, 'MAJOR_LEAGUE_SELL_PCT', 0.30)
 
-    log_pipeline(f" 🎯 Portfolio Capacity Check: {len(portfolio_tickers)} / {max_portfolio_positions} slots filled.")
+    buy_count = _resolve_count(total_majors, major_buy_pct)
+    sell_count = _resolve_count(total_majors, major_sell_pct)
+    # Ensure bottom cutoff does not overlap with top buy zone when total_majors is small
+    bottom_start_idx = max(buy_count, total_majors - sell_count)
+    bottom_majors = {item[0] for item in ranked_majors[bottom_start_idx:]}
+
+    log_pipeline(f" 📊 Major League Roster: {total_majors} active contenders.")
+    log_pipeline(f" 🎯 Allocation Targets: Top {buy_count} eligible to BUY (Top {int(major_buy_pct*100)}%), Bottom {len(bottom_majors)} flagged to SELL (Bottom {int(major_sell_pct*100)}%).")
+    log_pipeline(f" 💼 Current Portfolio: {len(portfolio_tickers)} positions: {portfolio_tickers}")
 
     # ---------------------------------------------------------
-    # 🚀 SCENARIO A: THE FILL-UP PHASE (Open Slots Available)
+    # 📉 PASS 1: SELLS (Demotions & Bottom 30% Major League)
     # ---------------------------------------------------------
-    if len(portfolio_tickers) < max_portfolio_positions:
-        open_slots = max_portfolio_positions - len(portfolio_tickers)
-        log_pipeline(f" 🪟 Found {open_slots} open slot(s). Initiating Fill-Up Execution Phase...")
-        
-        # Filter down to top-ranked assets that we do not currently own or have pending orders for
-        unowned_majors = [item for item in ranked_majors if item[0] not in portfolio_tickers and item[0] not in liquidated_today]
-        
-        if not unowned_majors:
-            log_pipeline(" ⏸️ No unowned Major League assets available to fill open slots today.")
-            return
+    log_pipeline("\n🔍 Pass 1: Auditing Holdings for Demotion or Bottom Tier...")
+    any_liquidations = False
 
-        # Systematically purchase the top assets to fill the capacity vacuum
-        slots_to_process = min(open_slots, len(unowned_majors))
-        log_pipeline(f" 🛒 Deploying capital across the top {slots_to_process} unowned elite asset(s).")
-
-        for i in range(slots_to_process):
-            best_ticker, best_data = unowned_majors[i]
-            log_pipeline(f" 📥 Slot {i+1}: Drafting {best_ticker} ({best_data['Elo_Rating']:.1f} Elo) into the portfolio.")
-            
-            current_price = trader.get_current_price(best_ticker)
-            if not current_price:
-                log_pipeline(f" ⚠️ Could not resolve price for {best_ticker}. Skipping slot.")
-                continue
-
-            # Run batch function for a single target allocation
-            batch_plan = senior_agent.generate_batch_execution_paperwork({best_ticker: current_price})
-            trade_plan = batch_plan.get(best_ticker)
-            
-            if trade_plan:
-                trade_plan['ticker'] = best_ticker
-                trade_plan['action'] = "OPEN_NEW"
-                
+    for held_ticker in list(portfolio_tickers):
+        # 1. Complete Demotion: Stock is no longer an active contender in Senior_Elo
+        if held_ticker not in senior_board:
+            log_pipeline(f" 🚨 DEMOTION DETECTED: {held_ticker} is no longer in Senior_Elo. Liquidating...")
+            current_price = trader.get_current_price(held_ticker)
+            close_status = trader.close_full_position(held_ticker)
+            if close_status == "FILLED":
+                any_liquidations = True
                 try:
-                    # Execute entry sequence and verify acceptance with Alpaca
-                    entry_status = trader.execute_entry(
-                        ticker=best_ticker, 
-                        investment_amount=budget,
-                        buy_limit=trade_plan.get('entry_price'),
-                        take_profit=trade_plan.get('take_profit'),
-                        stop_loss=trade_plan.get('stop_loss')
-                    )
-                    
-                    if entry_status and entry_status[0].get("event") not in ["ERROR", "HOLD"]:
-                        # 👇 NEW: Wait for the stock to physically arrive in the account
-                        trader.wait_for_position_fill(best_ticker)
-                        
-                        payload = {"ceo_report": f"Slot Fill Purchase: {best_ticker}", "final_execution_orders": [trade_plan]}
-                        senior_history.log_detailed_decisions(payload, {best_ticker: 0})
-                        
-                        reasoning = trade_plan.get('rationale', 'No rationale provided.')
-                        daily_ai_logic.append(f"🚀 ALLOCATION FILL (Bought {best_ticker}): {reasoning}")
-                    else:
-                        error_reason = entry_status[0].get("info", "Unknown broker rejection") if entry_status else "No status returned"
-                        log_pipeline(f" ❌ Allocation Fill aborted: Alpaca rejected order for {best_ticker}. Reason: {error_reason}")
-                        try:
-                            senior_history.log_mechanical_trade(best_ticker, "ORDER_REJECTED", error_reason, current_price, 0)
-                        except Exception as log_err:
-                            log_pipeline(f" ⚠️ Failed to log ORDER_REJECTED to Trade_Log: {log_err}")
-                except Exception as e:
-                    log_pipeline(f" ❌ Alpaca Entry Pipeline Failed for {best_ticker}: {e}")
-                    try:
-                        senior_history.log_mechanical_trade(best_ticker, "ORDER_REJECTED", f"Pipeline Exception: {e}", current_price, 0)
-                    except Exception as log_err:
-                        log_pipeline(f" ⚠️ Failed to log ORDER_REJECTED to Trade_Log: {log_err}")
+                    senior_history.log_mechanical_trade(held_ticker, "CLOSE_POSITION", "Major League Demotion", current_price or 0.0, 1)
+                except Exception as log_err:
+                    log_pipeline(f" ⚠️ Failed to log demotion trade for {held_ticker}: {log_err}")
+                daily_ai_logic.append(f"📉 DEMOTION EXIT: Sold {held_ticker} because it dropped out of the Major League.")
             else:
-                log_pipeline(f" ❌ Senior Agent failed paperwork generation for {best_ticker}.")
-        
-        # Safe exit after deploying capital into open slots to allow trades to settle
-        return
+                log_pipeline(f" ❌ Failed to liquidate demoted asset {held_ticker}.")
 
-    # ---------------------------------------------------------
-    # ⚖️ SCENARIO B: THE SWAP PROTOCOL (Portfolio at Max Capacity)
-    # ---------------------------------------------------------
-    best_unowned = next((item for item in ranked_majors if item[0] not in portfolio_tickers and item[0] not in liquidated_today), None)
-    worst_owned = next((item for item in reversed(ranked_majors) if item[0] in portfolio_tickers), None)
-
-    if not best_unowned or not worst_owned: 
-        log_pipeline(" ⏸️ Portfolio at max capacity but data insufficient to evaluate swaps.")
-        return
-
-    best_ticker, best_data = best_unowned[0], best_unowned[1]
-    worst_ticker, worst_data = worst_owned[0], worst_owned[1]
-
-    log_pipeline(f" 🏆 Best Unowned: {best_ticker} ({best_data['Elo_Rating']:.1f} Elo)")
-    log_pipeline(f" 🗑️ Worst Owned: {worst_ticker} ({worst_data['Elo_Rating']:.1f} Elo)")
-
-
-    if best_data['Elo_Rating'] > (worst_data['Elo_Rating'] + elo_swap_threshold):
-        log_pipeline(f" 🚨 SWAP TRIGGERED: {best_ticker} defeated {worst_ticker} by more than {elo_swap_threshold} pts!")
-        
-        current_loser_price = trader.get_current_price(worst_ticker)
-        
-        # 👇 WAIT & VERIFY LIQUIDATION SEQUENCING 👇
-        close_status = trader.close_full_position(worst_ticker)
-        
-        if close_status == "FILLED":
-            try:
-                senior_history.log_mechanical_trade(worst_ticker, "CLOSE_POSITION", f"Replaced by {best_ticker}", current_loser_price, 1)
-            except: 
-                pass
-
-            # 👇 NEW: Smartly wait for the cash register to clear the exact amount we need
-            cash_ready = trader.wait_for_cash_settlement(budget)
-            
-            if not cash_ready:
-                log_pipeline(f" ❌ Swap Aborted: Sold {worst_ticker}, but broker did not release funds fast enough to buy {best_ticker}.")
-                return
-            
-            current_price = trader.get_current_price(best_ticker)
-            
-            # Request paperwork for the incoming outperforming asset
-            batch_plan = senior_agent.generate_batch_execution_paperwork({best_ticker: current_price}) 
-            trade_plan = batch_plan.get(best_ticker)
-            
-            if trade_plan:
-                trade_plan['ticker'] = best_ticker
-                trade_plan['action'] = "OPEN_NEW"
-
+        # 2. Bottom 30% Major League: Stock is in the active Major League but fell to bottom tier
+        elif held_ticker in bottom_majors:
+            held_elo = senior_board[held_ticker].get('Elo_Rating', 1500.0)
+            held_rank = next((idx + 1 for idx, item in enumerate(ranked_majors) if item[0] == held_ticker), total_majors)
+            log_pipeline(f" 🚨 BOTTOM TIER DETECTED: {held_ticker} (Rank {held_rank}/{total_majors}, {held_elo:.1f} Elo) is in bottom {int(major_sell_pct*100)}%. Liquidating...")
+            current_price = trader.get_current_price(held_ticker)
+            close_status = trader.close_full_position(held_ticker)
+            if close_status == "FILLED":
+                any_liquidations = True
                 try:
-                    # Fire entry order and lock verification contract
-                    entry_status = trader.execute_entry(
-                        ticker=best_ticker, 
-                        investment_amount=budget,
-                        buy_limit=trade_plan.get('entry_price'), 
-                        take_profit=trade_plan.get('take_profit'),
-                        stop_loss=trade_plan.get('stop_loss')
-                    )
-                    
-                    if entry_status and entry_status[0].get("event") not in ["ERROR", "HOLD"]:
-                        # 👇 NEW: Wait for the stock to physically arrive in the account
-                        trader.wait_for_position_fill(best_ticker)
-                        
-                        payload = {"ceo_report": f"Swap: {worst_ticker} -> {best_ticker}", "final_execution_orders": [trade_plan]}
-                        senior_history.log_detailed_decisions(payload, {best_ticker: 0}) 
-
-                        reasoning = trade_plan.get('rationale', 'No rationale provided.')
-                        daily_ai_logic.append(f"🔄 SWAP ({worst_ticker} -> {best_ticker}): {reasoning}")
-                    else:
-                        error_reason = entry_status[0].get("info", "Unknown broker rejection") if entry_status else "No status returned"
-                        log_pipeline(f" ❌ Swap incomplete: Alpaca liquidated {worst_ticker} but rejected buy order for {best_ticker}. Reason: {error_reason}")
-                        try:
-                            senior_history.log_mechanical_trade(best_ticker, "ORDER_REJECTED", error_reason, current_price, 0)
-                        except Exception as log_err:
-                            log_pipeline(f" ⚠️ Failed to log ORDER_REJECTED to Trade_Log: {log_err}")
-                except Exception as e:
-                    log_pipeline(f" ❌ Alpaca Trade Failed on Swap Entry: {e}")
-                    try:
-                        senior_history.log_mechanical_trade(best_ticker, "ORDER_REJECTED", f"Pipeline Exception: {e}", current_price, 0)
-                    except Exception as log_err:
-                        log_pipeline(f" ⚠️ Failed to log ORDER_REJECTED to Trade_Log: {log_err}")
+                    senior_history.log_mechanical_trade(held_ticker, "CLOSE_POSITION", "Bottom 30% Major League Demotion", current_price or 0.0, 1)
+                except Exception as log_err:
+                    log_pipeline(f" ⚠️ Failed to log bottom tier trade for {held_ticker}: {log_err}")
+                daily_ai_logic.append(f"📉 BOTTOM TIER EXIT: Sold {held_ticker} (Rank {held_rank}/{total_majors}) in bottom {int(major_sell_pct*100)}% of Major League.")
             else:
-                log_pipeline(f" ❌ Senior Agent failed to write paperwork for {best_ticker}. Capital preserved in cash.")
+                log_pipeline(f" ❌ Failed to liquidate bottom tier asset {held_ticker}.")
+
         else:
-            log_pipeline(f" ❌ Swap Aborted: Failed to cleanly liquidate {worst_ticker}. Halting sequence to protect structure.")
-    else:
-        log_pipeline(f" 🛡️ Strategic equilibrium maintained. Challenger did not breach the +{elo_swap_threshold} margin.")
+            held_elo = senior_board[held_ticker].get('Elo_Rating', 1500.0)
+            held_rank = next((idx + 1 for idx, item in enumerate(ranked_majors) if item[0] == held_ticker), total_majors)
+            log_pipeline(f" ✅ HOLD: {held_ticker} (Rank {held_rank}/{total_majors}, {held_elo:.1f} Elo) maintained in Major League.")
+
+    # If any sales were executed, wait for cash settlement before proceeding to buys
+    if any_liquidations:
+        log_pipeline(" ⏳ Waiting for cash settlement from liquidations before initiating buys...")
+        trader.wait_for_cash_settlement(budget)
+
+    # Refresh live portfolio after liquidations
+    portfolio_tickers = trader.get_live_portfolio()
+
+    # ---------------------------------------------------------
+    # 🚀 PASS 2: BUYS (Top 30% Major League)
+    # ---------------------------------------------------------
+    log_pipeline("\n🛒 Pass 2: Evaluating Top-Tier Major League Buys...")
+    eligible_candidates = [
+        item for item in ranked_majors[:buy_count]
+        if item[0] not in portfolio_tickers and item[0] not in liquidated_today
+    ]
+
+    if not eligible_candidates:
+        log_pipeline(" ⏸️ No unowned, non-liquidated candidates in the top tier to buy today.")
+        return ranked_majors
+
+    log_pipeline(f" 🎯 Found {len(eligible_candidates)} qualifying unowned candidate(s) in top {buy_count} ranks.")
+
+    for best_ticker, best_data in eligible_candidates:
+        rank = next((idx + 1 for idx, item in enumerate(ranked_majors) if item[0] == best_ticker), 1)
+        log_pipeline(f" 📥 Candidate {best_ticker} (Rank {rank}/{total_majors}, {best_data['Elo_Rating']:.1f} Elo): Generating paperwork...")
+
+        current_price = trader.get_current_price(best_ticker)
+        if not current_price:
+            log_pipeline(f" ⚠️ Could not resolve price for {best_ticker}. Skipping.")
+            continue
+
+        batch_plan = senior_agent.generate_batch_execution_paperwork({best_ticker: current_price})
+        trade_plan = batch_plan.get(best_ticker) if batch_plan else None
+
+        if trade_plan:
+            trade_plan['ticker'] = best_ticker
+            trade_plan['action'] = "OPEN_NEW"
+
+            try:
+                entry_status = trader.execute_entry(
+                    ticker=best_ticker,
+                    investment_amount=budget,
+                    buy_limit=trade_plan.get('entry_price'),
+                    take_profit=trade_plan.get('take_profit'),
+                    stop_loss=trade_plan.get('stop_loss')
+                )
+
+                if entry_status and entry_status[0].get("event") not in ["ERROR", "HOLD"]:
+                    trader.wait_for_position_fill(best_ticker)
+                    payload = {"ceo_report": f"Top-Tier Purchase: {best_ticker}", "final_execution_orders": [trade_plan]}
+                    senior_history.log_detailed_decisions(payload, {best_ticker: 0})
+
+                    reasoning = trade_plan.get('rationale', 'No rationale provided.')
+                    daily_ai_logic.append(f"🚀 TOP-TIER ALLOCATION (Bought {best_ticker}): {reasoning}")
+                    portfolio_tickers.append(best_ticker)
+                else:
+                    error_reason = entry_status[0].get("info", "Unknown broker rejection") if entry_status else "No status returned"
+                    log_pipeline(f" ❌ Allocation Fill aborted: Alpaca rejected order for {best_ticker}. Reason: {error_reason}")
+                    try:
+                        senior_history.log_mechanical_trade(best_ticker, "ORDER_REJECTED", error_reason, current_price, 0)
+                    except Exception as log_err:
+                        log_pipeline(f" ⚠️ Failed to log ORDER_REJECTED to Trade_Log: {log_err}")
+            except Exception as e:
+                log_pipeline(f" ❌ Alpaca Entry Pipeline Failed for {best_ticker}: {e}")
+                try:
+                    senior_history.log_mechanical_trade(best_ticker, "ORDER_REJECTED", f"Pipeline Exception: {e}", current_price, 0)
+                except Exception as log_err:
+                    log_pipeline(f" ⚠️ Failed to log ORDER_REJECTED to Trade_Log: {log_err}")
+        else:
+            log_pipeline(f" ❌ Senior Agent failed paperwork generation for {best_ticker}.")
+
+    return ranked_majors
 
 # ==========================================
 # 🚀 GITHUB ACTIONS ENTRY POINT
@@ -484,40 +475,22 @@ if __name__ == "__main__":
     run_minor_league()
     liquidated_today = maintain_portfolio()
     run_major_league(liquidated_today)
-    execute_swaps(liquidated_today)
+    ranked_majors = execute_swaps(liquidated_today)
 
     # 2. Comprehensive Multi-Asset Reporting Strategy
     try:
         log_pipeline("\n📧 Dispatching Executive Brief...")
         
-        portfolio_tickers = trader.get_live_portfolio()
-        senior_board = minor_league.fetch_leaderboard("Senior_Elo")
-        
-        draft_limit = getattr(config, 'SENIOR_DRAFT_LIMIT', 3)
-        
-        junior_board = minor_league.fetch_leaderboard("Junior_Elo")
-        sorted_juniors = sorted(junior_board.items(), key=lambda x: x[1]['Elo_Rating'], reverse=True)
-        unowned_juniors = [item[0] for item in sorted_juniors if item[0] not in portfolio_tickers]
-        available_draft_slots = max(1, draft_limit - len(portfolio_tickers))
-        actual_promoted_rookies = unowned_juniors[:available_draft_slots] 
-
-        # Gather complete standings for all active champions in the portfolio
-        active_standings = []
-        for t in portfolio_tickers:
-            if t in senior_board:
-                active_standings.append((t, senior_board[t]))
-        
-        # Gather standings for the current drafted pipeline challengers
-        challenger_standings = []
-        for t in actual_promoted_rookies:
-            if t in senior_board:
-                challenger_standings.append((t, senior_board[t]))
+        # Ground-Truth Parity: Present the exact Major League roster evaluated during execute_swaps()
+        if not ranked_majors:
+            senior_board = minor_league.fetch_leaderboard("Senior_Elo")
+            if senior_board:
+                junior_board = minor_league.fetch_leaderboard("Junior_Elo")
+                ranked_majors = _rank_senior_board(senior_board, junior_board if isinstance(junior_board, dict) else {})
             else:
-                challenger_standings.append((t, {'Elo_Rating': 1500.0, 'Wins': 0, 'Losses': 0}))
+                ranked_majors = []
         
-        presentation_standings = active_standings + challenger_standings
-        presentation_standings.sort(key=lambda x: x[1]['Elo_Rating'], reverse=True)
-        
+        presentation_standings = ranked_majors
       
         # ==========================================
         # 📧 THE CLEAN SPLIT: EMAIL DISPATCH
@@ -540,12 +513,14 @@ if __name__ == "__main__":
         minor_league_notes = [log for log in daily_ai_logic if "SCOUT" in log]
         
         # Convert the junior_board dictionary into the sorted list format the email expects
-        sorted_juniors = sorted(junior_board.items(), key=lambda x: x[1].get('Elo_Rating', 1500), reverse=True)
+        junior_board = minor_league.fetch_leaderboard("Junior_Elo")
+        sorted_juniors = sorted(junior_board.items(), key=lambda x: x[1].get('Elo_Rating', 1500.0), reverse=True) if junior_board else []
 
         # 3. Dispatch Both Emails
         log_pipeline("📧 Dispatching Major and Minor League Briefs...")
         notifier.send_minor_league_scouting_report(minor_league_notes, sorted_juniors)
-        notifier.send_executive_brief(decision_payload, trader.get_account(), trader.get_portfolio())
+        pending_buys = trader.get_pending_buy_orders()
+        notifier.send_executive_brief(decision_payload, trader.get_account(), trader.get_portfolio(), pending_orders=pending_buys)
         
         senior_history.log_strategy(decision_payload)
         log_pipeline("✅ Multi-asset corporate briefing emails successfully dispatched.")

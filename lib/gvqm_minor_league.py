@@ -1,11 +1,20 @@
+import sys
 import gspread
 from google.oauth2.service_account import Credentials
 import os
 import json
 import config
+import math
 from datetime import datetime
 import time
 from lib.gvqm_league_common import get_eastern_time_str
+
+# Ensure UTF-8 output encoding on Windows consoles
+if sys.platform == "win32":
+    if hasattr(sys.stdout, 'reconfigure'):
+        sys.stdout.reconfigure(encoding='utf-8')
+    if hasattr(sys.stderr, 'reconfigure'):
+        sys.stderr.reconfigure(encoding='utf-8')
 
 # --- SETUP ---
 SHEET_NAME = getattr(config, 'GOOGLE_SHEET_NAME', "TradingBot_History")
@@ -15,7 +24,8 @@ def get_client():
     creds_json = os.getenv("GOOGLE_SHEETS_CREDENTIALS")
     if not creds_json and os.path.exists("google_credentials.json"):
         try:
-            creds_json = open("google_credentials.json").read()
+            with open("google_credentials.json", "r", encoding="utf-8") as f:
+                creds_json = f.read()
         except:
             return None
     if not creds_json: return None
@@ -182,18 +192,25 @@ def _enrich_candidates(candidates, league_name):
     """
     Private helper function. Fetches the leaderboard and attaches 
     Elo and Last_Match data to every candidate so they are ready for math.
+    Preserves existing _elo and _last_match_dt if already present on candidate.
     """
     leaderboard = fetch_leaderboard(league_name)
     
     for c in candidates:
         t = c.get('ticker', c.get('Ticker', ''))
         stats = leaderboard.get(t, {})
-        c['_elo'] = stats.get('Elo_Rating', 1500.0)
-        
+        if 'Elo_Rating' in stats:
+            c['_elo'] = stats['Elo_Rating']
+        elif '_elo' not in c:
+            c['_elo'] = 1500.0
+            
         last_match_str = stats.get('Last_Match', '')
-        try:
-            c['_last_match_dt'] = datetime.strptime(last_match_str, "%Y-%m-%d %H:%M:%S")
-        except:
+        if last_match_str:
+            try:
+                c['_last_match_dt'] = datetime.strptime(last_match_str, "%Y-%m-%d %H:%M:%S")
+            except:
+                c['_last_match_dt'] = datetime.min
+        elif '_last_match_dt' not in c:
             c['_last_match_dt'] = datetime.min # Never fought = highest priority
             
     return candidates
@@ -229,41 +246,142 @@ def get_minor_league_matchups(candidates, match_count=3):
 
 
 # ==========================================
+# ⚖️ HELPER: JUNIOR ELO TIE-BREAKER
+# ==========================================
+def junior_tiebreak_key(ticker, junior_board):
+    """
+    Secondary sort key for Major League tie-breaking.
+    Active Junior_Elo contenders (higher Elo first) strictly beat tickers
+    with no active Junior_Elo row (lowest priority).
+    """
+    stats = junior_board.get(ticker) if isinstance(junior_board, dict) else None
+    if isinstance(stats, dict) and 'Elo_Rating' in stats:
+        return (0, -float(stats['Elo_Rating']))
+    return (1, 0.0)
+
+
+def _format_primary_tie_val(val):
+    if isinstance(val, datetime):
+        return "never fought" if val == datetime.min else val.strftime("%Y-%m-%d %H:%M:%S")
+    if isinstance(val, (int, float)):
+        return f"{val:.1f}"
+    return str(val)
+
+
+def _format_junior_desc(ticker, junior_board):
+    stats = junior_board.get(ticker) if isinstance(junior_board, dict) else None
+    if isinstance(stats, dict) and 'Elo_Rating' in stats:
+        return f"{ticker} (Jr {float(stats['Elo_Rating']):.1f})"
+    return f"{ticker} (no active Junior Elo)"
+
+
+def _log_junior_tiebreaks(items, junior_board, primary_fn, label, ticker_fn=lambda x: x[0]):
+    """
+    Walks adjacent sorted items that share the same primary value.
+    Emits a pipeline log line only when Junior Elo actually resolved the order
+    (i.e. at least two tied tickers had distinct junior_tiebreak_key values).
+    """
+    n = len(items)
+    i = 0
+    while i < n:
+        p_val = primary_fn(items[i])
+        j = i + 1
+        while j < n and primary_fn(items[j]) == p_val:
+            j += 1
+        if j - i > 1:
+            group = items[i:j]
+            distinct_jks = {junior_tiebreak_key(ticker_fn(item), junior_board) for item in group}
+            if len(distinct_jks) > 1:
+                ordered_desc = " > ".join(_format_junior_desc(ticker_fn(item), junior_board) for item in group)
+                print(f"   ⚖️ TIE-BREAK ({label} {_format_primary_tie_val(p_val)}): {ordered_desc}")
+        i = j
+
+
+def rank_senior_board(senior_board, junior_board=None):
+    """
+    Ranks Senior_Elo contenders by:
+      1. Senior Elo descending
+      2. Active Junior Elo descending (missing active Junior row = lowest priority)
+      3. Google Sheet row order (via Python's stable sort)
+    Returns list[(ticker, data)] and logs every tie resolved by Junior Elo.
+    """
+    if not senior_board:
+        return []
+    if junior_board is None:
+        junior_board = fetch_leaderboard("Junior_Elo")
+    ranked = sorted(
+        senior_board.items(),
+        key=lambda x: (
+            -float(x[1].get('Elo_Rating', 1500.0)),
+            junior_tiebreak_key(x[0], junior_board)
+        )
+    )
+    _log_junior_tiebreaks(
+        ranked,
+        junior_board,
+        primary_fn=lambda x: float(x[1].get('Elo_Rating', 1500.0)),
+        label="Senior Elo",
+        ticker_fn=lambda x: x[0]
+    )
+    return ranked
+
+
+# ==========================================
 # 🥊 MAJOR LEAGUE: THE TITLE DEFENSE (Cross-Pollinated)
 # ==========================================
-def get_major_league_matchups(candidates, owned_tickers, match_count=3):
+def get_major_league_matchups(candidates, owned_tickers=None, match_count=None, junior_board=None):
     """
-    Forces your active portfolio to defend against challengers.
-    Shuffles the lineups daily to ensure Champions don't fight the same 
-    Rookie twice in a row, preventing wasted API calls.
+    Pairs Major League contenders using an adjacent-Elo ladder matching system.
+    Sorts contenders by staleness (_last_match_dt ascending, Junior Elo tie-break),
+    extracts the active brawl pool, sorts by Senior_Elo descending (Junior Elo tie-break),
+    and pairs adjacent fighters.
+    Dynamically scales match count based on MAJOR_LEAGUE_BUY_PCT when match_count is None.
     """
-    import random # Ensure random is available for the shuffle
-    
-    # EDGE CASE GUARD
-    if match_count < 1 or len(candidates) < 2:
+    # EDGE CASE GUARD: Not enough stocks to fight
+    if len(candidates) < 2:
+        return []
+
+    # Dynamic match count calculation if omitted
+    if match_count is None:
+        buy_pct = getattr(config, 'MAJOR_LEAGUE_BUY_PCT', 0.30)
+        target = math.ceil(len(candidates) * buy_pct) if isinstance(buy_pct, float) and buy_pct <= 1.0 else int(buy_pct)
+        match_count = min(len(candidates) // 2, max(1, target))
+
+    if match_count < 1:
         return []
 
     candidates = _enrich_candidates(candidates, "Senior_Elo")
-    
-    # Separate the Champions from the Challengers
-    champions = [c for c in candidates if c.get('ticker', c.get('Ticker', '')) in owned_tickers]
-    challengers = [c for c in candidates if c.get('ticker', c.get('Ticker', '')) not in owned_tickers]
+    if junior_board is None:
+        junior_board = fetch_leaderboard("Junior_Elo")
+    ticker_of = lambda c: c.get('ticker', c.get('Ticker', ''))
+    jk = lambda c: junior_tiebreak_key(ticker_of(c), junior_board)
 
-    # 👇 THE FIX: SHUFFLE BOTH TEAMS 👇
-    # This destroys the repetitive static loop and forces true cross-pollination
-    random.shuffle(champions)
-    random.shuffle(challengers)
-    
+    # 1. Sort by Staleness (who has been waiting the longest / never fought; Junior Elo breaks ties)
+    candidates.sort(key=lambda x: (x['_last_match_dt'], jk(x)))
+    _log_junior_tiebreaks(
+        candidates,
+        junior_board,
+        primary_fn=lambda c: c['_last_match_dt'],
+        label="Matchmaking Staleness",
+        ticker_fn=ticker_of
+    )
+
+    # 2. Grab only the number of fighters we need today
+    brawl_pool = candidates[:(match_count * 2)]
+
+    # 3. Sort those specific fighters by Senior Elo descending (Junior Elo breaks ties; stable on full tie)
+    brawl_pool.sort(key=lambda x: (-float(x['_elo']), jk(x)))
+    _log_junior_tiebreaks(
+        brawl_pool,
+        junior_board,
+        primary_fn=lambda c: float(c.get('_elo', 1500.0)),
+        label="Matchmaking Senior Elo",
+        ticker_fn=ticker_of
+    )
+
+    # 4. Pair them up
     matchups = []
-    for champ in champions:
-        if not challengers: 
-            break 
-        
-        # Pull a random challenger off the shuffled list
-        random_challenger = challengers.pop(0) 
-        matchups.append((champ, random_challenger))
-        
-        if len(matchups) >= match_count:
-            break
-            
+    for i in range(0, len(brawl_pool) - 1, 2):
+        matchups.append((brawl_pool[i], brawl_pool[i+1]))
+
     return matchups

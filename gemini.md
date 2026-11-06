@@ -36,11 +36,11 @@ The Good Value Quick Money (GVQM) engine decomposes automated equity trading int
   -> Senior Active Contender Sync & Inactive Elo Reset
           |
           v
-[ MODULE 6: FRONT OFFICE ALLOCATION & SWAP ENGINE ]
-  -> Portfolio Capacity Check (Max Position Sizing)
-  -> Scenario A: Slot Fill-Up Orders via Alpaca Broker
-  -> Scenario B: Swap Hurdle Verification (Challenger Elo > Champion Elo + Threshold)
-  -> Sequenced Liquidation, Cash Settlement Cooldown, Entry Execution, and ORDER_REJECTED Audit Logging
+[ MODULE 6: FRONT OFFICE DECOUPLED ALLOCATION ENGINE ]
+  -> Pass 1: Demotion Sells (Complete Demotions & Bottom 30% Major League)
+  -> Cash Settlement Wait: Synchronous broker funds clearing
+  -> Pass 2: Top-Tier Buys (Top 30% Major League Candidates)
+  -> Granular Broker Rejection Unmasking & ORDER_REJECTED Audit Logging
           |
           v
 [ MODULE 7: EXECUTIVE BRIEFING & MULTI-DAY MEMORY ]
@@ -49,6 +49,9 @@ The Good Value Quick Money (GVQM) engine decomposes automated equity trading int
   -> Multi-Asset HTML Briefing Dispatch (Resend API)
   -> Corporate Strategy Brief Logging
 ```
+
+### System Operational Invariants
+* **Cross-Platform UTF-8 Console Encoding:** All standalone entry points and library logging modules must defensively reconfigure `sys.stdout` and `sys.stderr` to `utf-8` on `win32` platforms (`sys.stdout.reconfigure(encoding='utf-8')`) to prevent `UnicodeEncodeError` when emitting emoji-enhanced pipeline status logs.
 
 ---
 
@@ -80,7 +83,7 @@ Scans a large-cap equity universe, calculates moving average technical metrics, 
    * Discount % = ((250 MA - Current Price) / 250 MA) * 100
 4. **Filtering:** Retains only assets where Discount % >= DISCOUNT_THRESHOLD_PERCENT.
 5. **State Flag Synchronization & Elo Reset (with Exemption Clause):** Invokes `league_common.update_active_contenders_flag("Junior_Elo", active_and_protected, wipe_inactive_elo=True)`.
-   * **The Exemption Clause:** Before synchronizing, the engine checks the top `SENIOR_DRAFT_LIMIT` stocks on the `Junior_Elo` leaderboard. These elite stocks are explicitly exempted from being marked inactive. This ensures a stock that has fought its way to the top isn't prematurely disqualified from a Major League draft simply because its price organically rose just above the moving average threshold. It must lose matches and naturally fall out of the top N before it can be disqualified by price alone.
+   * **The Exemption Clause:** Before synchronizing, the engine checks the top 10% (governed by `SENIOR_DRAFT_LIMIT = 0.10`) stocks on the `Junior_Elo` leaderboard. These elite stocks are explicitly exempted from being marked inactive. This ensures a stock that has fought its way to the top isn't prematurely disqualified from a Major League draft simply because its price organically rose just above the moving average threshold. It must lose matches and naturally fall out of the top tier before it can be disqualified by price alone.
    * Sets `Active_Contenders = 'Y'` for qualifying/exempt tickers.
    * Sets `Active_Contenders = 'N'` for previously tracked tickers that no longer meet criteria (and are not exempt).
    * **Elo Reset Rule:** For any ticker set to `Active_Contenders = 'N'`, automatically resets `Elo_Rating = 1500.0` in the sheet. This eliminates stale memory from months prior so returning candidates always start fresh on a clean baseline.
@@ -105,8 +108,9 @@ Ingests qualified candidate tickers from Module 1, cross-references historical m
 * `gvqm_junior_history.py`
 
 ### Inputs & Configuration Parameters
-* **DAILY_SCAN_LIMIT:** Maximum candidate cap for today's active evaluation pool (default: 20).
-* **match_count:** Dynamic match ceiling: `max(1, floor(len(candidates) / 2))`
+* **SENIOR_DRAFT_LIMIT:** Dynamic sizing basis. Minor League scans candidates to target `ceil(len(active_contenders) * (SENIOR_DRAFT_LIMIT * 2))` matches, evaluating `2 * target_matches` candidates (e.g., 60 active contenders at 10% draft limit = 12 matches, 24 candidates scanned).
+* **DAILY_SCAN_LIMIT:** Deprecated; commented out in `config.py` and `.env` in favor of dynamic scaling.
+* **match_count:** Dynamic match ceiling: `floor(len(candidates_with_prices) / 2)`.
 * **Database State:** `Junior_Elo` tab (`Active_Contenders`, `Last_Match`, `Elo_Rating`).
 
 ### Function Implementations & Logic Flow
@@ -237,6 +241,10 @@ Performs daily structural risk audits on active positions before new capital dep
      * Adjusts broker stop-loss and take-profit orders via `trader.execute_update(ticker, take_profit, stop_loss)`.
      * Logs updated risk thresholds to `Trade_Log` via `senior_history.log_detailed_decisions()`.
 
+### Intraday Broker Stop-Loss vs. Trapdoor Guard Distinction
+* **Trapdoor Liquidations (Module 4):** Triggered intentionally by the Senior LLM Agent during Phase 2.5 when an asset's fundamental thesis is broken. Banishes the asset from `Senior_Elo` (`Active_Contenders = 'N'`, Elo reset to 1500.0) and blocks re-buying for that session via `liquidated_today`.
+* **Broker Stop-Loss Hits (Intraday OCO Bracket):** Triggered automatically by Alpaca during active trading hours while the bot is dormant. The broker liquidates the physical position. Upon the next bot run, the asset is simply unowned. If its distressed fundamentals remain favorable and it wins its scouting and Major League matchups, Module 6 evaluates it as a candidate for capital re-allocation unless an explicit cooldown is configured.
+
 ### Module Interface & Clean Boundary
 * **Output:** Verified, clean portfolio state ready for allocation decisions; updated orders at broker; risk event audit trails in Google Sheets.
 * **Decoupling Boundary:** Operates exclusively on *currently held* assets. Does not consider Minor League rookies.
@@ -249,13 +257,22 @@ Performs daily structural risk audits on active positions before new capital dep
 [Junior_Elo Leaderboard] --> [Filter Top Unowned Rookies] --> [Combine with Active Holdings]
                                                                     |
                                                                     v
-                                                  [Random Shuffle Both Lineups]
+                                                  [Unified Major League Roster]
                                                                     |
                                                                     v
-                                                 [Senior Agent Cross-Pollinated Matchup]
+                                                [Sort by Staleness (Last_Match Asc)]
                                                                     |
                                                                     v
-                                                 [Update Senior_Elo & Senior_Decisions]
+                                     [Dynamic Match Sizing: ceil(N * MAJOR_LEAGUE_BUY_PCT)]
+                                                                    |
+                                                                    v
+                                      [Extract Stalest Brawl Pool & Sort by Senior_Elo Desc]
+                                                                    |
+                                                                    v
+                                                [Adjacent-Elo Ladder Matchmaking (1v2, 3v4)]
+                                                                    |
+                                                                    v
+                                                 [Senior Agent Adjudication & Logging]
                                                                     |
                                                                     v
                                              [Senior Active Sync & Inactive Elo Reset]
@@ -272,16 +289,18 @@ Drafts top-performing unowned assets from the Minor League, combines them with a
 * `bot.py` (Orchestration in `run_major_league`)
 
 ### Execution Logic Flow
-1. **The Rookie Call-Up:**
+1. **The Rookie Call-Up (10% Dynamic Draft):**
    * Reads `Junior_Elo` leaderboard via `minor_league.fetch_leaderboard("Junior_Elo")`.
    * Sorts junior stocks by Elo descending.
-   * Filters out stocks already held in `portfolio_tickers`.
-   * Extracts top `SENIOR_DRAFT_LIMIT` (default: 3) tickers.
+   * Filters out stocks already held in `portfolio_tickers` and those in `liquidated_today`.
+   * Extracts the top 10% of active junior contenders (`max(1, math.ceil(total_juniors * SENIOR_DRAFT_LIMIT))`). Owned portfolio holdings are **not** subtracted, ensuring a full 10% rookie class joins the Major League roster.
 2. **Roster Unification:** `major_league_roster = list(set(portfolio_tickers + promoted_rookies))`
-3. **Cross-Pollinated Pairing (`minor_league.get_major_league_matchups`):**
-   * Divides roster into Champions (owned) and Challengers (unowned).
-   * **Shuffle Protocol:** Applies `random.shuffle()` to both pools to eliminate deterministic rematch loops and minimize duplicate API costs.
-   * Pairs each Champion with an available Challenger.
+3. **Adjacent-Elo Ladder Pairing (`minor_league.get_major_league_matchups`):**
+   * Eliminates artificial separation between Champions and Challengers; pools all roster contenders into a unified competition ladder.
+   * **Dynamic Match Sizing:** Calculates `target_matches = ceil(len(roster) * MAJOR_LEAGUE_BUY_PCT)` with a physical ceiling of `len(roster) // 2` (e.g., 10 roster stocks at 30% buy = 3 matches evaluating 6 contenders).
+   * **Staleness Priority Queue:** Contenders are sorted ascending by `Last_Match` (unfought contenders with `datetime.min` or oldest match timestamps placed first), breaking exact timestamp ties by higher active `Junior_Elo` (with missing active `Junior_Elo` rows treated as lowest priority, and full ties preserving Google Sheet row order).
+   * **Adjacent-Elo Pairing:** The top `target_matches * 2` stalest contenders are extracted and sorted descending by `Senior_Elo` (with active `Junior_Elo` as secondary tie-breaker and Sheet row order on full ties), pairing adjacent elements (`Match 1: Rank 1 vs 2`, `Match 2: Rank 3 vs 4`, etc.). Emits a `⚖️ TIE-BREAK` pipeline log line whenever `Junior_Elo` resolves a tie.
+   * **Zero-Holdings Resilience:** Operates seamlessly when portfolio is empty (e.g. at startup or after full cash liquidation); unowned contenders compete directly against each other.
 4. **Senior Agent Evaluation:**
    * Invokes `senior_agent.evaluate_matchup(cand_a, cand_b)` using `SENIOR_MATCHUP_PROMPT` under high reasoning settings (`thinkingLevel="HIGH"`), injecting live Alpaca prices (`Candidate A: {ticker_a} (Current Market Price: ${price_a})`) for market grounding.
    * Validates winner against hallucinations.
@@ -296,47 +315,38 @@ Drafts top-performing unowned assets from the Minor League, combines them with a
 
 ---
 
-## 7. Module 6: Front Office Allocation & Swap Engine
+## 7. Module 6: Front Office Decoupled Allocation Engine
 
 ```text
-                              [Fetch Senior_Elo Leaderboard]
-                                            |
-                  +-------------------------+-------------------------+
-                  |                                                   |
-     [Portfolio Size < Max Capacity]                     [Portfolio Size >= Max Capacity]
-       (SCENARIO A: CAPACITY FILL)                         (SCENARIO B: SWAP PROTOCOL)
-                  |                                                   |
-     [Isolate Top Unowned Senior]                    [Identify Best Challenger & Worst Champion]
-                  |                                                   |
-     [Request Entry Trade Paperwork]                 [Is Challenger Elo > Champion Elo + 15.0?]
-                  |                                                   |
-     [trader.execute_entry()]                         +---------------+---------------+
-                  |                                   |                               |
-     +------------+------------+                    [YES]                            [NO]
-     |                         |                      |                               |
- [SUCCESS]                 [REJECTED]   [1. Liquidate Worst Champion]       [Maintain Roster]
-     |                         |                      |                               |
-[Log Trade_Log]       [Log ORDER_REJECTED] [2. Settle Delay: sleep(3)]                |
-(detailed_decisions)   (log_mechanical)               |                               |
-     |                         |        [3. Generate Winner Paperwork]                |
-     |                         |                      |                               |
-     |                         |        [4. Execute Winner Entry]                     |
-     |                         |                      |                               |
-     |                         |         +------------+------------+                  |
-     |                         |         |                         |                  |
-     |                         |     [SUCCESS]                 [REJECTED]             |
-     |                         |         |                         |                  |
-     |                         |   [Log Trade_Log]        [Log ORDER_REJECTED]        |
-     |                         | (detailed_decisions)      (log_mechanical)           |
-     |                         |         |                         |                  |
-     +------------+------------+---------+-------------------------+------------------+
-                                         |
-                                         v
-                         [Proceed Cleanly to Module 7 Briefings]
+                              [Fetch Senior_Elo Leaderboard (N Contenders)]
+                                                    |
+                         +--------------------------+--------------------------+
+                         |                                                     |
+            [PASS 1: DEMOTION & BOTTOM SELLS]                        [PASS 2: TOP-TIER BUYS]
+                         |                                                     |
+        [Evaluate Current Portfolio Holdings]                   [Identify Ranks 1..ceil(N * 0.30)]
+                         |                                                     |
+       +-----------------+-----------------+                    [Filter: Unowned & Not Liquidated]
+       |                                   |                                   |
+[Not in Senior_Elo]              [Rank in Bottom 30%]            [Request Entry Paperwork via Senior Agent]
+(Complete Demotion)               (Bottom Demotion)                            |
+       |                                   |                         [trader.execute_entry()]
+       +-----------------+-----------------+                                   |
+                         |                                       +-------------+-------------+
+            [trader.close_full_position()]                       |                           |
+                         |                                   [SUCCESS]                   [REJECTED]
+            [Log CLOSE_POSITION to Trade_Log]                    |                           |
+                         |                             [Wait for Fill & Log]        [Unmask Broker Error]
+         [Wait for Cash Settlement Cooldown]           (detailed_decisions)         [Log ORDER_REJECTED]
+                         |                                       |                           |
+                         +---------------------------------------+---------------------------+
+                                                     |
+                                                     v
+                                   [Proceed to Module 7 Briefings]
 ```
 
 ### Core Responsibility
-Governs capital deployment. Determines whether to allocate cash into empty portfolio slots or trigger asset replacement swaps based on Elo rating differentials. Unmasks granular broker rejections, maintains an immutable failure audit trail in Google Sheets, and preserves pipeline continuity so downstream executive briefings execute without interruption.
+Governs capital deployment through an independent, decoupled two-pass architecture. Buys and sells operate autonomously: holdings are liquidated only upon complete Major League demotion or when dropping into the bottom 30% of the active Major League roster, while new capital is deployed exclusively to buy candidates in the top 30% of the Major League. Eliminates atomic swaps and artificial portfolio capacity caps, unmasks granular broker rejections, maintains an immutable failure audit trail in Google Sheets, and preserves pipeline continuity.
 
 ### Primary Source Files
 * `bot.py` (Orchestration in `execute_swaps`)
@@ -345,110 +355,48 @@ Governs capital deployment. Determines whether to allocate cash into empty portf
 * `lib/gvqm_alpaca_trader.py`
 
 ### Inputs & Configuration Parameters
-* **MAX_PORTFOLIO_POSITIONS:** Maximum simultaneous holdings allowed (default: 3).
-* **ELO_SWAP_THRESHOLD:** Minimum rating advantage a challenger must hold over an incumbent to trigger a swap (default: 15.0 Elo points).
-* **MAX_INVESTMENT_PER_POSITION:** Dollar allocation per holding.
+* **SENIOR_DRAFT_LIMIT:** Decimal percentage of active Minor League candidates drafted into Major League (default: `0.10` = 10%).
+* **MAJOR_LEAGUE_BUY_PCT:** Decimal percentage defining top-tier Major League buy eligibility (default: `0.30` = 30%).
+* **MAJOR_LEAGUE_SELL_PCT:** Decimal percentage defining bottom-tier Major League liquidation threshold (default: `0.30` = 30%).
+* **INVEST_PER_TRADE:** Dollar allocation per holding.
+* **MAX_PORTFOLIO_POSITIONS & ELO_SWAP_THRESHOLD:** Deprecated; retained for backwards compatibility. Portfolio size is naturally governed by the top-tier buy rule.
 
 ### Execution Logic Flow
 
-#### Scenario A: Capacity Fill-Up (Empty Slots Available)
-1. **Capacity Audit:** Checks open slots: `open_slots = MAX_PORTFOLIO_POSITIONS - len(portfolio_tickers)`.
-2. **Drafting:** Selects highest-ranked unowned tickers from `Senior_Elo`.
-3. **Paperwork Request:** Calls `senior_agent.generate_batch_execution_paperwork({ticker: current_price})`.
+#### Leaderboard Ranking & Junior Elo Tie-Breaker (`minor_league.rank_senior_board`)
+Active `Senior_Elo` contenders are ranked via a deterministic three-tier hierarchy:
+1. **Primary:** `Senior_Elo` descending.
+2. **Secondary (Tie-Breaker):** Active `Junior_Elo` descending (`junior_tiebreak_key`). Tickers with no active (`'Y'`) row in `Junior_Elo` are assigned lowest priority in a tie so active scouted contenders win boundary ties.
+3. **Tertiary (Full Tie):** Existing Google Sheet row order preserved via Python's stable sort.
+* **Audit Logging:** Whenever `Junior_Elo` resolves a `Senior_Elo` tie, the engine emits `⚖️ TIE-BREAK (Senior Elo ...)` to the pipeline log.
+
+#### Pass 1: Demotion Sells (Holding Retention & Liquidation Gate)
+1. **Holding Inspection:** Inspects all active positions via `portfolio_tickers = trader.get_live_portfolio()`.
+   * **Major League Sovereignty:** Once an asset enters the portfolio, its retention or liquidation is governed strictly by Major League competition (Module 5 & 6). An owned stock is never demoted or sold based on Minor League standings or 250-day moving average price recovery. Liquidations occur strictly via Emergency Trapdoor exits (Module 4) or when the holding drops into the bottom 30% of the active Major League roster.
+2. **Eligibility Audit:**
+   * **Complete Demotion:** If an owned stock is not present in `Senior_Elo` (`Active_Contenders != 'Y'`), executes `trader.close_full_position(ticker)` with reason `"Major League Demotion"`.
+   * **Bottom 30% Major League Demotion:** If an owned stock is in the bottom 30% of active Major League contenders (`rank > total_majors - ceil(total_majors * MAJOR_LEAGUE_SELL_PCT)`), executes `trader.close_full_position(ticker)` with reason `"Bottom 30% Major League Demotion"`.
+   * **Holding Retention:** Stocks in the top 70% (top 30% or middle 40%) are maintained (`HOLD`).
+3. **Cash Settlement Cooldown:** If any liquidations occurred, calls `trader.wait_for_cash_settlement(budget)` before proceeding.
+
+#### Pass 2: Top-Tier Major League Buys (Candidate Entry Gate)
+1. **Candidate Screening:** Identifies active Major League contenders ranked in the top 30% (`ranked_majors[:ceil(total_majors * MAJOR_LEAGUE_BUY_PCT)]`).
+2. **Filtering:** Filters down to assets that are:
+   * Not currently owned (`ticker not in portfolio_tickers`).
+   * Not liquidated today via Trapdoor (`ticker not in liquidated_today`).
+3. **Paperwork Request:** Obtains entry bracket limits via `senior_agent.generate_batch_execution_paperwork({ticker: current_price})`.
 4. **Broker Entry Submission:** Submits bracket order via `trader.execute_entry(ticker, amount, buy_limit, take_profit, stop_loss)`.
 5. **Outcome Evaluation & Audit Trail:**
-   * **Success Branch:** If entry order succeeds, logs trade details to `Trade_Log` via `senior_history.log_detailed_decisions()` and records allocation thesis in `daily_ai_logic`.
+   * **Success Branch:**
+     * Submits bracket order to broker.
+     * Invokes `trader.wait_for_position_fill()`: verifies against physical filled positions (`get_portfolio()`). If filled within timeout (30s), logs confirmation. If resting on the order book as an open limit order, logs resting status gracefully and proceeds without halting the pipeline.
+     * Logs trade paperwork to `Trade_Log` via `senior_history.log_detailed_decisions()`.
+     * Injects allocation thesis into `daily_ai_logic` and appends ticker to session portfolio context.
    * **Rejection / Exception Branch (Broker Error Unmasking):** If Alpaca rejects the order or an exception occurs:
-     * Unmasks the exact broker rationale via `_extract_broker_error()` and `entry_status[0].get("info")`.
+     * Unmasks the exact broker rationale via `entry_status[0].get("info")` or pipeline exception.
      * Logs the specific broker rejection reason directly to stdout: `log_pipeline(f" ❌ Allocation Fill aborted: Alpaca rejected order for {best_ticker}. Reason: {error_reason}")`.
      * Records an audit row in Google Sheets `Trade_Log` via `senior_history.log_mechanical_trade(best_ticker, "ORDER_REJECTED", error_reason, current_price, 0)`.
-     * If an unhandled exception occurs in the entry pipeline, logs `ORDER_REJECTED` with rationale `Pipeline Exception: {e}`.
-     * Leaves the slot available in cash and proceeds cleanly without crashing execution.
-
-#### Scenario B: The Swap Protocol (Portfolio Full)
-1. **Target Identification:** Extracts `best_unowned` challenger and `worst_owned` champion from `Senior_Elo`.
-2. **Hurdle Verification:** Tests the Hurdle Condition: `Elo_challenger > Elo_champion + ELO_SWAP_THRESHOLD`.
-3. **Execution Sequence:**
-   * **Step 1 (Liquidation):** Calls `trader.close_full_position(worst_ticker)`. Logs exit to `Trade_Log` via `senior_history.log_mechanical_trade()`.
-   * **Step 2 (Cash Settlement Cooldown):** Executes `time.sleep(3)` to allow broker balance clearing.
-   * **Step 3 (Paperwork Generation):** Obtains entry limits and stop levels for incoming asset via `senior_agent.generate_batch_execution_paperwork()`.
-   * **Step 4 (Acquisition & Outcome Handling):** Fires entry order via `trader.execute_entry()`.
-     * **Success Branch:** Logs swap transaction to `Trade_Log` via `senior_history.log_detailed_decisions()` and records replacement in `daily_ai_logic`.
-     * **Rejection / Exception Branch (Capital Preservation):** If Alpaca rejects the buy order or an exception occurs:
-       * The incumbent champion has been liquidated, preserving capital in cash.
-       * Unmasks the exact broker rejection explanation via `entry_status[0].get("info")` or pipeline exception string.
-       * Logs full failure context to stdout: `log_pipeline(f" ❌ Swap incomplete: Alpaca liquidated {worst_ticker} but rejected buy order for {best_ticker}. Reason: {error_reason}")`.
-       * Appends an audit row to `Trade_Log` via `senior_history.log_mechanical_trade(best_ticker, "ORDER_REJECTED", error_reason, current_price, 0)`.
-       * Gracefully bypasses position creation while maintaining pipeline continuity to Module 7.
-
----
-
-### Broker Rejection Handling & Audit Trail Protocol (`GVQM-TICKET-01`)
-
-To guarantee complete operational transparency and ensure that downstream modules never suffer catastrophic failures due to broker-level rejections (e.g., margin limits, pattern day trading rules, minimum order constraints, or invalid symbol status), Module 6 enforces a dedicated five-step rejection handling and audit protocol:
-
-```text
-[Broker Exception / Rejection]
-              |
-              v
-[1. Deep Error Extraction (_extract_broker_error)]
-  -> Inspects: e.message, e.error['message'], e._error['message'], JSON string, or raw fallback
-              |
-              v
-[2. Contract Enforcer Dict Preservation (_enforce_contract)]
-  -> Preserves dict payload: isinstance(data, dict) -> [data]
-  -> Eliminates stringified dictionary representations (e.g., "{'event': 'ERROR'}")
-              |
-              v
-[3. Multi-Line Terminal Formatting (log_execution_matrix)]
-  -> Wraps info text across up to 4 lines using textwrap (width: 24, boundary: 32 columns)
-  -> Zero character cutoff; renders complete broker explanation in stdout
-              |
-              v
-[4. Google Sheets Audit Persistence & Pipeline Safety]
-  -> Appends ORDER_REJECTED row to Trade_Log via log_mechanical_trade()
-  -> Catches pipeline exceptions; guarantees seamless progression to Module 7 Briefings
-```
-
-#### 1. Broker Error Unmasking (`_extract_broker_error`)
-Legacy implementations often masked broker rejections behind generic status strings or truncated error codes. The `_extract_broker_error(e)` utility extracts the root explanation from Alpaca SDK exceptions:
-* **Attribute Inspection:** Sequentially checks `e.message`, `e.error`, and `e._error` for structured dictionary payloads or JSON strings containing a `message` key.
-* **JSON Envelope Parsing:** If `str(e)` begins and ends with curly braces, safely parses the payload as JSON to retrieve `parsed['message']`.
-* **Clean Fallback:** Returns clean unmasked error text (e.g., `"insufficient buying power: require $10000.00 but available is $4520.10"`, `"order is not fractionable"`), falling back to `"Unknown broker error"` only if no string representation exists.
-
-#### 2. Contract Enforcer Dictionary Preservation (`_enforce_contract`)
-Trader responses must adhere to a standardized contract list `[{"event": ..., "info": ...}]`:
-* Ensures that dictionary payloads passed into `_enforce_contract` are preserved directly: `if isinstance(data, dict): return [data]`.
-* Eliminates the issue where passing an error dict converted it into stringified dictionary representations (e.g., `"{'event': 'ERROR', 'info': '...'}"`), ensuring callers can cleanly access `entry_status[0].get("info")` directly without regex parsing.
-
-#### 3. Multi-Line Terminal Execution Matrix (`log_execution_matrix`)
-When an order event terminates in `"ERROR"`, `"HOLD"`, or `"CANCEL_PENDING"`, the terminal execution matrix logs diagnostic information:
-* Replaces legacy 25-character hard truncation (`[:25]`) with word-wrapping via Python's `textwrap.wrap(info_text, width=col_width - 8)`.
-* Wraps across up to 4 lines within the 32-column boundary (`col_width = 32`), displaying the full broker rejection explanation without breaking the visual alignment of the execution table.
-
-#### 4. Audit Trail Persistence in `Trade_Log`
-Every rejected entry order (both in Scenario A and Scenario B) is recorded in Google Sheets `Trade_Log` via `senior_history.log_mechanical_trade()` with 8-column alignment:
-
-| Column Position | Header Name | Recorded Value | Description |
-| :---: | :--- | :--- | :--- |
-| **Col 1** | `Date` | `YYYY-MM-DD HH:MM:SS` | Timestamp of rejection event. |
-| **Col 2** | `Ticker` | `{best_ticker}` | Target equity candidate. |
-| **Col 3** | `Action` | `"ORDER_REJECTED"` | Explicit rejection status identifier. |
-| **Col 4** | `Entry_Price` | `{current_price}` | Market price at time of order attempt. |
-| **Col 5** | `Stop_Loss` | `""` | Empty string (no order filled). |
-| **Col 6** | `Take_Profit` | `""` | Empty string (no order filled). |
-| **Col 7** | `Rationale` | `{error_reason}` | Exact unmasked broker rejection explanation. |
-| **Col 8** | `Shares_Held` | `0` | Explicit 0 shares held indication. |
-
-#### 5. Graceful Pipeline Continuation to Module 7
-Broker rejections and entry pipeline exceptions are fully isolated within Module 6:
-* All order execution and logging calls in `execute_swaps()` are protected with nested `try/except` blocks.
-* A rejected buy order does not halt bot execution or raise unhandled exceptions.
-* The pipeline seamlessly proceeds to **Module 7: Executive Briefing & Multi-Day Memory**, allowing CEO reports, account balances, and scouting notifications to be generated and dispatched without interruption.
-
-### Module Interface & Clean Boundary
-* **Output:** Real-world capital allocation via broker API, update of `Trade_Log` (including successful entries, exits, and unmasked `ORDER_REJECTED` audit entries), and emission of allocation audit messages.
-* **Decoupling Boundary:** Operates exclusively at the trade execution and broker interface boundary. Does not modify candidate scouting or recalculate Elo ratings.
+     * Leaves capital preserved in cash and proceeds cleanly without crashing execution.
 
 ---
 
@@ -461,10 +409,11 @@ Broker rejections and entry pipeline exceptions are fully isolated within Module
                                     |                                                                                                   |
                   [Minor League Scouting Brief (Resend API)]                                                    [Major League Executive Brief (Resend API)]
                                     |                                                                                                   |
-                    - Rising Stars Table                                                                        - Executive Actions Taken
-                    - Top 5 Heavyweights                                                                        - Account Equity & Buying Power
-                    - Dual-Layer Educational Notes                                                              - Unrealized P/L by Position
-                                                                                                                - Major Standings & Momentum Shifts
+                    - Rising Stars Table (Top 3 Movers)                                                         - Executive Actions Taken
+                    - Top 10% Draft Pool Standings (Rank, Ticker, Elo)                                          - Account Equity & Buying Power
+                    - Dual-Layer Educational Match Breakdowns                                                   - Unrealized P/L by Active Holding
+                                                                                                                - 5-Col Major Standings (Rank, Ticker, Elo, Status, Zone)
+                                                                                                                - Major League Momentum Shifts (Top 3 Movers)
 ```
 
 ### Core Responsibility
@@ -485,14 +434,28 @@ Aggregates logs, calculates multi-day momentum metrics by comparing live ranking
 
 ### Dispatch Payloads
 * **Scouting Report (`send_minor_league_scouting_report`):**
-  * Minor League Rising Stars.
-  * Top 5 Minor League Heavyweights.
-  * Dual-layer beginner educational battle breakdowns.
+  * Minor League Rising Stars (Top 3 biggest rank improvements over 3-7 days via `Junior_Memory_Bank`).
+  * Top 10% Minor League Heavyweights: Displays top `ceil(len(active_contenders) * SENIOR_DRAFT_LIMIT)` contenders with explicit `Rank`, `Ticker`, and `Elo Score`. Represents the rookie class drafted into Major League.
+  * Dual-layer beginner educational battle breakdowns for all daily matchups.
 * **Executive Brief (`send_executive_brief`):**
-  * Immediate actions executed (Swaps, Entries, Liquidations).
-  * Account financial metrics (Equity, Cash %, Position P/L).
-  * Major League standings and momentum shifts.
-  * Senior Agent portfolio diaries.
+  * Immediate actions executed (Entries, Demotion Sells, Trapdoor Liquidations).
+  * Account financial metrics (Equity, Cash %, Position P/L table including open resting limit orders tagged as `(Pending Buy)` with limit prices and `Order Open` status).
+  * **Major League Standings Table (5 Columns & Ground-Truth Parity):**
+    * **Ground-Truth Execution Parity:** The executive reporting engine binds `presentation_standings` directly to the `ranked_majors` roster returned by `execute_swaps()`. It does not re-draft unowned rookies post-trade, guaranteeing that the roster size, rankings, and Action Zone cutoffs (`BUY ZONE`, `HOLD`, `SELL ZONE`) presented in the email match broker trade execution with 100% fidelity.
+    * Displays all $P$ portfolio holdings + all $R$ drafted unowned rookies ($P + R$ total).
+    * `Rank`: Explicit numeric rank (`#1`, `#2`, `#3`... sorted by `Senior_Elo` descending, `Junior_Elo` tie-breaker, then Sheet row order; fallback path also uses `minor_league.rank_senior_board`).
+    * `Ticker`: Equity symbol.
+    * `Elo Rating`: Current Senior Elo score.
+    * `Status`: Tripartite classification:
+      - `🟢 Active` (held in portfolio): Light green background (`#e8f5e9`).
+      - `🟢 Active (Pending)` (submitted limit buy order pending execution): Light green background (`#e8f5e9`).
+      - `🟡 Challenger` (unowned rookie): Light yellow background (`#fffde7`).
+    * `Action Zone`: Dynamically computed matching Module 6 Front Office rules:
+      - Ranks 1 to `buy_count` (top $\lceil N \times \text{MAJOR\_LEAGUE\_BUY\_PCT} \rceil$): `🎯 BUY ZONE (Top 30%)`.
+      - Ranks from `bottom_start_rank` to $N$: `🚨 SELL ZONE (Bot 30%)`.
+      - Intermediate ranks: `⏸️ HOLD`.
+  * Major League Momentum (Top 3 biggest rank improvements over 3-7 days via `Senior_Memory_Bank`).
+  * Senior Agent portfolio diaries and matchup debate notes.
 
 ### Module Interface & Clean Boundary
 * **Output:** Outbound SMTP/API emails via Resend and strategy summaries archived to the `Strategy_Brief` tab.

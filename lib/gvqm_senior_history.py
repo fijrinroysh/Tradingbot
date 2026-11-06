@@ -5,6 +5,7 @@ import datetime
 import json
 import os
 import time 
+import math 
 from lib.gvqm_league_common import get_eastern_now, get_eastern_time_str
 
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
@@ -256,4 +257,5 @@ def get_senior_momentum(current_standings):
 
     # DYNAMIC LIMIT UPDATE
     draft_limit = getattr(config, 'SENIOR_DRAFT_LIMIT', 3)
-    return sorted(movers, key=lambda x: x['jump'], reverse=True)[:draft_limit]
+    limit = int(draft_limit) if draft_limit >= 1.0 else 3
+    return sorted(movers, key=lambda x: x['jump'], reverse=True)[:limit]

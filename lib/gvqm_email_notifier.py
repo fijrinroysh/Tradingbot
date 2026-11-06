@@ -1,5 +1,15 @@
+import sys
+if sys.platform == "win32":
+    if hasattr(sys.stdout, 'reconfigure'):
+        try: sys.stdout.reconfigure(encoding='utf-8')
+        except: pass
+    if hasattr(sys.stderr, 'reconfigure'):
+        try: sys.stderr.reconfigure(encoding='utf-8')
+        except: pass
+
 import resend
 import config
+import math
 from datetime import date, datetime
 from lib.gvqm_league_common import get_eastern_now
 import lib.gvqm_junior_history as junior_history_manager
@@ -14,7 +24,7 @@ def _is_debug_mode() -> bool:
 def _get_subject_prefix() -> str:
     return "[TEST] " if _is_debug_mode() else ""
 
-def send_executive_brief(decision, account_info, portfolio):
+def send_executive_brief(decision, account_info, portfolio, pending_orders=None):
     """
     Einstein Simplified Executive Briefing.
     Extracts the clean payload from bot.py and wraps it in a modern HTML template.
@@ -33,7 +43,9 @@ def send_executive_brief(decision, account_info, portfolio):
     notes_text = decision.get("ceo_report", "Routine market conditions.")
     standings = decision.get("major_league_standings", [])
     
-    portfolio_tickers = [p.symbol for p in portfolio] if portfolio else []
+    filled_tickers = [p.symbol for p in portfolio] if portfolio else []
+    pending_tickers = [getattr(o, 'symbol', str(o)) for o in pending_orders] if pending_orders else []
+    portfolio_tickers = list(set(filled_tickers + pending_tickers))
 
     # Format text for HTML
     html_actions = actions_text.replace('\n', '<br><br>')
@@ -94,67 +106,109 @@ def send_executive_brief(decision, account_info, portfolio):
             <tbody>
     """
     
-    if not portfolio:
+    if not portfolio and not pending_orders:
         html_content += f"""<tr><td colspan="4" style="padding: 15px; text-align: center; color: #7f8c8d; font-style: italic;">No active positions. Cash is King.</td></tr>"""
     else:
-        for p in portfolio:
-            try:
-                symbol = p.symbol
-                qty = float(p.qty)
-                current_price = float(p.current_price)
-                unrealized_pl = float(p.unrealized_pl)
-                
-                pl_color = "#27ae60" if unrealized_pl >= 0 else "#c0392b"
-                pl_icon = "▲" if unrealized_pl >= 0 else "▼"
-                
-                html_content += f"""
-                <tr style="border-bottom: 1px solid #eee;">
-                    <td style="{TD_STYLE}"><b>{symbol}</b></td>
-                    <td style="{TD_STYLE} text-align: center;">{qty}</td>
-                    <td style="{TD_STYLE} text-align: right;">${current_price:,.2f}</td>
-                    <td style="{TD_STYLE} color: {pl_color}; font-weight: bold; text-align: right;">{pl_icon} ${unrealized_pl:,.2f}</td>
-                </tr>
-                """
-            except: continue
+        if portfolio:
+            for p in portfolio:
+                try:
+                    symbol = p.symbol
+                    qty = float(p.qty)
+                    current_price = float(p.current_price)
+                    unrealized_pl = float(p.unrealized_pl)
+                    
+                    pl_color = "#27ae60" if unrealized_pl >= 0 else "#c0392b"
+                    pl_icon = "▲" if unrealized_pl >= 0 else "▼"
+                    
+                    html_content += f"""
+                    <tr style="border-bottom: 1px solid #eee;">
+                        <td style="{TD_STYLE}"><b>{symbol}</b></td>
+                        <td style="{TD_STYLE} text-align: center;">{qty}</td>
+                        <td style="{TD_STYLE} text-align: right;">${current_price:,.2f}</td>
+                        <td style="{TD_STYLE} color: {pl_color}; font-weight: bold; text-align: right;">{pl_icon} ${unrealized_pl:,.2f}</td>
+                    </tr>
+                    """
+                except: continue
+        if pending_orders:
+            for po in pending_orders:
+                try:
+                    po_sym = getattr(po, 'symbol', str(po))
+                    po_qty = getattr(po, 'qty', '-')
+                    po_limit = getattr(po, 'limit_price', None)
+                    price_str = f"${float(po_limit):,.2f} (Limit)" if po_limit else "Market"
+                    html_content += f"""
+                    <tr style="border-bottom: 1px solid #eee; background-color: #f9fbf9;">
+                        <td style="{TD_STYLE}"><b>{po_sym}</b> <span style="font-size: 10px; color: #27ae60; font-weight: bold;">(Pending Buy)</span></td>
+                        <td style="{TD_STYLE} text-align: center;">{po_qty}</td>
+                        <td style="{TD_STYLE} text-align: right;">{price_str}</td>
+                        <td style="{TD_STYLE} color: #7f8c8d; text-align: right; font-style: italic;">Order Open</td>
+                    </tr>
+                    """
+                except: continue
     html_content += "</tbody></table>"
 
     # ==========================================================
     # 🏆 SECTION 3: TRIMMED MAJOR LEAGUE STANDINGS
     # ==========================================================
+    # Calculate Action Zone thresholds matching Module 6 Front Office Allocation Engine
+    total_majors = len(standings)
+    major_buy_pct = getattr(config, 'MAJOR_LEAGUE_BUY_PCT', 0.30)
+    major_sell_pct = getattr(config, 'MAJOR_LEAGUE_SELL_PCT', 0.30)
+    buy_count = max(1, math.ceil(total_majors * major_buy_pct)) if isinstance(major_buy_pct, float) and major_buy_pct <= 1.0 else max(1, int(major_buy_pct))
+    sell_count = max(1, math.ceil(total_majors * major_sell_pct)) if isinstance(major_sell_pct, float) and major_sell_pct <= 1.0 else max(1, int(major_sell_pct))
+    bottom_start_rank = max(buy_count + 1, total_majors - sell_count + 1)
+
     html_content += f"""
         <h3 style="color: #8e44ad; border-bottom: 2px solid #8e44ad; padding-bottom: 5px;">🏆 Active Roster vs. Top Challengers</h3>
         <table style="width: 100%; border-collapse: collapse; margin-bottom: 25px;">
             <thead>
                 <tr>
+                    <th style="{TH_STYLE} text-align: center; width: 45px;">Rank</th>
                     <th style="{TH_STYLE} text-align: left;">Ticker</th>
                     <th style="{TH_STYLE} text-align: center;">Elo Rating</th>
                     <th style="{TH_STYLE} text-align: center;">Status</th>
+                    <th style="{TH_STYLE} text-align: center;">Action Zone</th>
                 </tr>
             </thead>
             <tbody>
     """
 
     if not standings:
-        html_content += f"""<tr><td colspan="3" style="padding: 15px; text-align: center; color: #7f8c8d; font-style: italic;">No standings data available.</td></tr>"""
+        html_content += f"""<tr><td colspan="5" style="padding: 15px; text-align: center; color: #7f8c8d; font-style: italic;">No standings data available.</td></tr>"""
     else:
-        for item in standings:
+        for rank, item in enumerate(standings, start=1):
             ticker = item[0]
             stats = item[1]
             elo = round(stats.get('Elo_Rating', 1500), 1)
             
             # Highlight your owned stocks vs challengers
-            if ticker in portfolio_tickers:
+            if ticker in filled_tickers:
                 status = "🟢 Active"
+                bg_color = "#e8f5e9" # Light green
+            elif ticker in pending_tickers:
+                status = "🟢 Active (Pending)"
                 bg_color = "#e8f5e9" # Light green
             else:
                 status = "🟡 Challenger"
                 bg_color = "#fffde7" # Light yellow
+
+            # Determine Action Zone matching Decoupled Front Office Engine
+            if rank <= buy_count:
+                zone_label = f"🎯 BUY ZONE (Top {int(major_buy_pct*100)}%)" if isinstance(major_buy_pct, float) and major_buy_pct <= 1.0 else "🎯 BUY ZONE"
+                zone_badge = f'<span style="background-color: #d1fae5; color: #065f46; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;">{zone_label}</span>'
+            elif rank >= bottom_start_rank:
+                zone_label = f"🚨 SELL ZONE (Bot {int(major_sell_pct*100)}%)" if isinstance(major_sell_pct, float) and major_sell_pct <= 1.0 else "🚨 SELL ZONE"
+                zone_badge = f'<span style="background-color: #fee2e2; color: #991b1b; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;">{zone_label}</span>'
+            else:
+                zone_badge = '<span style="background-color: #f3f4f6; color: #4b5563; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;">⏸️ HOLD</span>'
                 
             html_content += f"""
             <tr style="background-color: {bg_color}; border-bottom: 1px solid #eee;">
+                <td style="{TD_STYLE} text-align: center; font-weight: bold; color: #6b7280;">#{rank}</td>
                 <td style="{TD_STYLE} font-weight: bold;">{ticker}</td>
                 <td style="{TD_STYLE} text-align: center;">{elo:.1f}</td>
                 <td style="{TD_STYLE} text-align: center; font-size: 11px; font-weight: bold;">{status}</td>
+                <td style="{TD_STYLE} text-align: center;">{zone_badge}</td>
             </tr>
             """
     html_content += "</tbody></table>"
@@ -218,7 +272,8 @@ def send_minor_league_scouting_report(daily_matchups, minor_league_standings):
     if not getattr(config, 'RESEND_API_KEY', None): return
     resend.api_key = config.RESEND_API_KEY
     
-    draft_limit = getattr(config, 'SENIOR_DRAFT_LIMIT', 3)
+    draft_limit = getattr(config, 'SENIOR_DRAFT_LIMIT', 0.10)
+    display_limit = max(1, math.ceil(len(minor_league_standings) * draft_limit)) if draft_limit < 1.0 else max(1, int(draft_limit))
     today = get_eastern_now().strftime("%b %d, %Y")
     match_count = len(daily_matchups) if daily_matchups else 0
     
@@ -238,7 +293,7 @@ def send_minor_league_scouting_report(daily_matchups, minor_league_standings):
 
     html_standings = ""
     TD_STYLE = "padding: 10px; border-bottom: 1px solid #eaeaea;"
-    for rank, (ticker, data) in enumerate(minor_league_standings[:draft_limit], start=1):
+    for rank, (ticker, data) in enumerate(minor_league_standings[:display_limit], start=1):
         html_standings += f"<tr><td style='{TD_STYLE} color: #6b7280;'>{rank}</td><td style='{TD_STYLE} font-weight: bold;'>{ticker}</td><td style='{TD_STYLE}'>{data.get('Elo_Rating', 1500):.1f}</td></tr>"
 
     html_battles = ""
@@ -265,7 +320,7 @@ def send_minor_league_scouting_report(daily_matchups, minor_league_standings):
             <h3 style="color: #374151; font-size: 15px; margin-top: 20px;">🚀 The Rising Stars (Momentum)</h3>
             {html_stars}
 
-            <h3 style="color: #374151; font-size: 15px; margin-top: 25px;">🏆 Top {draft_limit} Heavyweights</h3>
+            <h3 style="color: #374151; font-size: 15px; margin-top: 25px;">🏆 Top {display_limit} Heavyweights (Top 10% Draft Pool)</h3>
             <table style="width: 100%; border-collapse: collapse; text-align: left; margin-bottom: 25px; font-size: 14px;">
                 <tr style="background: #f9fafb; color: #6b7280; font-size: 12px; text-transform: uppercase;">
                     <th style="padding: 10px;">Rank</th><th style="padding: 10px;">Ticker</th><th style="padding: 10px;">Elo Score</th>

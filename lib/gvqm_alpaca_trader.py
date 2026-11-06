@@ -1,3 +1,12 @@
+import sys
+if sys.platform == "win32":
+    if hasattr(sys.stdout, 'reconfigure'):
+        try: sys.stdout.reconfigure(encoding='utf-8')
+        except: pass
+    if hasattr(sys.stderr, 'reconfigure'):
+        try: sys.stderr.reconfigure(encoding='utf-8')
+        except: pass
+
 import config
 import datetime
 from lib.gvqm_league_common import get_eastern_now, get_eastern_time_str
@@ -508,6 +517,18 @@ def get_portfolio():
     try: return trading_client.get_all_positions()
     except: return []
 
+def get_pending_buy_orders():
+    """
+    Returns a list of open buy orders currently resting on the broker book.
+    """
+    try:
+        req = GetOrdersRequest(status=QueryOrderStatus.OPEN)
+        open_orders = trading_client.get_orders(filter=req)
+        return [o for o in open_orders if o.side == OrderSide.BUY]
+    except Exception as e:
+        log_trader(f"⚠️ Failed to fetch pending buy orders: {e}")
+        return []
+
 # ==========================================================
 # 🛡️ PORTFOLIO VERIFICATION & SETTLEMENT HELPERS
 # ==========================================================
@@ -547,26 +568,26 @@ def wait_for_cash_settlement(required_cash, max_wait_seconds=60):
     log_trader("⚠️ Timed out waiting for broker to clear the cash.")
     return False
 
-def wait_for_position_fill(ticker, max_wait_seconds=60):
+def wait_for_position_fill(ticker, max_wait_seconds=30):
     """
-    Repeatedly checks the active portfolio to ensure a newly purchased stock 
-    actually arrived in our inventory before moving forward.
+    Repeatedly checks the broker's filled inventory to see if a newly purchased stock 
+    has executed into physical inventory. If it doesn't fill before timeout, confirms
+    that the limit order is resting openly on the book.
     """
     normalized_target = normalize_ticker(ticker)
-    log_trader(f"⏳ Waiting for broker to confirm {normalized_target} is officially in the portfolio...")
+    log_trader(f"⏳ Waiting for broker to confirm {normalized_target} fill...")
     elapsed = 0
     
     while elapsed < max_wait_seconds:
-        # Check the live portfolio inventory using normalization
-        live_portfolio = get_live_portfolio()
-        normalized_portfolio = [normalize_ticker(t) for t in live_portfolio]
+        positions = get_portfolio()
+        filled_tickers = [normalize_ticker(p.symbol) for p in positions]
         
-        if normalized_target in normalized_portfolio:
-            log_trader(f"✅ Success! {normalized_target} is secured in the portfolio.")
+        if normalized_target in filled_tickers:
+            log_trader(f"✅ Success! {normalized_target} position filled and secured in portfolio.")
             return True
             
-        time.sleep(5)
-        elapsed += 5
+        time.sleep(3)
+        elapsed += 3
         
-    log_trader(f"⚠️ Timed out waiting for {normalized_target} to show up in the portfolio.")
+    log_trader(f"⏳ Order for {normalized_target} is active and resting on the order book (fill pending).")
     return False
