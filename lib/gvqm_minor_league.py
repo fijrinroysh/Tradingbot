@@ -7,7 +7,7 @@ import config
 import math
 from datetime import datetime
 import time
-from lib.gvqm_league_common import get_eastern_time_str
+from lib.gvqm_league_common import get_client, get_eastern_time_str
 
 # Ensure UTF-8 output encoding on Windows consoles
 if sys.platform == "win32":
@@ -19,23 +19,7 @@ if sys.platform == "win32":
 # --- SETUP ---
 SHEET_NAME = getattr(config, 'GOOGLE_SHEET_NAME', "TradingBot_History")
 
-def get_client():
-    SCOPES = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
-    creds_json = os.getenv("GOOGLE_SHEETS_CREDENTIALS")
-    if not creds_json and os.path.exists("google_credentials.json"):
-        try:
-            with open("google_credentials.json", "r", encoding="utf-8") as f:
-                creds_json = f.read()
-        except:
-            return None
-    if not creds_json: return None
-    
-    try:
-        creds = Credentials.from_service_account_info(json.loads(creds_json), scopes=SCOPES)
-        return gspread.authorize(creds)
-    except Exception as e:
-        print(f"⚠️ [MATCHMAKER] Auth Error: {e}")
-        return None
+# Google Sheets client is imported from lib.gvqm_league_common
 
 # ==========================================
 # 🧮 THE ELO MATH
@@ -56,10 +40,12 @@ def calculate_elo(winner_rating, loser_rating, k_factor=32):
 # ==========================================
 # 📊 LEADERBOARD MANAGEMENT (WITH RETRIES)
 # ==========================================
-def fetch_leaderboard(league_name="Junior_Elo"):
+def fetch_leaderboard(league_name="Junior_Elo", active_only=True):
     """
     Returns a dict mapping tickers to their current Elo stats.
     Includes a retry loop to prevent Google Sheets connection drops.
+    If active_only is True (default), returns only Active_Contenders == 'Y'.
+    If active_only is False, returns all sheet records to preserve historical stats.
     """
     client = get_client()
     if not client: return {}
@@ -75,24 +61,20 @@ def fetch_leaderboard(league_name="Junior_Elo"):
             data = worksheet.get_all_records()
             leaderboard = {}
             for row in data:
-                # 👇 THE NEW FILTER: Check the Active_Contender column
-                # We strip spaces and make it uppercase just in case of typos in the sheet (e.g. ' y ')
                 active_status = str(row.get("Active_Contenders", "N")).strip().upper()
                 
-                # 🛑 BOUNCER CHECK: Is it a 'Y'?
-                if active_status == "Y":
+                if not active_only or active_status == "Y":
                     ticker = row.get("Ticker")
                     
                     if ticker:
-                        # ✅ It's active! Add it to our bot's memory for the day.
                         leaderboard[ticker] = {
                             "Elo_Rating": float(row.get("Elo_Rating", 1500)),
                             "Wins": int(row.get("Wins", 0)),
                             "Losses": int(row.get("Losses", 0)),
-                            "Last_Match": str(row.get("Last_Match", ""))
+                            "Last_Match": str(row.get("Last_Match", "")),
+                            "Active_Contenders": active_status
                         }
                         
-            # 4. Return only the filtered list of active players back to bot.py
             return leaderboard
 
         except gspread.exceptions.WorksheetNotFound:
@@ -111,8 +93,8 @@ def record_match_result(league_name, winner_ticker, loser_ticker):
     client = get_client()
     if not client: return
 
-    # 1. Fetch current standings
-    leaderboard = fetch_leaderboard(league_name)
+    # 1. Fetch current standings (including inactive/unflagged to preserve historical record)
+    leaderboard = fetch_leaderboard(league_name, active_only=False)
     w_stats = leaderboard.get(winner_ticker, {'Elo_Rating': 1500.0, 'Wins': 0, 'Losses': 0})
     l_stats = leaderboard.get(loser_ticker, {'Elo_Rating': 1500.0, 'Wins': 0, 'Losses': 0})
 
@@ -193,8 +175,10 @@ def _enrich_candidates(candidates, league_name):
     Private helper function. Fetches the leaderboard and attaches 
     Elo and Last_Match data to every candidate so they are ready for math.
     Preserves existing _elo and _last_match_dt if already present on candidate.
+    Reads all sheet records (active_only=False) to preserve genuine historical
+    timestamps even if a candidate was previously inactive.
     """
-    leaderboard = fetch_leaderboard(league_name)
+    leaderboard = fetch_leaderboard(league_name, active_only=False)
     
     for c in candidates:
         t = c.get('ticker', c.get('Ticker', ''))

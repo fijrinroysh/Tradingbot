@@ -24,7 +24,26 @@ def _is_debug_mode() -> bool:
 def _get_subject_prefix() -> str:
     return "[TEST] " if _is_debug_mode() else ""
 
-def send_executive_brief(decision, account_info, portfolio, pending_orders=None):
+def format_junior_elo_cell(ticker, junior_board, td_style):
+    """
+    Formats the Junior Elo table cell for the Major League standings:
+      - Active contender: bold score (e.g., <b>1548.2</b>)
+      - Dropped/Graduated contender: — (Inactive)
+      - Unranked / never in Minor League: —
+    """
+    if not isinstance(junior_board, dict) or ticker not in junior_board:
+        return f'<td style="{td_style} text-align: center; color: #9ca3af;">—</td>'
+    
+    cand = junior_board[ticker]
+    active_status = str(cand.get("Active_Contenders", "N")).strip().upper()
+    
+    if active_status == "Y":
+        elo_val = float(cand.get("Elo_Rating", 1500.0))
+        return f'<td style="{td_style} text-align: center; font-weight: bold;">{elo_val:.1f}</td>'
+    else:
+        return f'<td style="{td_style} text-align: center; color: #6b7280; font-size: 11px;">— (Inactive)</td>'
+
+def send_executive_brief(decision, account_info, portfolio, pending_orders=None, junior_board=None):
     """
     Einstein Simplified Executive Briefing.
     Extracts the clean payload from bot.py and wraps it in a modern HTML template.
@@ -42,6 +61,8 @@ def send_executive_brief(decision, account_info, portfolio, pending_orders=None)
     actions_text = decision.get("immediate_actions", "No immediate actions today.")
     notes_text = decision.get("ceo_report", "Routine market conditions.")
     standings = decision.get("major_league_standings", [])
+    if junior_board is None and isinstance(decision, dict):
+        junior_board = decision.get("junior_board")
     
     filled_tickers = [p.symbol for p in portfolio] if portfolio else []
     pending_tickers = [getattr(o, 'symbol', str(o)) for o in pending_orders] if pending_orders else []
@@ -165,7 +186,8 @@ def send_executive_brief(decision, account_info, portfolio, pending_orders=None)
                 <tr>
                     <th style="{TH_STYLE} text-align: center; width: 45px;">Rank</th>
                     <th style="{TH_STYLE} text-align: left;">Ticker</th>
-                    <th style="{TH_STYLE} text-align: center;">Elo Rating</th>
+                    <th style="{TH_STYLE} text-align: center;">Senior Elo</th>
+                    <th style="{TH_STYLE} text-align: center;">Junior Elo</th>
                     <th style="{TH_STYLE} text-align: center;">Status</th>
                     <th style="{TH_STYLE} text-align: center;">Action Zone</th>
                 </tr>
@@ -174,7 +196,7 @@ def send_executive_brief(decision, account_info, portfolio, pending_orders=None)
     """
 
     if not standings:
-        html_content += f"""<tr><td colspan="5" style="padding: 15px; text-align: center; color: #7f8c8d; font-style: italic;">No standings data available.</td></tr>"""
+        html_content += f"""<tr><td colspan="6" style="padding: 15px; text-align: center; color: #7f8c8d; font-style: italic;">No standings data available.</td></tr>"""
     else:
         for rank, item in enumerate(standings, start=1):
             ticker = item[0]
@@ -202,11 +224,14 @@ def send_executive_brief(decision, account_info, portfolio, pending_orders=None)
             else:
                 zone_badge = '<span style="background-color: #f3f4f6; color: #4b5563; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;">⏸️ HOLD</span>'
                 
+            junior_cell = format_junior_elo_cell(ticker, junior_board, TD_STYLE)
+
             html_content += f"""
             <tr style="background-color: {bg_color}; border-bottom: 1px solid #eee;">
                 <td style="{TD_STYLE} text-align: center; font-weight: bold; color: #6b7280;">#{rank}</td>
                 <td style="{TD_STYLE} font-weight: bold;">{ticker}</td>
                 <td style="{TD_STYLE} text-align: center;">{elo:.1f}</td>
+                {junior_cell}
                 <td style="{TD_STYLE} text-align: center; font-size: 11px; font-weight: bold;">{status}</td>
                 <td style="{TD_STYLE} text-align: center;">{zone_badge}</td>
             </tr>
@@ -273,7 +298,16 @@ def send_minor_league_scouting_report(daily_matchups, minor_league_standings):
     resend.api_key = config.RESEND_API_KEY
     
     draft_limit = getattr(config, 'SENIOR_DRAFT_LIMIT', 0.10)
-    display_limit = max(1, math.ceil(len(minor_league_standings) * draft_limit)) if draft_limit < 1.0 else max(1, int(draft_limit))
+    if isinstance(draft_limit, float) and draft_limit <= 1.0:
+        display_pct = round(draft_limit * 1.5, 4)
+        display_limit = max(1, math.ceil(round(len(minor_league_standings) * display_pct, 4)))
+        pct_val = round(display_pct * 100, 2)
+        pct_label = int(pct_val) if pct_val.is_integer() else pct_val
+        table_title = f"🏆 Top {display_limit} Heavyweights (Top {pct_label}% Draft Pool & Watchlist)"
+    else:
+        display_limit = max(1, math.ceil(int(draft_limit) * 1.5))
+        table_title = f"🏆 Top {display_limit} Heavyweights (Top {display_limit} Draft Pool & Watchlist)"
+
     today = get_eastern_now().strftime("%b %d, %Y")
     match_count = len(daily_matchups) if daily_matchups else 0
     
@@ -320,7 +354,7 @@ def send_minor_league_scouting_report(daily_matchups, minor_league_standings):
             <h3 style="color: #374151; font-size: 15px; margin-top: 20px;">🚀 The Rising Stars (Momentum)</h3>
             {html_stars}
 
-            <h3 style="color: #374151; font-size: 15px; margin-top: 25px;">🏆 Top {display_limit} Heavyweights (Top 10% Draft Pool)</h3>
+            <h3 style="color: #374151; font-size: 15px; margin-top: 25px;">{table_title}</h3>
             <table style="width: 100%; border-collapse: collapse; text-align: left; margin-bottom: 25px; font-size: 14px;">
                 <tr style="background: #f9fafb; color: #6b7280; font-size: 12px; text-transform: uppercase;">
                     <th style="padding: 10px;">Rank</th><th style="padding: 10px;">Ticker</th><th style="padding: 10px;">Elo Score</th>

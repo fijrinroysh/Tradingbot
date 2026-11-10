@@ -1,11 +1,9 @@
 name: Market Execution Bot
 
-# ⏰ Wakes up at exactly 9:30 AM EDT (13:30 UTC) Monday-Friday at Market Open
-# 🚀 'workflow_dispatch' allows you to manually click "Run" to test it anytime
+# ⏰ Scheduled externally via Google Cloud Scheduler (11:00 AM America/New_York, Mon-Fri)
+# 🚀 'workflow_dispatch' allows Cloud Scheduler or manual runs via the GitHub UI/API
 on:
-  schedule:
-    - cron: '30 13 * * 1-5'
-  workflow_dispatch: 
+  workflow_dispatch:
 
 # 👇 ADD THIS BLOCK TO SILENCE THE NODE.JS WARNING 👇
 env:
@@ -43,13 +41,11 @@ jobs:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
 
           # --- THE VARIABLES (Optional: Add any you put in the Variables tab here) ---
-          DAILY_SCAN_LIMIT: ${{ vars.DAILY_SCAN_LIMIT }}
           EMAIL: ${{ vars.EMAIL }}
           INVEST_PER_TRADE: ${{ vars.INVEST_PER_TRADE }}
           SENIOR_DRAFT_LIMIT: ${{ vars.SENIOR_DRAFT_LIMIT }}
           SCANNER_SMA_MULTIPLIER: ${{ vars.SCANNER_SMA_MULTIPLIER }}
           GOOGLE_SHEET_NAME: ${{ vars.GOOGLE_SHEET_NAME }}
-          MAX_PORTFOLIO_POSITIONS: ${{ vars.MAX_PORTFOLIO_POSITIONS }}
 
         run: |
           python bot.py

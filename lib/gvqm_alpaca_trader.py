@@ -423,7 +423,7 @@ def execute_entry(ticker, investment_amount, buy_limit, take_profit, stop_loss):
       
     try:
         order = LimitOrderRequest(
-            symbol=alpaca_ticker, qty=qty, side=OrderSide.BUY, time_in_force=TimeInForce.GTC,
+            symbol=alpaca_ticker, qty=qty, side=OrderSide.BUY, time_in_force=TimeInForce.DAY,
             limit_price=buy_limit, order_class=OrderClass.BRACKET,
             take_profit=TakeProfitRequest(limit_price=take_profit),
             stop_loss=StopLossRequest(stop_price=stop_loss)

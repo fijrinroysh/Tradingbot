@@ -99,7 +99,7 @@ def _nuclear_resubmit(client, ticker, parent_buy, buy_limit, take_profit, stop_l
         # 5. Submit New Bracket
         log(f"🔨 Resubmitting Bracket: Buy {final_limit} | TP {final_tp} | SL {final_sl}")
         new_order = LimitOrderRequest(
-            symbol=ticker, qty=int(qty), side=OrderSide.BUY, time_in_force=TimeInForce.GTC,
+            symbol=ticker, qty=int(qty), side=OrderSide.BUY, time_in_force=TimeInForce.DAY,
             limit_price=float(final_limit), order_class=OrderClass.BRACKET,
             take_profit=TakeProfitRequest(limit_price=final_tp),
             stop_loss=StopLossRequest(stop_price=final_sl)

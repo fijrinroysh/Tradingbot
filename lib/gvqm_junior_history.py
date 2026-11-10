@@ -6,31 +6,17 @@ import json
 import config
 import time
 import math
-from lib.gvqm_league_common import get_eastern_now, get_eastern_time_str
+from lib.gvqm_league_common import (
+    get_client,
+    get_eastern_now,
+    get_eastern_time_str,
+    load_memory_bank,
+    save_memory_bank,
+    compute_rank_momentum
+)
 
 SHEET_NAME = getattr(config, 'GOOGLE_SHEET_NAME', "TradingBot_History")
 JUNIOR_TAB_NAME = "Junior_Decisions"
-
-SCOPES = [
-    'https://www.googleapis.com/auth/spreadsheets',
-    'https://www.googleapis.com/auth/drive'
-]
-
-def get_client():
-    creds_json = os.getenv("GOOGLE_SHEETS_CREDENTIALS")
-    if not creds_json:
-        if os.path.exists("google_credentials.json"):
-            try: creds_json = open("google_credentials.json").read()
-            except: return None
-        else: return None
-            
-    try:
-        creds_dict = json.loads(creds_json)
-        creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
-        return gspread.authorize(creds)
-    except Exception as e:
-        print(f"⚠️ [JUNIOR HISTORY] Auth Error: {e}")
-        return None
 
 # ==========================================
 # 📤 WRITING (JUNIOR SCOUTING REPORTS)
@@ -118,98 +104,31 @@ def filter_candidates(active_contenders, limit=20):
     return drafted_tickers
 
 
-import io
-import json
 # ==========================================
 # 🧠 GOOGLE SHEETS MEMORY BANK (JSON IN A CELL)
 # ==========================================
 def load_history_from_sheets():
     """Downloads the memory bank from a dedicated tab in Google Sheets."""
-    client = get_client() # Uses your existing gspread authentication!
-    if not client: return {}
+    return load_memory_bank("Junior_Memory_Bank")
 
-    try:
-        sheet = client.open(SHEET_NAME)
-        # Try to find the Junior_Memory_Bank tab, create it if it doesn't exist
-        try:
-            worksheet = sheet.worksheet("Junior_Memory_Bank")
-        except:
-            print("☁️ [MEMORY] Creating new 'Junior_Memory_Bank' tab in Google Sheets...")
-            worksheet = sheet.add_worksheet(title="Junior_Memory_Bank", rows="10", cols="5")
-        
-        # Read the JSON string from Cell A1
-        val = worksheet.acell('A1').value
-        if val:
-            return json.loads(val)
-        return {}
-    except Exception as e:
-        print(f"⚠️ [MEMORY] Failed to load memory from sheets: {e}")
-        return {}
 
 def save_history_to_sheets(data):
     """Uploads the updated memory bank back to Cell A1 in Google Sheets."""
-    client = get_client()
-    if not client: return
+    save_memory_bank("Junior_Memory_Bank", data)
 
-    try:
-        sheet = client.open(SHEET_NAME)
-        try:
-            worksheet = sheet.worksheet("Junior_Memory_Bank")
-        except:
-            worksheet = sheet.add_worksheet(title="Junior_Memory_Bank", rows="10", cols="5")
-        
-        # Convert dictionary to string and dump it into Cell A1
-        json_str = json.dumps(data)
-        worksheet.update('A1', [[json_str]])
-    except Exception as e:
-        print(f"⚠️ [MEMORY] Failed to save memory to sheets: {e}")
 
 def get_rising_stars(current_standings):
     """
     Downloads history from Sheets, calculates biggest movers, saves new snapshot.
     Enforces a strict 7-day memory limit to avoid using outdated ranks.
     """
-    from datetime import datetime, timedelta
-    import config
-    
-    today_str = get_eastern_time_str("%Y-%m-%d")
-   
-    # 1. Download Memory Bank from Google Sheets
-    print("☁️ [NOTIFIER] Loading Minor League memory from Google Sheets...")
-    history = load_history_from_sheets()
-
-    # 2. Save today's snapshot
-    today_ranks = {ticker: rank for rank, (ticker, data) in enumerate(current_standings, start=1)}
-    history[today_str] = today_ranks
-
-    # 3. Upload Memory Bank back to Google Sheets
-    print("☁️ [NOTIFIER] Saving updated memory to Google Sheets...")
-    save_history_to_sheets(history)
-
-    # 4. Bounded Lookback: Check 3 days ago, then 4, up to a maximum of 7 days
-    past_ranks = None
-    for days_back in range(3, 8):
-        target_date = (get_eastern_now() - timedelta(days=days_back)).strftime("%Y-%m-%d")
-        if target_date in history:
-            past_ranks = history[target_date]
-            break
-            
-    # If no data was found within the last 7 days, abandon the momentum check
-    if not past_ranks:
-        return [] 
-
-    # 5. Calculate Jumps
-    rising_stars = []
-    for ticker, current_rank in today_ranks.items():
-        if ticker in past_ranks:
-            past_rank = past_ranks[ticker]
-            jump = past_rank - current_rank
-            if jump > 0:
-                rising_stars.append({
-                    "ticker": ticker, "jump": jump, "current": current_rank, "past": past_rank
-                })
-
-    # DYNAMIC LIMIT UPDATE
     draft_limit = getattr(config, 'SENIOR_DRAFT_LIMIT', 3)
     limit = int(draft_limit) if draft_limit >= 1.0 else 3
-    return sorted(rising_stars, key=lambda x: x['jump'], reverse=True)[:limit]
+    return compute_rank_momentum(
+        "Junior_Memory_Bank",
+        current_standings,
+        max_items=limit,
+        label="Minor League",
+        loader=load_history_from_sheets,
+        saver=save_history_to_sheets
+    )

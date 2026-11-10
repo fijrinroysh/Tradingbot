@@ -10,6 +10,7 @@ import re
 
 import datetime
 from lib.gvqm_league_common import get_eastern_time_str
+from lib.gvqm_agent_common import clean_json_text, _extract_and_format_citations
 
 import lib.gvqm_junior_prompts as prompts
 
@@ -55,51 +56,7 @@ def log_debug(message):
 
 
 
-def _extract_and_format_citations(grounding_metadata):
-    """
-    Extracts search queries and deduplicated citation sources from Gemini groundingMetadata.
-    Returns:
-        tuple: (queries, citations) where citations is a list of dicts with 'title' and 'uri'.
-    """
-    if not grounding_metadata:
-        return [], []
-    
-    queries = grounding_metadata.get('webSearchQueries', [])
-    chunks = grounding_metadata.get('groundingChunks', [])
-    
-    citations = []
-    seen_uris = set()
-    for chunk in chunks:
-        web = chunk.get('web', {})
-        uri = web.get('uri')
-        title = (web.get('title') or '').strip() or 'Web Source'
-        if uri and uri not in seen_uris:
-            seen_uris.add(uri)
-            citations.append({'title': title, 'uri': uri})
-            
-    return queries, citations
-
-def clean_json_text(text):
-
-    try:
-
-        text = text.strip()
-
-        text = re.sub(r'^```json\s*', '', text, flags=re.IGNORECASE)
-
-        text = re.sub(r'\s*```$', '', text, flags=re.IGNORECASE)
-
-        start = text.find('{')
-
-        end = text.rfind('}')
-
-        if start != -1 and end != -1: 
-
-            return text[start : end+1]
-
-        return text
-
-    except: return text
+# _extract_and_format_citations and clean_json_text are imported from lib.gvqm_agent_common
 
 
 

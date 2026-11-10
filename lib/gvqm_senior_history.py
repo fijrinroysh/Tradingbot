@@ -6,28 +6,19 @@ import json
 import os
 import time 
 import math 
-from lib.gvqm_league_common import get_eastern_now, get_eastern_time_str
+from lib.gvqm_league_common import (
+    get_client,
+    get_eastern_now,
+    get_eastern_time_str,
+    load_memory_bank,
+    save_memory_bank,
+    compute_rank_momentum
+)
 
-SCOPES = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
 SHEET_NAME = getattr(config, 'GOOGLE_SHEET_NAME', "TradingBot_History")
 SENIOR_DECISIONS_TAB = getattr(config, 'GOOGLE_SHEET_SENIOR_DECISIONS_TAB', "Senior_Decisions")
 STRATEGY_TAB_NAME = getattr(config, 'GOOGLE_SHEET_STRATEGY_TAB', "Strategy_Brief")
 TRADE_LOG_TAB = getattr(config, 'GOOGLE_SHEET_TRADE_LOG_TAB', "Trade_Log")
-
-def get_client():
-    creds_json = os.getenv("GOOGLE_SHEETS_CREDENTIALS")
-    if not creds_json:
-        if os.path.exists("google_credentials.json"):
-            try: creds_json = open("google_credentials.json").read()
-            except: return None
-        else: return None
-    try:
-        creds_dict = json.loads(creds_json)
-        creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
-        return gspread.authorize(creds)
-    except Exception as e:
-        print(f"⚠️ [SENIOR HISTORY] Auth Error: {e}")
-        return None
 
 # ==========================================
 # 🥊 1. LOG MATCHUPS (SENIOR DECISIONS TAB)
@@ -178,84 +169,26 @@ def log_strategy(decision_payload):
 # ==========================================
 def load_senior_history_from_sheets():
     """Downloads the Major League memory bank from Google Sheets."""
-    client = get_client() 
-    if not client: return {}
+    return load_memory_bank("Senior_Memory_Bank")
 
-    try:
-        sheet = client.open(SHEET_NAME)
-        try:
-            worksheet = sheet.worksheet("Senior_Memory_Bank")
-        except:
-            print("☁️ [MEMORY] Creating new 'Senior_Memory_Bank' tab...")
-            worksheet = sheet.add_worksheet(title="Senior_Memory_Bank", rows="10", cols="5")
-        
-        val = worksheet.acell('A1').value
-        if val:
-            return json.loads(val)
-        return {}
-    except Exception as e:
-        print(f"⚠️ [MEMORY] Failed to load senior memory from sheets: {e}")
-        return {}
 
 def save_senior_history_to_sheets(data):
     """Uploads the updated Major League memory bank to Google Sheets."""
-    client = get_client()
-    if not client: return
+    save_memory_bank("Senior_Memory_Bank", data)
 
-    try:
-        sheet = client.open(SHEET_NAME)
-        try:
-            worksheet = sheet.worksheet("Senior_Memory_Bank")
-        except:
-            worksheet = sheet.add_worksheet(title="Senior_Memory_Bank", rows="10", cols="5")
-        
-        json_str = json.dumps(data)
-        worksheet.update('A1', [[json_str]])
-    except Exception as e:
-        print(f"⚠️ [MEMORY] Failed to save senior memory to sheets: {e}")
 
 def get_senior_momentum(current_standings):
     """
     Calculates momentum shifts specifically for the Major League.
     Enforces a strict 7-day memory limit to avoid using outdated ranks.
     """
-    from datetime import datetime, timedelta 
-    import config
-    
-    today_str = get_eastern_time_str("%Y-%m-%d")
-    
-    print("☁️ [NOTIFIER] Loading Major League memory from Google Sheets...")
-    history = load_senior_history_from_sheets()
-
-    # Save today's snapshot (Rank 1 is the best)
-    today_ranks = {ticker: rank for rank, (ticker, data) in enumerate(current_standings, start=1)}
-    history[today_str] = today_ranks
-
-    print("☁️ [NOTIFIER] Saving updated Major League memory...")
-    save_senior_history_to_sheets(history)
-
-    # Bounded Lookback: Check 3 days ago, then 4, up to a maximum of 7 days
-    past_ranks = None
-    for days_back in range(3, 8):
-        target_date = (get_eastern_now() - timedelta(days=days_back)).strftime("%Y-%m-%d")
-        if target_date in history:
-            past_ranks = history[target_date]
-            break
-            
-    # If no data was found within the last 7 days, abandon the momentum check
-    if not past_ranks:
-        return [] 
-
-    # Calculate Jumps (Only keep positive jumps)
-    movers = []
-    for ticker, current_rank in today_ranks.items():
-        if ticker in past_ranks:
-            past_rank = past_ranks[ticker]
-            jump = past_rank - current_rank
-            if jump > 0:
-                movers.append({"ticker": ticker, "jump": jump, "current": current_rank, "past": past_rank})
-
-    # DYNAMIC LIMIT UPDATE
     draft_limit = getattr(config, 'SENIOR_DRAFT_LIMIT', 3)
     limit = int(draft_limit) if draft_limit >= 1.0 else 3
-    return sorted(movers, key=lambda x: x['jump'], reverse=True)[:limit]
+    return compute_rank_momentum(
+        "Senior_Memory_Bank",
+        current_standings,
+        max_items=limit,
+        label="Major League",
+        loader=load_senior_history_from_sheets,
+        saver=save_senior_history_to_sheets
+    )

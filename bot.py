@@ -254,6 +254,12 @@ def run_major_league(liquidated_today=None):
 
     if len(major_league_roster) < 2: return
 
+    # 👇 2. SYNC SENIOR ELO CONTENDERS & AUTO-REGISTER BEFORE MATCHMAKING 👇
+    try:
+        league_common.update_active_contenders_flag("Senior_Elo", major_league_roster, wipe_inactive_elo=True)
+    except Exception as e:
+        log_pipeline(f" ⚠️ Failed to update Senior Elo active contender flags: {e}")
+
     # EDGE CASE FIX: Fetch price ONCE per ticker to save API calls
     roster_data = []
     for t in major_league_roster:
@@ -301,15 +307,7 @@ def run_major_league(liquidated_today=None):
             except Exception as e:
                 log_pipeline(f" ⚠️ Failed to log matchup rationale: {e}")
 
-    # 👇  Update just the tickers that are today's active contenders (active contender flag) in the Senior Elo tab in Google sheet 👇
-
-    try:
-        # Call the helper to update 'Senior_Elo' tab flags to Y or N in Google Sheets
-        ##junior_history.update_active_contenders_flag("Senior_Elo", major_league_roster)
-        league_common.update_active_contenders_flag("Senior_Elo", major_league_roster, wipe_inactive_elo=True)
-        
-    except Exception as e:
-        log_pipeline(f" ⚠️ Failed to update Senior Elo active contender flags: {e}")
+    # Contender flags already synchronized prior to matchmaking.
 
 # ==========================================
 # ⚙️ PHASE 3: THE FRONT OFFICE (Execution Engine)
@@ -516,11 +514,15 @@ if __name__ == "__main__":
         junior_board = minor_league.fetch_leaderboard("Junior_Elo")
         sorted_juniors = sorted(junior_board.items(), key=lambda x: x[1].get('Elo_Rating', 1500.0), reverse=True) if junior_board else []
 
+        # Fetch full Junior leaderboard (including inactive contenders) for accurate cross-league perspective in Executive Brief
+        junior_board_full = minor_league.fetch_leaderboard("Junior_Elo", active_only=False)
+        decision_payload["junior_board"] = junior_board_full
+
         # 3. Dispatch Both Emails
         log_pipeline("📧 Dispatching Major and Minor League Briefs...")
         notifier.send_minor_league_scouting_report(minor_league_notes, sorted_juniors)
         pending_buys = trader.get_pending_buy_orders()
-        notifier.send_executive_brief(decision_payload, trader.get_account(), trader.get_portfolio(), pending_orders=pending_buys)
+        notifier.send_executive_brief(decision_payload, trader.get_account(), trader.get_portfolio(), pending_orders=pending_buys, junior_board=junior_board_full)
         
         senior_history.log_strategy(decision_payload)
         log_pipeline("✅ Multi-asset corporate briefing emails successfully dispatched.")

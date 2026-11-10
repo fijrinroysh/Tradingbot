@@ -260,6 +260,9 @@ Performs daily structural risk audits on active positions before new capital dep
                                                   [Unified Major League Roster]
                                                                     |
                                                                     v
+                                   [Pre-Match Senior Active Sync & Auto-Registration (1500.0)]
+                                                                    |
+                                                                    v
                                                 [Sort by Staleness (Last_Match Asc)]
                                                                     |
                                                                     v
@@ -273,9 +276,6 @@ Performs daily structural risk audits on active positions before new capital dep
                                                                     |
                                                                     v
                                                  [Senior Agent Adjudication & Logging]
-                                                                    |
-                                                                    v
-                                             [Senior Active Sync & Inactive Elo Reset]
 ```
 
 ### Core Responsibility
@@ -293,8 +293,14 @@ Drafts top-performing unowned assets from the Minor League, combines them with a
    * Reads `Junior_Elo` leaderboard via `minor_league.fetch_leaderboard("Junior_Elo")`.
    * Sorts junior stocks by Elo descending.
    * Filters out stocks already held in `portfolio_tickers` and those in `liquidated_today`.
-   * Extracts the top 10% of active junior contenders (`max(1, math.ceil(total_juniors * SENIOR_DRAFT_LIMIT))`). Owned portfolio holdings are **not** subtracted, ensuring a full 10% rookie class joins the Major League roster.
-2. **Roster Unification:** `major_league_roster = list(set(portfolio_tickers + promoted_rookies))`
+   * Extracts the top 10% of active junior contenders (`max(1, math.ceil(total_juniors * SENIOR_DRAFT_LIMIT))`). Owned portfolio holdings are **not** subtracted from this rookie allocation, ensuring a full 10% class of unowned contenders joins the Major League roster.
+2. **Roster Unification, Pre-Match Flag Synchronization & Auto-Registration:**
+   * Unifies roster: `major_league_roster = list(set(portfolio_tickers + promoted_rookies))`.
+   * **Pre-Match Flag Synchronization:** Invokes `league_common.update_active_contenders_flag("Senior_Elo", major_league_roster, wipe_inactive_elo=True)` **before matchmaking and live price fetching** (matching the Junior League operational pattern).
+   * Sets `Active_Contenders = 'Y'` for current Major League roster tickers.
+   * Sets `Active_Contenders = 'N'` for demoted/inactive tickers AND resets their `Elo_Rating = 1500.0` to eliminate stale historical scores.
+   * **Auto-Registration of New Contenders:** Identifies active contenders in `major_league_roster` that are missing entirely from the `Senior_Elo` sheet. Automatically batch-appends new rows via `worksheet.append_rows(...)` with clean baseline stats: `Elo_Rating = 1500.0`, `Wins = 0`, `Losses = 0`, `Win_Rate = "0.0%"`, `Last_Match = ""`, and `Active_Contenders = "Y"`.
+   * **Career History Preservation (`active_only=False`):** `_enrich_candidates` and `record_match_result` query the leaderboard with `active_only=False`, ensuring authentic career win/loss records and genuine `Last_Match` timestamps are preserved across sessions rather than falsely defaulting returning contenders to "never fought" (`datetime.min`).
 3. **Adjacent-Elo Ladder Pairing (`minor_league.get_major_league_matchups`):**
    * Eliminates artificial separation between Champions and Challengers; pools all roster contenders into a unified competition ladder.
    * **Dynamic Match Sizing:** Calculates `target_matches = ceil(len(roster) * MAJOR_LEAGUE_BUY_PCT)` with a physical ceiling of `len(roster) // 2` (e.g., 10 roster stocks at 30% buy = 3 matches evaluating 6 contenders).
@@ -306,9 +312,6 @@ Drafts top-performing unowned assets from the Minor League, combines them with a
    * Validates winner against hallucinations.
    * Updates `Senior_Elo` tab via `minor_league.record_match_result("Senior_Elo", winner, loser)`.
    * Logs title defense decision to `Senior_Decisions` worksheet via `senior_history.log_matchup()`.
-   * Invokes `junior_history.update_active_contenders_flag("Senior_Elo", major_league_roster)`.
-     * Sets `Active_Contenders = 'Y'` for current Major League roster tickers.
-     * Sets `Active_Contenders = 'N'` for demoted/inactive tickers AND resets their `Elo_Rating = 1500.0` to eliminate stale historical scores.
 
 ### Module Interface & Clean Boundary
 * **Output:** Updated `Senior_Elo` standings reflecting relative strength between active holdings and prospective acquisitions, with clean 1500.0 resets for dropped contenders.
@@ -385,7 +388,7 @@ Active `Senior_Elo` contenders are ranked via a deterministic three-tier hierarc
    * Not currently owned (`ticker not in portfolio_tickers`).
    * Not liquidated today via Trapdoor (`ticker not in liquidated_today`).
 3. **Paperwork Request:** Obtains entry bracket limits via `senior_agent.generate_batch_execution_paperwork({ticker: current_price})`.
-4. **Broker Entry Submission:** Submits bracket order via `trader.execute_entry(ticker, amount, buy_limit, take_profit, stop_loss)`.
+4. **Broker Entry Submission & Order Duration:** Submits bracket order via `trader.execute_entry(ticker, amount, buy_limit, take_profit, stop_loss)`. The parent buy limit order is submitted with `time_in_force=TimeInForce.DAY`, ensuring that unfilled limit orders automatically expire at market close, preventing capital lockups and eliminating zombie pending orders. Upon fill, its OCO profit/loss bracket legs automatically remain active as GTC.
 5. **Outcome Evaluation & Audit Trail:**
    * **Success Branch:**
      * Submits bracket order to broker.
@@ -412,7 +415,7 @@ Active `Senior_Elo` contenders are ranked via a deterministic three-tier hierarc
                     - Rising Stars Table (Top 3 Movers)                                                         - Executive Actions Taken
                     - Top 10% Draft Pool Standings (Rank, Ticker, Elo)                                          - Account Equity & Buying Power
                     - Dual-Layer Educational Match Breakdowns                                                   - Unrealized P/L by Active Holding
-                                                                                                                - 5-Col Major Standings (Rank, Ticker, Elo, Status, Zone)
+                                                                                                                - 6-Col Major Standings (Rank, Ticker, Sr Elo, Jr Elo, Status, Zone)
                                                                                                                 - Major League Momentum Shifts (Top 3 Movers)
 ```
 
@@ -421,31 +424,37 @@ Aggregates logs, calculates multi-day momentum metrics by comparing live ranking
 
 ### Primary Source Files
 * `gvqm_email_notifier.py`
-* `gvqm_junior_history.py` (Memory bank persistence)
-* `gvqm_senior_history.py` (Memory bank persistence)
+* `lib/gvqm_league_common.py` (Centralized `get_client()`, generic memory bank and momentum logic)
+* `lib/gvqm_agent_common.py` (Centralized markdown stripping and citation formatting)
+* `gvqm_junior_history.py` (Memory bank persistence delegation)
+* `gvqm_senior_history.py` (Memory bank persistence delegation)
 * `bot.py` (Orchestration in `__main__`)
 
 ### Multi-Day Momentum Logic (`get_rising_stars` & `get_senior_momentum`)
-1. **Memory Retrieval:** Invokes `load_history_from_sheets()` / `load_senior_history_from_sheets()` to fetch JSON from cell `A1` of `Junior_Memory_Bank` / `Senior_Memory_Bank`.
+1. **Memory Retrieval:** Invokes `load_history_from_sheets()` / `load_senior_history_from_sheets()`, which delegate to `league_common.load_memory_bank()`, fetching JSON from cell `A1` of `Junior_Memory_Bank` / `Senior_Memory_Bank`.
 2. **State Injection:** Converts current standings into `{ticker: rank}` map and stores under key `YYYY-MM-DD`.
-3. **Memory Persistence:** Overwrites updated JSON string back into cell `A1` via `save_history_to_sheets()` / `save_senior_history_to_sheets()`.
-4. **Lookback Resolution:** Targets `today - 3 days`. If exact date is unavailable, falls back to oldest available date in history.
+3. **Memory Persistence & Rolling 30-Day Pruning:** Automatically prunes historical snapshots older than 30 days before overwriting cell `A1` via `league_common.save_memory_bank()`. This bounds the JSON string size to safely prevent cell overflow against Google Sheets' 50,000-character hard limit while fully preserving the 3-to-7 day momentum lookback window.
+4. **Lookback Resolution:** Targets `today - 3 days`. If exact date is unavailable, falls back to oldest available date in history up to 7 days.
 5. **Momentum Metric:** `Delta_rank = Rank_past - Rank_current` (Positive value indicates rank improvement toward #1). Returns top 3 positive movers.
 
 ### Dispatch Payloads
 * **Scouting Report (`send_minor_league_scouting_report`):**
   * Minor League Rising Stars (Top 3 biggest rank improvements over 3-7 days via `Junior_Memory_Bank`).
-  * Top 10% Minor League Heavyweights: Displays top `ceil(len(active_contenders) * SENIOR_DRAFT_LIMIT)` contenders with explicit `Rank`, `Ticker`, and `Elo Score`. Represents the rookie class drafted into Major League.
+  * Top % * 1.5 Minor League Heavyweights: Displays top `ceil(len(active_contenders) * (SENIOR_DRAFT_LIMIT * 1.5))` contenders (e.g. Top 15% Draft Pool & Watchlist for 10% draft limit) with explicit `Rank`, `Ticker`, and `Elo Score`. This expanded view guarantees full visibility over the active draft pool and subsequent unowned call-up candidates without overcrowding email client views.
   * Dual-layer beginner educational battle breakdowns for all daily matchups.
 * **Executive Brief (`send_executive_brief`):**
   * Immediate actions executed (Entries, Demotion Sells, Trapdoor Liquidations).
   * Account financial metrics (Equity, Cash %, Position P/L table including open resting limit orders tagged as `(Pending Buy)` with limit prices and `Order Open` status).
-  * **Major League Standings Table (5 Columns & Ground-Truth Parity):**
+  * **Major League Standings Table (6 Columns & Ground-Truth Parity):**
     * **Ground-Truth Execution Parity:** The executive reporting engine binds `presentation_standings` directly to the `ranked_majors` roster returned by `execute_swaps()`. It does not re-draft unowned rookies post-trade, guaranteeing that the roster size, rankings, and Action Zone cutoffs (`BUY ZONE`, `HOLD`, `SELL ZONE`) presented in the email match broker trade execution with 100% fidelity.
     * Displays all $P$ portfolio holdings + all $R$ drafted unowned rookies ($P + R$ total).
     * `Rank`: Explicit numeric rank (`#1`, `#2`, `#3`... sorted by `Senior_Elo` descending, `Junior_Elo` tie-breaker, then Sheet row order; fallback path also uses `minor_league.rank_senior_board`).
     * `Ticker`: Equity symbol.
-    * `Elo Rating`: Current Senior Elo score.
+    * `Senior Elo`: Current Senior Elo score (formatted to 1 decimal place, e.g. `1548.2`).
+    * **`Junior Elo` Perspective:** Cross-league score resolution evaluated against the full `Junior_Elo` leaderboard (`minor_league.fetch_leaderboard("Junior_Elo", active_only=False)`):
+      - **Active Junior Contender (`Active_Contenders == 'Y'`):** Formats as bold numerical Elo score (e.g., `1548.2`).
+      - **Graduated / Inactive Contender (`Active_Contenders == 'N'`):** Formats as `— (Inactive)` in muted grey text. Prevents misleading default `1500.0` scores for stocks whose price organically recovered above the 250 MA distress threshold.
+      - **Unranked Contender (missing from sheet):** Formats as a clean dash `—` in muted grey text.
     * `Status`: Tripartite classification:
       - `🟢 Active` (held in portfolio): Light green background (`#e8f5e9`).
       - `🟢 Active (Pending)` (submitted limit buy order pending execution): Light green background (`#e8f5e9`).
@@ -485,7 +494,7 @@ Central Google Sheet: `TradingBot_History`
 | :--- | :--- | :--- | :--- | :--- |
 | **Reset Elo to 1500.0 for Inactive Contenders ('N')** | **Module 1 & 5** | Module 2 & 3 | `gvqm_junior_history.py` (`update_active_contenders_flag`), `bot.py` | Ensures stocks returning after months of inactivity start at baseline 1500.0 rather than carrying stale historical scores. |
 | **Switch Universe from S&P 500 to Russell 2000** | **Module 1** | Module 2 | `good_value_quick_money_market_scanner.py` | Ensure ticker formatting matches Alpaca symbology. Increase Google Sheets quotas for larger contender tracking. |
-| **Modify Moving Average Window or Discount %** | **Module 1** | None | `good_value_quick_money_market_scanner.py`, `config.py` | Stricter thresholds reduce candidate volume; ensure `DAILY_SCAN_LIMIT` handles smaller pools gracefully. |
+| **Modify Moving Average Window or Discount %** | **Module 1** | None | `good_value_quick_money_market_scanner.py`, `config.py` | Stricter thresholds reduce candidate volume; dynamic matchmaker scaling handles smaller pools gracefully. |
 | **Change Staleness Prioritization Algorithm** | **Module 2** | None | `gvqm_junior_history.py` (`filter_candidates`) | Keep fallback timestamp (`1900-01-01`) for unranked rookies to prevent starvation. |
 | **Adjust Elo Volatility ($K$-Factor)** | **Module 3 & 5** | Module 6 | `gvqm_minor_league.py` (`calculate_elo`) | $K > 48$ induces extreme volatility; $K < 16$ suppresses rookie promotions. Re-evaluate `ELO_SWAP_THRESHOLD` if $K$ changes. |
 | **Switch LLM Provider (e.g., Gemini to Claude/GPT)** | **Module 3 & 5** | Module 4 | `gvqm_junior_agent.py`, `gvqm_senior_agent.py` | Enforce identical JSON schemas (`winner`, `rationale`, `scratchpad`). Verify markdown sanitization in `clean_json_text()`. |
